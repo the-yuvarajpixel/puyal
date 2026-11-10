@@ -1,0 +1,8 @@
+{
+  "name": "RapidResponse Command",
+  "description": "Emergency response & disaster management platform with incident reporting, SOS alerts, and live admin coordination.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

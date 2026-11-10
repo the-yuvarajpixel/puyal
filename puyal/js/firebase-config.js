@@ -69,8 +69,16 @@ function requireAuth(role) {
  * Logout and redirect
  */
 function logout() {
-  auth.signOut().then(() => {
-    localStorage.removeItem('userRole');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('currentUser');
+  if (typeof auth !== 'undefined' && auth.signOut) {
+    auth.signOut().then(() => {
+      window.location.href = 'index.html';
+    }).catch(() => {
+      window.location.href = 'index.html';
+    });
+  } else {
     window.location.href = 'index.html';
-  });
+  }
 }
+

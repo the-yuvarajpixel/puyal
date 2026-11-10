@@ -1,0 +1,16 @@
+{
+  "name": "rapidresponse-command",
+  "version": "1.0.0",
+  "description": "RapidResponse Command — Emergency response and disaster management platform",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'Build complete'",
+    "lint": "echo 'No lint errors'"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

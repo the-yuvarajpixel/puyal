@@ -210,24 +210,38 @@
     // ====================================================================
     let currentUser = null;
 
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        window.location.href = 'index.html';
-        return;
-      }
-      currentUser = user;
-      document.getElementById('nav-user-email').textContent = user.email;
-
-      // Verify role
+    // Check local session first
+    const savedUserStr = localStorage.getItem('currentUser');
+    if (savedUserStr) {
       try {
-        const doc = await db.collection('users').doc(user.uid).get();
-        if (doc.exists && doc.data().role !== 'user') {
-          alert('Access denied. This portal is for civilians only.');
-          auth.signOut();
+        const parsed = JSON.parse(savedUserStr);
+        if (parsed && (parsed.role === 'user' || localStorage.getItem('userRole') === 'user')) {
+          currentUser = parsed;
+          document.getElementById('nav-user-email').textContent = parsed.email || 'Civilian User';
+        }
+      } catch (e) {}
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('nav-user-email').textContent = user.email;
+
+        // Verify role
+        try {
+          const doc = await db.collection('users').doc(user.uid).get();
+          if (doc.exists && doc.data().role !== 'user') {
+            alert('Access denied. This portal is for civilians only.');
+            logout();
+            return;
+          }
+        } catch (e) {
+          console.log('Role check error:', e);
+        }
+      } else {
+        if (!currentUser) {
           window.location.href = 'index.html';
         }
-      } catch (e) {
-        console.log('Role check error:', e);
       }
     });
 
