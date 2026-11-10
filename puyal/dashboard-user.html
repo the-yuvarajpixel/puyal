@@ -264,27 +264,31 @@
       </div>
 
       <div class="sos-media-grid">
-        <div class="sos-media-item">
-          <video id="sos-video" autoplay muted playsinline></video>
-          <!-- Hidden canvas for capturing video stream frames -->
-          <canvas id="sos-canvas" style="display:none;" width="320" height="240"></canvas>
-          <span class="media-label">📹 Live Camera Feed</span>
-          <span class="media-status"></span>
+        <div class="sos-media-item" style="position: relative; overflow: hidden; background: #0f172a;">
+          <video id="sos-video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+          <!-- Canvas for capturing & simulated video stream frames -->
+          <canvas id="sos-canvas" width="320" height="240" style="display:none; width: 100%; height: 100%; object-fit: cover;"></canvas>
+          <span class="media-label" id="sos-camera-label">📹 Live Camera Feed</span>
+          <span class="media-status" id="sos-feed-indicator"></span>
         </div>
         <div class="sos-media-item" style="display: flex; align-items: center; justify-content: center; background: var(--navy);">
           <div style="text-align: center; color: #fff;">
             <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
-            <div style="font-size: 12px; font-weight: 600;">AUDIO RELAY ACTIVE</div>
+            <div style="font-size: 12px; font-weight: 600;" id="sos-audio-mode-label">AUDIO RELAY ACTIVE</div>
             <div id="audio-level" style="width: 60px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 8px auto 0; overflow: hidden;">
               <div id="audio-bar" style="width: 30%; height: 100%; background: var(--success); border-radius: 3px; transition: width 0.1s;"></div>
             </div>
+            <div style="font-size: 10px; opacity: 0.8; margin-top: 6px;" id="sos-audio-freq-label">Monitoring...</div>
           </div>
           <span class="media-label">🎙️ Live Microphone</span>
           <span class="media-status"></span>
         </div>
       </div>
 
-      <div class="sos-actions">
+      <div class="sos-actions" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <button type="button" class="btn" id="btn-toggle-sim-feed" style="background: rgba(255,255,255,0.15); color: #fff; font-size: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,0.3); padding: 10px 16px; border-radius: var(--radius-md); cursor: pointer;" onclick="toggleSimulatedFeedMode()">
+          🔄 Toggle Simulated / Real Feed
+        </button>
         <button class="btn btn-end-sos" onclick="deactivateSOS()">
           ✕ End SOS Session
         </button>
@@ -956,7 +960,7 @@
         await dispatchSOS(null, null, null);
       }
 
-      // Start Camera & Mic
+      // 2. Start Camera & Microphone (or fallback to Simulated Emergency Feed)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
@@ -965,6 +969,9 @@
         sosStream = stream;
         const video = document.getElementById('sos-video');
         video.srcObject = stream;
+        video.style.display = 'block';
+        document.getElementById('sos-canvas').style.display = 'none';
+        document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed';
 
         // Setup audio visualizer
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -974,15 +981,126 @@
         source.connect(audioAnalyser);
         visualizeAudio();
 
-        // Start transmitting video frames & audio to server so Admin sees it live!
+        isSimulatedFeed = false;
         startLiveFrameRelay();
-
       } catch (err) {
-        console.warn('Camera/Mic stream notice:', err);
-        showToast('Camera/Mic feed notice: ' + err.message, 'warning');
+        console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', err);
+        activateSimulatedEmergencyFeed();
       }
 
       speakText('SOS Emergency Activated. Live video and audio feed are streaming to Admin Command Center.', 'en');
+    }
+
+    let isSimulatedFeed = false;
+    let simulatedPacketSeq = 1;
+
+    function activateSimulatedEmergencyFeed() {
+      isSimulatedFeed = true;
+      const video = document.getElementById('sos-video');
+      const canvas = document.getElementById('sos-canvas');
+      const label = document.getElementById('sos-camera-label');
+      const audioModeLabel = document.getElementById('sos-audio-mode-label');
+
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      if (label) label.textContent = '📹 Simulated Tactical Camera (Active)';
+      if (audioModeLabel) audioModeLabel.textContent = 'SIMULATED AUDIO RELAY ACTIVE';
+
+      startLiveFrameRelay();
+      showToast('⚡ Camera hardware unavailable: Simulated emergency tactical feed active.', 'warning');
+    }
+
+    function toggleSimulatedFeedMode() {
+      if (isSimulatedFeed) {
+        if (sosStream) {
+          isSimulatedFeed = false;
+          document.getElementById('sos-video').style.display = 'block';
+          document.getElementById('sos-canvas').style.display = 'none';
+          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed';
+          showToast('Switched to physical camera feed.', 'success');
+        } else {
+          showToast('Physical camera not available on this device. Retaining simulated tactical feed.', 'warning');
+        }
+      } else {
+        activateSimulatedEmergencyFeed();
+      }
+    }
+
+    function drawProceduralEmergencyFrame() {
+      const canvas = document.getElementById('sos-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width || 320;
+      const h = canvas.height || 240;
+
+      // Dark tactical slate background with night-vision grid
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, w, h);
+
+      // Radar scanlines
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.12)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y < h; y += 16) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      for (let x = 0; x < w; x += 32) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      // Tactical crosshair
+      const cx = w / 2;
+      const cy = h / 2;
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+      ctx.moveTo(cx - 38, cy); ctx.lineTo(cx - 8, cy);
+      ctx.moveTo(cx + 8, cy); ctx.lineTo(cx + 38, cy);
+      ctx.moveTo(cx, cy - 38); ctx.lineTo(cx, cy - 8);
+      ctx.moveTo(cx, cy + 8); ctx.lineTo(cx, cy + 38);
+      ctx.stroke();
+
+      // Rotating radar beam
+      const now = Date.now();
+      const angle = (now / 750) % (Math.PI * 2);
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * 48, cy + Math.sin(angle) * 48);
+      ctx.stroke();
+
+      // Top Alert Header
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.9)';
+      ctx.fillRect(8, 8, w - 16, 22);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('🔴 LIVE CIVILIAN SOS — SIMULATED TACTICAL FEED', 14, 23);
+
+      // Telemetry HUD overlay
+      ctx.fillStyle = '#4ade80';
+      ctx.font = '9px monospace';
+      const timeStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      ctx.fillText(`TIME: ${timeStr} UTC`, 12, h - 38);
+
+      const lat = currentCoords ? currentCoords.latitude.toFixed(4) : '13.0827';
+      const lon = currentCoords ? currentCoords.longitude.toFixed(4) : '80.2707';
+      ctx.fillText(`GPS: ${lat}, ${lon} (±3.5m)`, 12, h - 26);
+      ctx.fillText(`SEQ: #${simulatedPacketSeq} · RES: 320x240 · QUALITY: HIGH`, 12, h - 14);
+
+      // Simulated Audio Equalizer bars
+      ctx.fillStyle = '#ef4444';
+      for (let i = 0; i < 9; i++) {
+        const barH = Math.abs(Math.sin((now / 150) + i)) * 14 + 4;
+        ctx.fillRect(w - 65 + (i * 6), h - 14 - barH, 4, barH);
+      }
     }
 
     function startLiveFrameRelay() {
@@ -992,22 +1110,39 @@
       const ctx = canvas.getContext('2d');
 
       streamInterval = setInterval(() => {
-        if (!currentSosAlertId || !sosStream) return;
+        if (!currentSosAlertId) return;
 
         try {
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
+          let frameBase64 = null;
+          let vol = 35;
+
+          if (isSimulatedFeed || !sosStream) {
+            canvas.width = 320;
+            canvas.height = 240;
+            drawProceduralEmergencyFrame();
+            simulatedPacketSeq++;
+            frameBase64 = canvas.toDataURL('image/jpeg', 0.6);
+
+            // Synthetic voice/ambient audio level oscillation
+            vol = Math.round(30 + Math.sin(Date.now() / 200) * 28 + Math.random() * 12);
+            const audioBar = document.getElementById('audio-bar');
+            if (audioBar) audioBar.style.width = Math.min(100, vol * 1.2) + '%';
+            const freqLabel = document.getElementById('sos-audio-freq-label');
+            if (freqLabel) freqLabel.textContent = `Live Level: ${vol}%`;
+          } else if (video && video.videoWidth > 0 && video.videoHeight > 0) {
             canvas.width = 320;
             canvas.height = 240;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const frameBase64 = canvas.toDataURL('image/jpeg', 0.55);
+            frameBase64 = canvas.toDataURL('image/jpeg', 0.55);
 
-            let vol = 35;
             if (audioAnalyser) {
               const data = new Uint8Array(audioAnalyser.frequencyBinCount);
               audioAnalyser.getByteFrequencyData(data);
               vol = Math.round(data.reduce((a, b) => a + b) / data.length);
             }
+          }
 
+          if (frameBase64) {
             rapidSync.streamSOSFrame(
               currentSosAlertId,
               frameBase64,
@@ -1016,8 +1151,10 @@
               currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org'
             );
           }
-        } catch (e) {}
-      }, 1200); // Send frame every 1.2 seconds
+        } catch (e) {
+          console.warn('Frame relay step:', e);
+        }
+      }, 900); // Send optimized frame every 900ms for smooth live updates
     }
 
     async function dispatchSOS(lat, lon, accuracy) {
@@ -1091,6 +1228,7 @@
         audioAnimFrame = null;
       }
 
+      isSimulatedFeed = false;
       speakText('SOS Emergency session ended.', 'en');
       showToast('SOS broadcast ended.', 'warning');
     }

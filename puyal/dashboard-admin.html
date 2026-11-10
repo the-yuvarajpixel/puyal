@@ -538,10 +538,11 @@
   <div id="live-stream-modal" class="live-stream-modal-backdrop hidden">
     <div class="live-stream-box">
       <div class="stream-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           <span class="stream-rec-badge" style="position: static;"><span class="rec-dot"></span> LIVE CIVILIAN STREAM</span>
           <span style="font-size: 13px; font-weight: 700;" id="stream-user-email">Civilian Stream</span>
           <span id="stream-timer" style="font-family: monospace; font-size: 12px; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-weight: 700; color: #86efac;">00:00</span>
+          <span id="stream-packet-badge" style="font-family: monospace; font-size: 11px; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Packet: Syncing</span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
           <button type="button" id="btn-toggle-audio-monitor" onclick="toggleAdminAudioMonitor()" class="btn" style="background: rgba(255,255,255,0.15); color: #fff; font-size: 11px; padding: 4px 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-sm); cursor: pointer;">
@@ -1253,6 +1254,8 @@
       } catch (e) {}
     }
 
+    let adminStreamPacketCount = 0;
+
     function updateActiveStreamUI(data) {
       const img = document.getElementById('admin-live-stream-img');
       const indicator = document.getElementById('stream-waiting-indicator');
@@ -1261,6 +1264,14 @@
         img.src = data.lastFrame;
         img.style.display = 'block';
         indicator.style.display = 'none';
+
+        adminStreamPacketCount++;
+        const pktBadge = document.getElementById('stream-packet-badge');
+        if (pktBadge) {
+          pktBadge.textContent = `Packet #${adminStreamPacketCount} · Live`;
+          pktBadge.style.color = '#86efac';
+          pktBadge.style.borderColor = '#86efac';
+        }
       }
 
       // Audio waveform simulation from civilian microphone level
@@ -1287,6 +1298,9 @@
     function closeLiveStreamModal() {
       activeStreamSosId = null;
       adminAudioMonitorActive = false;
+      adminStreamPacketCount = 0;
+      const pktBadge = document.getElementById('stream-packet-badge');
+      if (pktBadge) pktBadge.textContent = 'Packet: Syncing';
       const audioBtn = document.getElementById('btn-toggle-audio-monitor');
       if (audioBtn) {
         audioBtn.textContent = '🔊 Audio Monitor: OFF';
