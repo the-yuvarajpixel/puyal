@@ -6,6 +6,9 @@
   <title>RapidResponse — Admin Command Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Open-Source Leaflet GIS & Mapping Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <link rel="stylesheet" href="css/styles.css" />
   <style>
     .emergency-alert-banner {
@@ -89,42 +92,232 @@
       </div>
     </div>
 
-    <!-- ── KPI Stats & Threat Severity Meter ── -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">Total Reported</div>
-        <div id="stat-total" class="kpi-value">0</div>
+    <!-- ====================================================================
+         SECTION 1: ADVANCED OPERATIONS ANALYTICS DASHBOARD
+         ==================================================================== -->
+    <section class="analytics-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+        <div>
+          <span class="gov-badge" style="background: #eff6ff; color: #1e40af; border-color: #bfdbfe;">
+            MISSION COMMAND INTELLIGENCE
+          </span>
+          <h2 style="font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 4px;">
+            Advanced Operations Analytics Dashboard
+          </h2>
+          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+            Real-time operational insights: emergency volume, triage status, team availability, fleet readiness, and category breakdown.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">Sync:</span>
+          <span class="sync-badge" style="background: #ecfdf5; color: #047857; border-color: #a7f3d0;">
+            ● Live Data Active
+          </span>
+        </div>
       </div>
-      <div class="kpi-card kpi-critical">
-        <div class="kpi-label">Critical Incidents</div>
-        <div id="stat-critical" class="kpi-value">0</div>
-      </div>
-      <div class="kpi-card kpi-pending">
-        <div class="kpi-label">Pending / Active</div>
-        <div id="stat-pending" class="kpi-value">0</div>
-      </div>
-      <div class="kpi-card kpi-resolved">
-        <div class="kpi-label">Resolved</div>
-        <div id="stat-resolved" class="kpi-value">0</div>
-      </div>
-    </div>
 
-    <!-- ── Admin Overall Threat Severity Gauge ── -->
-    <div class="severity-meter-card" style="margin-bottom: 24px;">
-      <div class="severity-meter-header">
-        <span style="font-size: 14px; font-weight: 800; color: var(--navy);">⚡ Regional Threat Severity Index</span>
-        <span id="admin-threat-gauge-badge" class="severity-score-badge meter-high">Status: High Threat (74/100)</span>
+      <!-- 6 Key Operational Insight Metric Cards -->
+      <div class="analytics-grid-6">
+        <!-- 1. Total Incidents -->
+        <div class="analytics-card" style="border-top: 4px solid var(--navy);">
+          <div class="analytics-card-label">Total Incidents</div>
+          <div class="analytics-card-value" id="stat-total-incidents">0</div>
+          <!-- Backward-compatible hidden ID for old script references if needed -->
+          <span id="stat-total" style="display: none;">0</span>
+          <div class="analytics-card-sub" style="color: var(--text-secondary);">
+            <span>📊 Across all zones</span>
+          </div>
+        </div>
+
+        <!-- 2. Critical Incidents -->
+        <div class="analytics-card" style="border-top: 4px solid var(--danger); background: #fff5f5;">
+          <div class="analytics-card-label" style="color: #991b1b;">Critical Incidents</div>
+          <div class="analytics-card-value" id="stat-critical-incidents" style="color: var(--danger);">0</div>
+          <span id="stat-critical" style="display: none;">0</span>
+          <div class="analytics-card-sub" style="color: var(--danger); font-weight: 700;">
+            <span>🚨 Immediate priority triage</span>
+          </div>
+        </div>
+
+        <!-- 3. Available Response Teams -->
+        <div class="analytics-card" style="border-top: 4px solid var(--success); background: #f0fdf4;">
+          <div class="analytics-card-label" style="color: #166534;">Available Teams</div>
+          <div class="analytics-card-value" id="stat-avail-teams-kpi" style="color: var(--success);">0</div>
+          <div class="analytics-card-sub" style="color: #166534; font-weight: 700;">
+            <span>✅ Ready for immediate dispatch</span>
+          </div>
+        </div>
+
+        <!-- 4. Busy Response Teams -->
+        <div class="analytics-card" style="border-top: 4px solid var(--warning); background: #fffbeb;">
+          <div class="analytics-card-label" style="color: #92400e;">Busy Teams</div>
+          <div class="analytics-card-value" id="stat-busy-teams-kpi" style="color: var(--warning);">0</div>
+          <div class="analytics-card-sub" style="color: #92400e; font-weight: 700;">
+            <span>⚡ Dispatched / On scene</span>
+          </div>
+        </div>
+
+        <!-- 5. Assigned Incidents -->
+        <div class="analytics-card" style="border-top: 4px solid var(--info); background: #eff6ff;">
+          <div class="analytics-card-label" style="color: #1e40af;">Assigned Incidents</div>
+          <div class="analytics-card-value" id="stat-assigned-incidents-kpi" style="color: var(--info);">0</div>
+          <span id="stat-pending" style="display: none;">0</span>
+          <div class="analytics-card-sub" style="color: #1e40af; font-weight: 700;">
+            <span>🚑 Response unit on transit</span>
+          </div>
+        </div>
+
+        <!-- 6. Resolved Incidents -->
+        <div class="analytics-card" style="border-top: 4px solid #059669;">
+          <div class="analytics-card-label" style="color: #065f46;">Resolved Incidents</div>
+          <div class="analytics-card-value" id="stat-resolved-incidents-kpi" style="color: #059669;">0</div>
+          <span id="stat-resolved" style="display: none;">0</span>
+          <div class="analytics-card-sub" style="color: #065f46;">
+            <span>🏁 Closed emergency operations</span>
+          </div>
+        </div>
       </div>
-      <div class="meter-track">
-        <div id="admin-threat-gauge-bar" class="meter-fill meter-high" style="width: 74%;"></div>
+
+      <!-- Advanced Breakdown: Incident Distribution by Category & Regional Threat -->
+      <div class="analytics-breakdown-row">
+        <!-- Incident Distribution by Category -->
+        <div class="cat-distribution-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <strong style="font-size: 14px; color: var(--navy);">📊 Incident Distribution by Category</strong>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                Active disaster classification across emergency categories
+              </div>
+            </div>
+            <span style="font-size: 11px; font-weight: 700; color: var(--navy-soft);" id="total-categories-label">6 Types</span>
+          </div>
+          <div id="cat-distribution-bars" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Fleet Readiness & Threat Severity Index -->
+        <div class="cat-distribution-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <strong style="font-size: 14px; color: var(--navy);">⚡ Threat Severity &amp; Readiness</strong>
+              <span id="admin-threat-gauge-badge" class="severity-score-badge meter-high">Status: High (74/100)</span>
+            </div>
+            <div class="meter-track" style="margin-bottom: 8px;">
+              <div id="admin-threat-gauge-bar" class="meter-fill meter-high" style="width: 74%;"></div>
+            </div>
+            <div class="meter-labels" style="margin-bottom: 16px;">
+              <span>🟢 Low</span>
+              <span>🟡 Moderate</span>
+              <span>🟠 High</span>
+              <span>🔴 Critical</span>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border); padding-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">FLEET READINESS</div>
+              <div style="font-size: 18px; font-weight: 900; color: #059669;" id="analytics-fleet-readiness">85%</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Units in ready state</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">CIVILIANS IMPACTED</div>
+              <div style="font-size: 18px; font-weight: 900; color: var(--danger);" id="analytics-affected-lives">18</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Lives being protected</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="meter-labels">
-        <span>🟢 Safe / Low (0-25)</span>
-        <span>🟡 Elevated Watch (26-55)</span>
-        <span>🟠 High Threat (56-80)</span>
-        <span>🔴 Critical Emergency (81-100)</span>
+    </section>
+
+    <!-- ====================================================================
+         SECTION 2: TACTICAL GPS DISASTER MAP & ROUTE VISUALIZATION (Leaflet)
+         ==================================================================== -->
+    <section class="tactical-map-section">
+      <div class="map-header">
+        <div>
+          <span class="gov-badge" style="background: #fef3c7; color: #92400e; border-color: #fde68a;">
+            OPEN-SOURCE LEAFLET &amp; OPENSTREETMAP GIS
+          </span>
+          <h2 style="font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 4px;">
+            Tactical GPS Disaster Map &amp; Real-Time Route Visualizer
+          </h2>
+          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+            Real-time geospatial operational view of disaster pins, emergency response vehicles, station depots, civilian GPS beacons, and 2 km tactical response perimeters.
+          </p>
+        </div>
+
+        <div class="map-toolbar">
+          <!-- Layer Filter Buttons -->
+          <button type="button" class="map-filter-btn active" id="btn-map-all" onclick="setMapFilter('all')">
+            🗺️ All Layers
+          </button>
+          <button type="button" class="map-filter-btn" id="btn-map-disasters" onclick="setMapFilter('disasters')">
+            🚨 Disasters
+          </button>
+          <button type="button" class="map-filter-btn" id="btn-map-vehicles" onclick="setMapFilter('vehicles')">
+            🚒 Vehicles
+          </button>
+          <button type="button" class="map-filter-btn" id="btn-map-stations" onclick="setMapFilter('stations')">
+            🏢 Depots
+          </button>
+          <button type="button" class="map-filter-btn" id="btn-map-sos" onclick="setMapFilter('sos')">
+            🚨 Civilian SOS
+          </button>
+
+          <!-- 2km Radius Perimeter Toggle -->
+          <button type="button" class="map-filter-btn btn-perimeter active" id="btn-map-2km" onclick="togglePerimeterCircles()">
+            ⭕ 2 km Perimeters: ON
+          </button>
+
+          <!-- Recenter Map -->
+          <button type="button" class="map-filter-btn" onclick="recenterTacticalMap()">
+            🎯 Recenter
+          </button>
+
+          <!-- Focus specific incident dropdown -->
+          <select id="map-incident-selector" class="filter-select" style="max-width: 200px;" onchange="focusIncidentFromDropdown(this.value)">
+            <option value="">🎯 Focus 2km Incident...</option>
+          </select>
+        </div>
       </div>
-    </div>
+
+      <!-- Leaflet Map Canvas Container -->
+      <div id="tactical-map"></div>
+
+      <!-- Map Legend Bar -->
+      <div class="map-legend-bar">
+        <div class="legend-items">
+          <div class="legend-item">
+            <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#dc2626; border:2px solid #fff; box-shadow:0 0 0 1px #dc2626;"></span>
+            <span>Critical / High Disaster Pin</span>
+          </div>
+          <div class="legend-item">
+            <span style="font-size: 15px;">🚒</span>
+            <span>Emergency Vehicles (Available / En Route)</span>
+          </div>
+          <div class="legend-item">
+            <span style="display:inline-block; width:14px; height:14px; border-radius:3px; background:#0f172a; border:1px solid #38bdf8;"></span>
+            <span>Station Command Depots</span>
+          </div>
+          <div class="legend-item">
+            <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#ef4444; animation: alertPulse 1.5s infinite;"></span>
+            <span>Live Civilian SOS Beacon</span>
+          </div>
+          <div class="legend-item">
+            <span style="display:inline-block; width:22px; height:0px; border-top:3px dashed #dc2626;"></span>
+            <span>Active Dispatch Route &amp; Distance</span>
+          </div>
+          <div class="legend-item">
+            <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:rgba(239,68,68,0.2); border:1.5px dashed #dc2626;"></span>
+            <span>2 km Operational Perimeter Zone</span>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">
+          OpenStreetMap &bull; Leaflet GIS
+        </div>
+      </div>
+    </section>
 
     <!-- ====================================================================
          GOVERNMENT PLATFORM INTEGRATION & FLEET MANAGEMENT
@@ -636,13 +829,23 @@
     // ====================================================================
     let currentAdmin = null;
 
+    function updateAdminNavDisplay(admin) {
+      const el = document.getElementById('nav-admin-email');
+      if (!el || !admin) return;
+      if (admin.email && admin.email.toLowerCase() === 'master.admin@rapidresponse.gov') {
+        el.innerHTML = `<span style="background: #dc2626; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; margin-right: 6px; letter-spacing: 0.5px;">MASTER COMMANDER</span> master.admin@rapidresponse.gov`;
+      } else {
+        el.textContent = admin.email || 'HQ Dispatcher';
+      }
+    }
+
     const savedAdminStr = localStorage.getItem('currentUser');
     if (savedAdminStr) {
       try {
         const parsed = JSON.parse(savedAdminStr);
         if (parsed && (parsed.role === 'admin' || localStorage.getItem('userRole') === 'admin')) {
           currentAdmin = parsed;
-          document.getElementById('nav-admin-email').textContent = parsed.email || 'HQ Commander';
+          updateAdminNavDisplay(parsed);
         }
       } catch (e) {}
     }
@@ -660,7 +863,7 @@
             role: 'admin',
             displayName: user.displayName || user.email.split('@')[0]
           };
-          document.getElementById('nav-admin-email').textContent = user.email;
+          updateAdminNavDisplay(currentAdmin);
         }
       });
     }
@@ -721,7 +924,13 @@
         }
         renderTeams();
         renderDashboard();
+        updateAdvancedAnalytics();
         renderSOSFeed();
+
+        if (!tacticalMap) {
+          initTacticalMap();
+        }
+        updateTacticalMap();
       } catch (err) {
         console.warn('Sync load fallback:', err);
       }
@@ -1724,6 +1933,7 @@
               </select>
             </td>
             <td class="actions-cell" style="text-align: right; white-space: nowrap;">
+              <button onclick="focusIncidentOnMap('${item.id}')" class="btn-link" style="color: #2563eb; font-weight: 700; margin-right: 6px;" title="Focus on GIS Map & 2km Zone">🗺️ Map</button>
               <button onclick="openTeamAssignmentModal('${item.id}')" class="btn-link" style="color: #047857; font-weight: 700; margin-right: 6px;">⚡ Match</button>
               <button onclick="viewDetails('${item.id}')" class="btn-link btn-view">View</button>
               <button onclick="deleteIncident('${item.id}')" class="btn-link btn-del">Delete</button>
@@ -1731,6 +1941,519 @@
           </tr>
         `;
       }).join('') || `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-faint);">No matching incidents found.</td></tr>`;
+    }
+
+    // ====================================================================
+    // ADVANCED OPERATIONS ANALYTICS ENGINE
+    // ====================================================================
+    function updateAdvancedAnalytics() {
+      const total = incidents.length;
+      const critical = incidents.filter(i => i.severity === 'Critical').length;
+      const availTeams = responseTeams.filter(t => t.status === 'Available').length;
+      const busyTeams = responseTeams.filter(t => t.status === 'Dispatched' || t.status === 'On Scene').length;
+      const assigned = incidents.filter(i => i.status !== 'Resolved' && (i.assignedTeam || responseTeams.some(t => String(t.assignedIncidentId) === String(i.id)))).length;
+      const resolved = incidents.filter(i => i.status === 'Resolved').length;
+
+      // Update 6 KPI Cards
+      const elTotal = document.getElementById('stat-total-incidents');
+      if (elTotal) elTotal.textContent = total;
+      const elCrit = document.getElementById('stat-critical-incidents');
+      if (elCrit) elCrit.textContent = critical;
+      const elAvail = document.getElementById('stat-avail-teams-kpi');
+      if (elAvail) elAvail.textContent = availTeams;
+      const elBusy = document.getElementById('stat-busy-teams-kpi');
+      if (elBusy) elBusy.textContent = busyTeams;
+      const elAssigned = document.getElementById('stat-assigned-incidents-kpi');
+      if (elAssigned) elAssigned.textContent = assigned;
+      const elResolved = document.getElementById('stat-resolved-incidents-kpi');
+      if (elResolved) elResolved.textContent = resolved;
+
+      // Backward compatibility IDs
+      if (document.getElementById('stat-total')) document.getElementById('stat-total').textContent = total;
+      if (document.getElementById('stat-critical')) document.getElementById('stat-critical').textContent = critical;
+      if (document.getElementById('stat-pending')) document.getElementById('stat-pending').textContent = total - resolved;
+      if (document.getElementById('stat-resolved')) document.getElementById('stat-resolved').textContent = resolved;
+
+      // Incident Distribution by Category
+      const catCounts = {
+        'Flood': 0,
+        'Fire': 0,
+        'Medical Emergency': 0,
+        'Road Accident': 0,
+        'Structural Collapse': 0,
+        'SOS Emergency': 0
+      };
+
+      incidents.forEach(inc => {
+        const cat = inc.category || 'Other';
+        catCounts[cat] = (catCounts[cat] || 0) + 1;
+      });
+
+      const catColors = {
+        'Flood': '#0284c7',
+        'Fire': '#dc2626',
+        'Medical Emergency': '#059669',
+        'Road Accident': '#d97706',
+        'Structural Collapse': '#7c3aed',
+        'SOS Emergency': '#e11d48'
+      };
+
+      const catIcons = {
+        'Flood': '🌊',
+        'Fire': '🔥',
+        'Medical Emergency': '🩹',
+        'Road Accident': '🚗',
+        'Structural Collapse': '🏚️',
+        'SOS Emergency': '🚨'
+      };
+
+      const sortedCats = Object.entries(catCounts)
+        .sort((a, b) => b[1] - a[1]);
+
+      const container = document.getElementById('cat-distribution-bars');
+      if (container) {
+        container.innerHTML = sortedCats.map(([cat, count]) => {
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          const color = catColors[cat] || '#64748b';
+          const icon = catIcons[cat] || '⚠️';
+          return `
+            <div class="dist-bar-item">
+              <div class="dist-bar-header">
+                <span>${icon} ${cat}</span>
+                <span><strong>${count}</strong> (${pct}%)</span>
+              </div>
+              <div class="dist-bar-track">
+                <div class="dist-bar-fill" style="width: ${Math.max(count > 0 ? 5 : 0, pct)}%; background: ${color};"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Fleet Readiness & Affected Lives
+      const totalTeams = responseTeams.length;
+      const readinessPct = totalTeams > 0 ? Math.round((availTeams / totalTeams) * 100) : 100;
+      const readinessEl = document.getElementById('analytics-fleet-readiness');
+      if (readinessEl) readinessEl.textContent = `${readinessPct}%`;
+
+      const affectedLives = incidents.reduce((sum, i) => sum + (parseInt(i.affected, 10) || 0), 0);
+      const livesEl = document.getElementById('analytics-affected-lives');
+      if (livesEl) livesEl.textContent = affectedLives;
+    }
+
+    // ====================================================================
+    // OPEN-SOURCE TACTICAL LEAFLET & OPENSTREETMAP GIS ENGINE
+    // ====================================================================
+    let tacticalMap = null;
+    let mapLayers = {
+      disasters: null,
+      teams: null,
+      stations: null,
+      sos: null,
+      perimeters: null,
+      routes: null
+    };
+    let currentMapFilter = 'all';
+    let showPerimeterCircles = true;
+
+    function initTacticalMap() {
+      if (tacticalMap) return;
+      const mapEl = document.getElementById('tactical-map');
+      if (!mapEl || typeof L === 'undefined') return;
+
+      tacticalMap = L.map('tactical-map', {
+        center: [13.0604, 80.2496],
+        zoom: 12,
+        scrollWheelZoom: true
+      });
+
+      // Free, Open-Source OpenStreetMap Standard Tile Layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+      }).addTo(tacticalMap);
+
+      mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
+      mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
+      mapLayers.teams = L.layerGroup().addTo(tacticalMap);
+      mapLayers.stations = L.layerGroup().addTo(tacticalMap);
+      mapLayers.sos = L.layerGroup().addTo(tacticalMap);
+      mapLayers.routes = L.layerGroup().addTo(tacticalMap);
+
+      setTimeout(() => {
+        if (tacticalMap) tacticalMap.invalidateSize();
+      }, 500);
+    }
+
+    function extractItemCoords(item) {
+      if (!item) return { lat: 13.0604, lon: 80.2496 };
+      if (item.latitude && item.longitude) {
+        const lat = parseFloat(item.latitude);
+        const lon = parseFloat(item.longitude);
+        if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+      }
+      if (item.coords && item.coords.lat && item.coords.lon) {
+        return { lat: parseFloat(item.coords.lat), lon: parseFloat(item.coords.lon) };
+      }
+      const locStr = String(item.location || '');
+      const match = locStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+      }
+      if (/bridge|river/i.test(locStr)) return { lat: 13.0827, lon: 80.2707 };
+      if (/industrial|gt road|chemical/i.test(locStr)) return { lat: 13.1200, lon: 80.2800 };
+      if (/expressway|nh-48|highway/i.test(locStr)) return { lat: 12.9800, lon: 80.2100 };
+      if (/airport|terminal/i.test(locStr)) return { lat: 12.9900, lon: 80.1700 };
+      if (/marina|coastal/i.test(locStr)) return { lat: 13.0450, lon: 80.2824 };
+      return { lat: 13.0604, lon: 80.2496 };
+    }
+
+    function calcDistanceKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Math.round(R * c * 10) / 10;
+    }
+
+    function updateTacticalMap() {
+      if (!tacticalMap || typeof L === 'undefined') return;
+
+      mapLayers.disasters.clearLayers();
+      mapLayers.perimeters.clearLayers();
+      mapLayers.teams.clearLayers();
+      mapLayers.stations.clearLayers();
+      mapLayers.sos.clearLayers();
+      mapLayers.routes.clearLayers();
+
+      const catIcons = {
+        'Fire': '🔥',
+        'Flood': '🌊',
+        'Medical Emergency': '🩹',
+        'Road Accident': '🚗',
+        'Structural Collapse': '🏚️',
+        'SOS Emergency': '🚨'
+      };
+
+      const vehIcons = {
+        'Fire': '🚒',
+        'Medical Emergency': '🚑',
+        'Structural Collapse': '🏗️',
+        'Flood': '🚤',
+        'Road Accident': '🚨',
+        'HAZMAT': '☣️'
+      };
+
+      // 1. Disaster Pins & 2km Perimeters
+      incidents.forEach(inc => {
+        const coords = extractItemCoords(inc);
+        const icon = catIcons[inc.category] || '⚠️';
+        const sevClass = (inc.severity || 'medium').toLowerCase();
+
+        const disasterIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: `<div class="map-pin-disaster pin-${sevClass}">${icon}</div>`,
+          iconSize: [42, 42],
+          iconAnchor: [21, 21],
+          popupAnchor: [0, -22]
+        });
+
+        const popupContent = `
+          <div style="font-family: var(--font); min-width: 220px; padding: 4px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span class="sev-badge sev-${inc.severity}">${inc.severity} Threat</span>
+              <span style="font-size: 11px; font-weight: 700; color: #dc2626;">#${inc.priorityRank || 1} Priority</span>
+            </div>
+            <strong style="font-size: 14px; color: var(--navy);">${inc.title}</strong>
+            <div style="font-size: 12px; color: var(--text-secondary); margin: 6px 0;">
+              <div>📍 <strong>Location:</strong> ${inc.location}</div>
+              <div>👥 <strong>Casualties/Affected:</strong> ${inc.affected} people</div>
+              <div>🏷️ <strong>Category:</strong> ${inc.category}</div>
+              <div>⏱️ <strong>Reported:</strong> ${inc.timestamp}</div>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 10px;">
+              <button onclick="openTeamAssignmentModal('${inc.id}')" style="background:#059669; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer; flex:1;">
+                ⚡ Match Team
+              </button>
+              <button onclick="focusIncidentOnMap('${inc.id}')" style="background:#2563eb; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer; flex:1;">
+                🎯 2km Zone
+              </button>
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker([coords.lat, coords.lon], { icon: disasterIcon })
+          .bindPopup(popupContent);
+        mapLayers.disasters.addLayer(marker);
+
+        // 2 km Tactical Buffer Circle
+        if (showPerimeterCircles) {
+          const circleColor = inc.severity === 'Critical' ? '#dc2626' :
+                              inc.severity === 'High' ? '#d97706' : '#2563eb';
+          const circle = L.circle([coords.lat, coords.lon], {
+            radius: 2000,
+            color: circleColor,
+            fillColor: circleColor,
+            fillOpacity: 0.1,
+            weight: 1.5,
+            dashArray: '5, 5'
+          }).bindTooltip(`⭕ 2 km Response Perimeter &bull; ${inc.title}`, { sticky: true });
+          mapLayers.perimeters.addLayer(circle);
+        }
+      });
+
+      // 2. Station Depots
+      governmentStations.forEach(stn => {
+        const lat = stn.latitude || 13.0604;
+        const lon = stn.longitude || 80.2496;
+
+        const stationIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: `<div class="map-pin-station">🏢</div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+          popupAnchor: [0, -22]
+        });
+
+        const popupContent = `
+          <div style="font-family: var(--font); min-width: 200px; padding: 4px;">
+            <span style="font-size: 11px; font-weight: 800; background: #0f172a; color: #38bdf8; padding: 2px 6px; border-radius: 4px;">COMMAND DEPOT</span>
+            <div style="font-size: 14px; font-weight: 800; color: var(--navy); margin-top: 4px;">${stn.name}</div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+              <div>📍 <strong>Zone:</strong> ${stn.zone}</div>
+              <div>📞 <strong>Phone:</strong> ${stn.contact}</div>
+              <div style="margin-top: 4px; font-size: 11px;">
+                🚑 ALS: <strong>${stn.ambulances?.als || 0}</strong> &bull;
+                🚒 Fire: <strong>${stn.fireTenders?.water || 0}</strong> &bull;
+                🛡️ NDRF: <strong>${stn.ndrfTeams?.total || 0}</strong>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker([lat, lon], { icon: stationIcon }).bindPopup(popupContent);
+        mapLayers.stations.addLayer(marker);
+      });
+
+      // 3. Response Teams / Emergency Vehicles
+      responseTeams.forEach(team => {
+        const lat = team.latitude || 13.0604;
+        const lon = team.longitude || 80.2496;
+        const vIcon = vehIcons[team.category] || '🚐';
+        const isAvail = team.status === 'Available';
+        const isDisp = team.status === 'Dispatched';
+        const statusClass = isAvail ? 'veh-avail' : isDisp ? 'veh-dispatched' : 'veh-onscene';
+
+        const vehicleMarkerIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: `<div class="map-pin-vehicle ${statusClass}">${vIcon}</div>`,
+          iconSize: [38, 38],
+          iconAnchor: [19, 19],
+          popupAnchor: [0, -20]
+        });
+
+        const popupContent = `
+          <div style="font-family: var(--font); min-width: 210px; padding: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span class="team-status-pill ${isAvail ? 'status-avail' : 'status-dispatched'}">● ${team.status}</span>
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">${team.id}</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 800; color: var(--navy);">${team.name}</div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin: 4px 0;">
+              <div>🛡️ <strong>Expertise:</strong> ${team.category}</div>
+              <div>🏢 <strong>Depot:</strong> ${team.stationName || 'Command Center'}</div>
+              <div>👥 <strong>Crew:</strong> ${team.personnel || 8} Responders</div>
+              <div>📞 <strong>Radio:</strong> ${team.contact}</div>
+            </div>
+            <div style="margin-top: 8px;">
+              ${isAvail ? `
+                <button onclick="assignTeamToNearestIncident('${team.id}')" style="width:100%; background:#059669; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">
+                  ⚡ Assign to Nearest Incident
+                </button>
+              ` : isDisp ? `
+                <button onclick="releaseTeamFromDuty('${team.id}')" style="width:100%; background:#dc2626; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">
+                  ✅ Mark Resolved (Release)
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker([lat, lon], { icon: vehicleMarkerIcon }).bindPopup(popupContent);
+        mapLayers.teams.addLayer(marker);
+
+        // 4. Draw Active Dispatch Routes
+        if (isDisp && team.assignedIncidentId) {
+          const targetInc = incidents.find(i => String(i.id) === String(team.assignedIncidentId));
+          if (targetInc) {
+            const incCoords = extractItemCoords(targetInc);
+            const distKm = calcDistanceKm(lat, lon, incCoords.lat, incCoords.lon);
+            const etaMins = Math.max(3, Math.round(distKm * 2));
+
+            // Route Polyline
+            const polyline = L.polyline([[lat, lon], [incCoords.lat, incCoords.lon]], {
+              color: '#dc2626',
+              weight: 4,
+              opacity: 0.85,
+              dashArray: '8, 8'
+            }).bindTooltip(`🚑 En Route: ${team.name} ➔ ${targetInc.title}<br>Distance: ${distKm} km · ETA: ~${etaMins} mins`, { sticky: true });
+
+            mapLayers.routes.addLayer(polyline);
+
+            // Midpoint Route Badge
+            const midLat = (lat + incCoords.lat) / 2;
+            const midLon = (lon + incCoords.lon) / 2;
+            const routeBadgeIcon = L.divIcon({
+              className: 'custom-map-icon',
+              html: `<div class="map-route-badge">📍 ${distKm} km (ETA ${etaMins}m)</div>`,
+              iconSize: [110, 24],
+              iconAnchor: [55, 12]
+            });
+            const badgeMarker = L.marker([midLat, midLon], { icon: routeBadgeIcon, interactive: false });
+            mapLayers.routes.addLayer(badgeMarker);
+          }
+        }
+      });
+
+      // 5. Civilian Live SOS Beacons
+      sosAlerts.filter(a => a.active).forEach(alert => {
+        const lat = alert.latitude || 13.0827;
+        const lon = alert.longitude || 80.2707;
+
+        const sosIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: `<div class="map-pin-civilian">🚨</div>`,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+          popupAnchor: [0, -22]
+        });
+
+        const popupContent = `
+          <div style="font-family: var(--font); min-width: 200px; padding: 4px;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+              <span class="live-dot"></span>
+              <strong style="color: #dc2626; font-size: 13px;">ACTIVE CIVILIAN SOS</strong>
+            </div>
+            <div style="font-size: 12px; color: var(--navy); font-weight: 700;">${alert.email}</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin: 4px 0;">
+              📍 Coordinates: ${lat.toFixed(4)}, ${lon.toFixed(4)}<br>
+              ⏱️ Initiated: ${alert.timestamp}
+            </div>
+            <button onclick="openLiveStreamForSOS('${alert.id}')" style="width:100%; background:#dc2626; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:11px; font-weight:800; cursor:pointer; margin-top:6px;">
+              📹 Open Civilian Camera &amp; Audio Stream
+            </button>
+          </div>
+        `;
+
+        const marker = L.marker([lat, lon], { icon: sosIcon }).bindPopup(popupContent);
+        mapLayers.sos.addLayer(marker);
+      });
+
+      // Populate Incident Focus Dropdown
+      const selector = document.getElementById('map-incident-selector');
+      if (selector) {
+        const curVal = selector.value;
+        selector.innerHTML = '<option value="">🎯 Focus 2km Incident...</option>' +
+          incidents.map(inc => `<option value="${inc.id}" ${String(curVal) === String(inc.id) ? 'selected' : ''}>
+            #${inc.priorityRank || 1} ${inc.title.slice(0, 24)}... (${inc.severity})
+          </option>`).join('');
+      }
+
+      applyMapFilter(currentMapFilter);
+    }
+
+    function applyMapFilter(filterType) {
+      if (!tacticalMap) return;
+      currentMapFilter = filterType;
+
+      const layers = ['disasters', 'teams', 'stations', 'sos', 'perimeters', 'routes'];
+      layers.forEach(l => {
+        if (mapLayers[l] && tacticalMap.hasLayer(mapLayers[l])) {
+          tacticalMap.removeLayer(mapLayers[l]);
+        }
+      });
+
+      if (filterType === 'all') {
+        tacticalMap.addLayer(mapLayers.disasters);
+        tacticalMap.addLayer(mapLayers.teams);
+        tacticalMap.addLayer(mapLayers.stations);
+        tacticalMap.addLayer(mapLayers.sos);
+        tacticalMap.addLayer(mapLayers.routes);
+        if (showPerimeterCircles) tacticalMap.addLayer(mapLayers.perimeters);
+      } else if (filterType === 'disasters') {
+        tacticalMap.addLayer(mapLayers.disasters);
+        if (showPerimeterCircles) tacticalMap.addLayer(mapLayers.perimeters);
+        tacticalMap.addLayer(mapLayers.routes);
+      } else if (filterType === 'vehicles') {
+        tacticalMap.addLayer(mapLayers.teams);
+        tacticalMap.addLayer(mapLayers.routes);
+      } else if (filterType === 'stations') {
+        tacticalMap.addLayer(mapLayers.stations);
+      } else if (filterType === 'sos') {
+        tacticalMap.addLayer(mapLayers.sos);
+      }
+    }
+
+    function setMapFilter(filterType) {
+      const btns = ['all', 'disasters', 'vehicles', 'stations', 'sos'];
+      btns.forEach(b => {
+        const btnEl = document.getElementById('btn-map-' + b);
+        if (btnEl) btnEl.classList.toggle('active', b === filterType);
+      });
+      applyMapFilter(filterType);
+    }
+
+    function togglePerimeterCircles() {
+      showPerimeterCircles = !showPerimeterCircles;
+      const btn = document.getElementById('btn-map-2km');
+      if (btn) {
+        btn.classList.toggle('active', showPerimeterCircles);
+        btn.textContent = showPerimeterCircles ? '⭕ 2 km Perimeters: ON' : '⭕ 2 km Perimeters: OFF';
+      }
+      if (!showPerimeterCircles) {
+        if (tacticalMap && mapLayers.perimeters && tacticalMap.hasLayer(mapLayers.perimeters)) {
+          tacticalMap.removeLayer(mapLayers.perimeters);
+        }
+      } else {
+        if (tacticalMap && mapLayers.perimeters && !tacticalMap.hasLayer(mapLayers.perimeters)) {
+          tacticalMap.addLayer(mapLayers.perimeters);
+        }
+      }
+    }
+
+    function recenterTacticalMap() {
+      if (!tacticalMap) return;
+      tacticalMap.flyTo([13.0604, 80.2496], 12, { duration: 1.2 });
+    }
+
+    function focusIncidentFromDropdown(incidentId) {
+      if (incidentId) {
+        focusIncidentOnMap(incidentId);
+      }
+    }
+
+    function focusIncidentOnMap(incidentId) {
+      const inc = incidents.find(i => String(i.id) === String(incidentId));
+      if (!inc || !tacticalMap) return;
+
+      const coords = extractItemCoords(inc);
+      tacticalMap.flyTo([coords.lat, coords.lon], 14, { duration: 1.2 });
+
+      // Highlight perimeter circle
+      if (!showPerimeterCircles) {
+        togglePerimeterCircles();
+      }
+
+      // Scroll smoothly to map
+      const mapContainer = document.querySelector('.tactical-map-section');
+      if (mapContainer) {
+        mapContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      showToast(`🎯 Centered on 2km zone for "${inc.title}"`, 'success');
     }
   </script>
 

@@ -108,13 +108,32 @@
         <div id="magic-result" class="magic-link-banner hidden"></div>
       </form>
 
+      <!-- Master Admin Credentials Card (Requested by User) -->
+      <div style="margin-top: 18px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; border: 1.5px solid #334155; border-radius: var(--radius-md); padding: 16px; text-align: left; box-shadow: 0 4px 16px rgba(15,23,42,0.25);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 800; background: #dc2626; color: #fff; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.8px;">
+            MASTER ADMIN CREDENTIALS
+          </span>
+          <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">Supreme Access</span>
+        </div>
+        <div style="font-size: 12px; margin-bottom: 4px;">
+          <span style="color: #94a3b8;">Email:</span> <strong style="color: #38bdf8; font-family: monospace;">master.admin@rapidresponse.gov</strong>
+        </div>
+        <div style="font-size: 12px; margin-bottom: 12px;">
+          <span style="color: #94a3b8;">Password:</span> <strong style="color: #4ade80; font-family: monospace;">MasterAdmin@2026!</strong>
+        </div>
+        <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; padding: 11px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 800; cursor: pointer; border: none; box-shadow: 0 2px 8px rgba(37,99,235,0.4);" onclick="masterAdminLogin()">
+          🛡️ 1-Click Master Admin Sign In
+        </button>
+      </div>
+
       <!-- Demo Sign-In Action (Cross-device linked) -->
-      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
-        <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; padding: 12px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; cursor: pointer; border: none; box-shadow: 0 2px 8px rgba(220,38,38,0.3);" onclick="demoLogin()">
-          ⚡ Quick Demo Admin Sign In
+      <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button type="button" class="btn" style="width: 100%; background: var(--subtle); color: var(--navy); border: 1.5px solid var(--border); padding: 10px; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer;" onclick="demoLogin()">
+          ⚡ Quick Demo Admin Sign In (admin.demo@rapidresponse.org)
         </button>
         <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
-          Linked to Demo Civilian account — receives all live SOS broadcasts &amp; emergency reports.
+          Cross-device linked to Demo Civilian account — receives all live SOS broadcasts &amp; emergency reports.
         </p>
       </div>
 
@@ -272,6 +291,33 @@
         btn.textContent = '📧 Send Admin Access Link';
       }
     });
+
+    // ------------------------------------------------------------------------
+    // Master Admin Sign In (Supreme Access)
+    // ------------------------------------------------------------------------
+    async function masterAdminLogin() {
+      const emailField = document.getElementById('email');
+      const pwdField = document.getElementById('password');
+      if (emailField) emailField.value = 'master.admin@rapidresponse.gov';
+      if (pwdField) pwdField.value = 'MasterAdmin@2026!';
+
+      const masterAdmin = {
+        uid: 'master_admin_1',
+        email: 'master.admin@rapidresponse.gov',
+        role: 'admin',
+        displayName: 'Supreme Master Commander'
+      };
+      localStorage.setItem('currentUser', JSON.stringify(masterAdmin));
+      localStorage.setItem('userRole', 'admin');
+
+      try {
+        await universalLogin(masterAdmin.email, 'MasterAdmin@2026!', 'admin');
+      } catch (e) {
+        console.warn('Local session initialized:', e);
+      }
+
+      proceedToDashboard(masterAdmin);
+    }
 
     // ------------------------------------------------------------------------
     // Quick Demo Admin Sign In

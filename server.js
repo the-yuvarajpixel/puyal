@@ -389,6 +389,14 @@ function calculateIncidentPriority(incident) {
 const defaultStore = {
   users: [
     {
+      uid: 'master_admin_1',
+      email: 'master.admin@rapidresponse.gov',
+      password: 'MasterAdmin@2026!',
+      role: 'admin',
+      displayName: 'Supreme Master Commander',
+      createdAt: new Date().toISOString()
+    },
+    {
       uid: 'demo_user_1',
       email: 'civilian.demo@rapidresponse.org',
       password: 'demopassword123',
@@ -455,19 +463,27 @@ function loadStore() {
       if (!parsed.teams || parsed.teams.length === 0) {
         parsed.teams = defaultTeams;
       }
-      // Ensure existing stations have coordinates
-      parsed.government_stations.forEach(stn => {
-        if (!stn.latitude || !stn.longitude) {
-          const match = defaultStations.find(d => d.stationId === stn.stationId);
-          if (match) {
-            stn.latitude = match.latitude;
-            stn.longitude = match.longitude;
-          } else {
-            stn.latitude = 13.0604;
-            stn.longitude = 80.2496;
-          }
-        }
-      });
+      if (!parsed.users) parsed.users = [];
+      if (!parsed.users.some(u => u.email && u.email.toLowerCase() === 'master.admin@rapidresponse.gov')) {
+        parsed.users.push({
+          uid: 'master_admin_1',
+          email: 'master.admin@rapidresponse.gov',
+          password: 'MasterAdmin@2026!',
+          role: 'admin',
+          displayName: 'Supreme Master Commander',
+          createdAt: new Date().toISOString()
+        });
+      }
+      if (!parsed.users.some(u => u.email && u.email.toLowerCase() === 'admin.demo@rapidresponse.org')) {
+        parsed.users.push({
+          uid: 'demo_admin_1',
+          email: 'admin.demo@rapidresponse.org',
+          password: 'demopassword123',
+          role: 'admin',
+          displayName: 'HQ Command Dispatcher',
+          createdAt: new Date().toISOString()
+        });
+      }
       return parsed;
     }
   } catch (e) {
