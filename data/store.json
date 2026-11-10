@@ -27,11 +27,14 @@
       "affected": 1,
       "description": "SOS triggered by civilian.demo@rapidresponse.org. Live camera and audio feed initiated. Dispatched to command center.",
       "contact": "civilian.demo@rapidresponse.org",
-      "status": "Reported",
+      "status": "In Progress",
       "timestamp": "11/10/2026, 7:17:02 AM",
       "reportedBy": "civilian.demo@rapidresponse.org",
       "source": "sos",
-      "createdAt": "2026-11-10T07:17:02.471Z"
+      "createdAt": "2026-11-10T07:17:02.471Z",
+      "assignedTeamId": null,
+      "assignedTeamName": null,
+      "assignedTeamCategory": "Medical Emergency"
     },
     {
       "id": 1794295019000,
@@ -147,7 +150,9 @@
         "total": 6,
         "deployed": 2
       },
-      "status": "Operational"
+      "status": "Operational",
+      "latitude": 13.0604,
+      "longitude": 80.2496
     },
     {
       "stationId": "STN-NTH-02",
@@ -184,7 +189,9 @@
         "total": 4,
         "deployed": 1
       },
-      "status": "Operational"
+      "status": "Operational",
+      "latitude": 13.12,
+      "longitude": 80.28
     },
     {
       "stationId": "STN-CST-03",
@@ -221,7 +228,9 @@
         "total": 5,
         "deployed": 2
       },
-      "status": "Operational"
+      "status": "Operational",
+      "latitude": 13.045,
+      "longitude": 80.2824
     },
     {
       "stationId": "STN-STH-04",
@@ -258,7 +267,9 @@
         "total": 5,
         "deployed": 2
       },
-      "status": "Operational"
+      "status": "Operational",
+      "latitude": 12.98,
+      "longitude": 80.21
     }
   ],
   "dispatches": [
@@ -281,6 +292,128 @@
       "status": "En Route",
       "dispatchedAt": "8:05:27 AM",
       "timestamp": "2026-11-10T08:05:27.516Z"
+    }
+  ],
+  "teams": [
+    {
+      "teamId": "TEAM-FIRE-01",
+      "name": "Alpha Blaze Strike Unit",
+      "category": "Fire",
+      "expertise": "Fire Suppression & Heavy Rescue",
+      "stationId": "STN-CEN-01",
+      "stationName": "EOC Central Disaster Command Depot",
+      "latitude": 13.061,
+      "longitude": 80.249,
+      "personnelCount": 8,
+      "vehicles": [
+        "Water Tender (6000L)",
+        "Hydraulic Ladder Truck"
+      ],
+      "contact": "+91 44 2859 3911",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
+    },
+    {
+      "teamId": "TEAM-MED-01",
+      "name": "Trauma ALS Rapid Squad 1",
+      "category": "Medical Emergency",
+      "expertise": "Advanced Life Support & Critical Trauma",
+      "stationId": "STN-CEN-01",
+      "stationName": "EOC Central Disaster Command Depot",
+      "latitude": 13.0595,
+      "longitude": 80.2512,
+      "personnelCount": 5,
+      "vehicles": [
+        "ALS Mobile ICU Ambulance",
+        "Rapid Paramedic Bike"
+      ],
+      "contact": "+91 44 2859 3922",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
+    },
+    {
+      "teamId": "TEAM-NDRF-01",
+      "name": "NDRF Urban Search & Rescue 04",
+      "category": "Structural Collapse",
+      "expertise": "Disaster Search & Heavy Debris Extraction",
+      "stationId": "STN-NTH-02",
+      "stationName": "North Metro Fire & Trauma Response Base",
+      "latitude": 13.118,
+      "longitude": 80.279,
+      "personnelCount": 16,
+      "vehicles": [
+        "Heavy Rescue Carrier",
+        "Structural Breaker Van"
+      ],
+      "contact": "+91 44 2522 1119",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
+    },
+    {
+      "teamId": "TEAM-MARINE-01",
+      "name": "Coastal Flood & Boat Rescue Unit",
+      "category": "Flood",
+      "expertise": "Flood Water Evacuation & Deep Water Rescue",
+      "stationId": "STN-CST-03",
+      "stationName": "Coastal Marine & Flood Rescue Station",
+      "latitude": 13.046,
+      "longitude": 80.283,
+      "personnelCount": 10,
+      "vehicles": [
+        "Inflatable Motor Boats (x2)",
+        "Amphibious Evac Cruiser"
+      ],
+      "contact": "+91 44 2844 7115",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
+    },
+    {
+      "teamId": "TEAM-ERV-01",
+      "name": "Expressway Highway Patrol ERV",
+      "category": "Road Accident",
+      "expertise": "Highway Extrication & Rapid Triage",
+      "stationId": "STN-STH-04",
+      "stationName": "South Expressway Rapid Trauma Depot",
+      "latitude": 12.981,
+      "longitude": 80.211,
+      "personnelCount": 6,
+      "vehicles": [
+        "Highway Emergency Response Vehicle (ERV)",
+        "Tow & Cutter Unit"
+      ],
+      "contact": "+91 44 2234 1095",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
+    },
+    {
+      "teamId": "TEAM-HAZMAT-01",
+      "name": "HAZMAT Chemical & Industrial Squad",
+      "category": "Fire",
+      "expertise": "Chemical Containment, Gas Leak & Decontamination",
+      "stationId": "STN-NTH-02",
+      "stationName": "North Metro Fire & Trauma Response Base",
+      "latitude": 13.122,
+      "longitude": 80.281,
+      "personnelCount": 7,
+      "vehicles": [
+        "Hazmat Haz-Pod Rover",
+        "Decon Shower Carrier"
+      ],
+      "contact": "+91 44 2522 1133",
+      "status": "Available",
+      "assignedIncidentId": null,
+      "assignedIncidentTitle": null,
+      "assignedAt": null
     }
   ]
 }

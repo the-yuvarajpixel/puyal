@@ -52,6 +52,8 @@ const defaultStations = [
     address: "Anna Salai Disaster Operations Complex",
     contact: "+91 44 2859 3900",
     distanceKm: 2.4,
+    latitude: 13.0604,
+    longitude: 80.2496,
     ambulances: { als: 6, bls: 12, deployed: 3 },
     fireTenders: { water: 8, foam: 4, ladder: 2, deployed: 2 },
     ndrfTeams: { total: 5, activePersonnel: 120, deployed: 2 },
@@ -67,6 +69,8 @@ const defaultStations = [
     address: "GT Road Industrial Corridor",
     contact: "+91 44 2522 1108",
     distanceKm: 5.1,
+    latitude: 13.1200,
+    longitude: 80.2800,
     ambulances: { als: 4, bls: 8, deployed: 1 },
     fireTenders: { water: 10, foam: 6, ladder: 3, deployed: 3 },
     ndrfTeams: { total: 4, activePersonnel: 96, deployed: 1 },
@@ -82,6 +86,8 @@ const defaultStations = [
     address: "Marina Coastal Relief Outpost",
     contact: "+91 44 2844 7100",
     distanceKm: 3.8,
+    latitude: 13.0450,
+    longitude: 80.2824,
     ambulances: { als: 3, bls: 6, deployed: 1 },
     fireTenders: { water: 4, foam: 2, ladder: 1, deployed: 1 },
     ndrfTeams: { total: 6, activePersonnel: 144, deployed: 3 },
@@ -97,6 +103,8 @@ const defaultStations = [
     address: "NH-48 Emergency Response Base",
     contact: "+91 44 2234 1080",
     distanceKm: 7.2,
+    latitude: 12.9800,
+    longitude: 80.2100,
     ambulances: { als: 8, bls: 14, deployed: 4 },
     fireTenders: { water: 6, foam: 3, ladder: 1, deployed: 2 },
     ndrfTeams: { total: 3, activePersonnel: 72, deployed: 1 },
@@ -106,6 +114,274 @@ const defaultStations = [
     status: "Operational"
   }
 ];
+
+// ----------------------------------------------------------------------------
+// Emergency Response Teams Seed Data
+// ----------------------------------------------------------------------------
+const defaultTeams = [
+  {
+    teamId: "TEAM-FIRE-01",
+    name: "Alpha Blaze Strike Unit",
+    category: "Fire",
+    expertise: "Fire Suppression & Heavy Rescue",
+    stationId: "STN-CEN-01",
+    stationName: "EOC Central Disaster Command Depot",
+    latitude: 13.0610,
+    longitude: 80.2490,
+    personnelCount: 8,
+    vehicles: ["Water Tender (6000L)", "Hydraulic Ladder Truck"],
+    contact: "+91 44 2859 3911",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  },
+  {
+    teamId: "TEAM-MED-01",
+    name: "Trauma ALS Rapid Squad 1",
+    category: "Medical Emergency",
+    expertise: "Advanced Life Support & Critical Trauma",
+    stationId: "STN-CEN-01",
+    stationName: "EOC Central Disaster Command Depot",
+    latitude: 13.0595,
+    longitude: 80.2512,
+    personnelCount: 5,
+    vehicles: ["ALS Mobile ICU Ambulance", "Rapid Paramedic Bike"],
+    contact: "+91 44 2859 3922",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  },
+  {
+    teamId: "TEAM-NDRF-01",
+    name: "NDRF Urban Search & Rescue 04",
+    category: "Structural Collapse",
+    expertise: "Disaster Search & Heavy Debris Extraction",
+    stationId: "STN-NTH-02",
+    stationName: "North Metro Fire & Trauma Response Base",
+    latitude: 13.1180,
+    longitude: 80.2790,
+    personnelCount: 16,
+    vehicles: ["Heavy Rescue Carrier", "Structural Breaker Van"],
+    contact: "+91 44 2522 1119",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  },
+  {
+    teamId: "TEAM-MARINE-01",
+    name: "Coastal Flood & Boat Rescue Unit",
+    category: "Flood",
+    expertise: "Flood Water Evacuation & Deep Water Rescue",
+    stationId: "STN-CST-03",
+    stationName: "Coastal Marine & Flood Rescue Station",
+    latitude: 13.0460,
+    longitude: 80.2830,
+    personnelCount: 10,
+    vehicles: ["Inflatable Motor Boats (x2)", "Amphibious Evac Cruiser"],
+    contact: "+91 44 2844 7115",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  },
+  {
+    teamId: "TEAM-ERV-01",
+    name: "Expressway Highway Patrol ERV",
+    category: "Road Accident",
+    expertise: "Highway Extrication & Rapid Triage",
+    stationId: "STN-STH-04",
+    stationName: "South Expressway Rapid Trauma Depot",
+    latitude: 12.9810,
+    longitude: 80.2110,
+    personnelCount: 6,
+    vehicles: ["Highway Emergency Response Vehicle (ERV)", "Tow & Cutter Unit"],
+    contact: "+91 44 2234 1095",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  },
+  {
+    teamId: "TEAM-HAZMAT-01",
+    name: "HAZMAT Chemical & Industrial Squad",
+    category: "Fire",
+    expertise: "Chemical Containment, Gas Leak & Decontamination",
+    stationId: "STN-NTH-02",
+    stationName: "North Metro Fire & Trauma Response Base",
+    latitude: 13.1220,
+    longitude: 80.2810,
+    personnelCount: 7,
+    vehicles: ["Hazmat Haz-Pod Rover", "Decon Shower Carrier"],
+    contact: "+91 44 2522 1133",
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
+  }
+];
+
+// ----------------------------------------------------------------------------
+// Coordinate Extraction & Haversine Distance Calculation
+// ----------------------------------------------------------------------------
+function extractIncidentCoords(incident) {
+  if (incident.latitude && incident.longitude) {
+    const lat = parseFloat(incident.latitude);
+    const lon = parseFloat(incident.longitude);
+    if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+  }
+  const locStr = String(incident.location || '');
+  const match = locStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  if (match) {
+    return {
+      lat: parseFloat(match[1]),
+      lon: parseFloat(match[2])
+    };
+  }
+  const lower = locStr.toLowerCase();
+  if (lower.includes('bridge') || lower.includes('river') || lower.includes('coast') || lower.includes('marina')) {
+    return { lat: 13.0450, lon: 80.2824 };
+  }
+  if (lower.includes('gt road') || lower.includes('north') || lower.includes('industrial')) {
+    return { lat: 13.1200, lon: 80.2800 };
+  }
+  if (lower.includes('nh-48') || lower.includes('highway') || lower.includes('expressway') || lower.includes('south')) {
+    return { lat: 12.9800, lon: 80.2100 };
+  }
+  return { lat: 13.0604, lon: 80.2496 }; // Central Metro baseline
+}
+
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+// ----------------------------------------------------------------------------
+// AI Smart Classification & Team Suitability Ranking
+// ----------------------------------------------------------------------------
+function computeTeamSuitability(incident, team) {
+  const incCoords = extractIncidentCoords(incident);
+  const distKm = calculateHaversineDistance(incCoords.lat, incCoords.lon, team.latitude, team.longitude);
+
+  // Category match score (0 - 45 pts)
+  const catWeights = {
+    'Fire': { 'Fire': 45, 'Structural Collapse': 35, 'Road Accident': 25, 'Medical Emergency': 20 },
+    'Flood': { 'Flood': 45, 'Structural Collapse': 35, 'Medical Emergency': 25, 'Road Accident': 20 },
+    'Road Accident': { 'Road Accident': 45, 'Medical Emergency': 40, 'Fire': 30, 'Structural Collapse': 20 },
+    'Medical Emergency': { 'Medical Emergency': 45, 'Road Accident': 35, 'Fire': 20 },
+    'Natural Disaster': { 'Structural Collapse': 45, 'Flood': 40, 'Fire': 35, 'Medical Emergency': 30 },
+    'Structural Collapse': { 'Structural Collapse': 45, 'Fire': 35, 'Medical Emergency': 30, 'Road Accident': 20 },
+    'SOS Emergency': { 'Medical Emergency': 45, 'Road Accident': 40, 'Fire': 35, 'Structural Collapse': 30 },
+    'Violence/Crime': { 'Road Accident': 35, 'Medical Emergency': 35, 'Structural Collapse': 25 }
+  };
+
+  const incCat = incident.category || 'Other';
+  let categoryScore = 20;
+  if (catWeights[incCat] && catWeights[incCat][team.category]) {
+    categoryScore = catWeights[incCat][team.category];
+  } else if (team.category === incCat) {
+    categoryScore = 45;
+  }
+
+  // Proximity score (0 - 40 pts)
+  const proximityScore = Math.max(0, Math.min(40, Math.round(40 - (distKm * 2.5))));
+
+  // Availability score (0 - 15 pts)
+  let availScore = 0;
+  if (team.status === 'Available') availScore = 15;
+  else if (team.status === 'On Scene') availScore = 6;
+  else if (team.status === 'Dispatched') availScore = 3;
+  else if (team.status === 'Maintenance') availScore = 0;
+
+  // Total match score (0 - 100)
+  let totalScore = categoryScore + proximityScore + availScore;
+  if (team.status === 'Maintenance') totalScore = Math.min(25, totalScore);
+
+  let matchReason = '';
+  if (team.category === incCat) {
+    matchReason = `Primary Specialist (${team.expertise}) · ${distKm} km away`;
+  } else {
+    matchReason = `Multi-Disciplinary Support (${team.expertise}) · ${distKm} km away`;
+  }
+  if (team.status === 'Available') {
+    matchReason += ' · Immediate Dispatch Ready';
+  } else {
+    matchReason += ` · Current: ${team.status}`;
+  }
+
+  return {
+    distKm,
+    matchScore: Math.min(99, Math.max(15, totalScore)),
+    matchReason,
+    categoryScore,
+    proximityScore,
+    availScore
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Automatic Incident Priority Calculation & Ranking
+// Factors: Severity (Critical > High > Medium > Low), People Affected,
+// Category Risk Weight, and Time Since Reporting (Aging Urgency)
+// ----------------------------------------------------------------------------
+function calculateIncidentPriority(incident) {
+  // Severity component (10 - 45)
+  const sevScores = {
+    'Critical': 45,
+    'High': 32,
+    'Medium': 20,
+    'Low': 10
+  };
+  const sevScore = sevScores[incident.severity] || 20;
+
+  // Affected component (0 - 30)
+  const affected = Math.max(1, parseInt(incident.affected || 1, 10));
+  const affectedScore = Math.min(30, Math.round(affected * 3.5));
+
+  // Category risk weight (5 - 15)
+  const catScores = {
+    'SOS Emergency': 15,
+    'Fire': 15,
+    'Natural Disaster': 15,
+    'Structural Collapse': 14,
+    'Flood': 12,
+    'Road Accident': 10,
+    'Medical Emergency': 10,
+    'Violence/Crime': 8,
+    'Other': 5
+  };
+  const catScore = catScores[incident.category] || 8;
+
+  // Time urgency component (0 - 10):
+  // Unresolved incidents become more urgent the longer they wait
+  let timeScore = 5;
+  if (incident.timestamp || incident.createdAt) {
+    const timeMs = new Date(incident.createdAt || incident.timestamp).getTime();
+    if (!isNaN(timeMs)) {
+      const elapsedMinutes = Math.max(0, (Date.now() - timeMs) / (1000 * 60));
+      if (incident.status !== 'Resolved') {
+        timeScore = Math.min(10, Math.round(elapsedMinutes / 12));
+      } else {
+        timeScore = 0;
+      }
+    }
+  }
+
+  const priorityScore = Math.min(100, Math.round(sevScore + affectedScore + catScore + timeScore));
+  return {
+    priorityScore,
+    rankTier: priorityScore >= 80 ? 'Critical' : priorityScore >= 60 ? 'High' : priorityScore >= 35 ? 'Medium' : 'Low'
+  };
+}
 
 // ----------------------------------------------------------------------------
 // Initial Seed Data & Persistence
@@ -163,6 +439,7 @@ const defaultStore = {
   ],
   sos_alerts: [],
   government_stations: defaultStations,
+  teams: defaultTeams,
   dispatches: [],
   emailTokens: []
 };
@@ -175,6 +452,22 @@ function loadStore() {
       if (!parsed.government_stations || parsed.government_stations.length === 0) {
         parsed.government_stations = defaultStations;
       }
+      if (!parsed.teams || parsed.teams.length === 0) {
+        parsed.teams = defaultTeams;
+      }
+      // Ensure existing stations have coordinates
+      parsed.government_stations.forEach(stn => {
+        if (!stn.latitude || !stn.longitude) {
+          const match = defaultStations.find(d => d.stationId === stn.stationId);
+          if (match) {
+            stn.latitude = match.latitude;
+            stn.longitude = match.longitude;
+          } else {
+            stn.latitude = 13.0604;
+            stn.longitude = 80.2496;
+          }
+        }
+      });
       return parsed;
     }
   } catch (e) {
@@ -468,9 +761,315 @@ app.post('/api/government/group-dispatch', (req, res) => {
 app.post('/api/government/reset-fleet', (req, res) => {
   store.government_stations = JSON.parse(JSON.stringify(defaultStations));
   store.dispatches = [];
+  store.teams = JSON.parse(JSON.stringify(defaultTeams));
   saveStore(store);
+  broadcast('GOVERNMENT_DISPATCH_UPDATED', { stations: store.government_stations, teams: store.teams });
+  res.json({ success: true, message: 'All government stations and response teams reset to full readiness capacity.' });
+});
+
+// ----------------------------------------------------------------------------
+// Emergency Response Team Management & Smart Dispatch API
+// ----------------------------------------------------------------------------
+
+app.get('/api/teams', (req, res) => {
+  const teams = store.teams || defaultTeams;
+  res.json({ success: true, teams });
+});
+
+app.post('/api/teams', (req, res) => {
+  const {
+    teamId,
+    name,
+    category,
+    expertise,
+    stationId,
+    latitude,
+    longitude,
+    personnelCount = 6,
+    vehicles = [],
+    contact = '',
+    status = 'Available'
+  } = req.body;
+
+  if (!name || !category) {
+    return res.status(400).json({ error: 'Team name and category are required' });
+  }
+
+  // Lookup station for name fallback
+  const stations = store.government_stations || defaultStations;
+  const station = stations.find(s => s.stationId === stationId) || stations[0];
+
+  const newTeam = {
+    teamId: teamId || ('TEAM-' + category.substring(0, 3).toUpperCase() + '-' + Date.now().toString().slice(-4)),
+    name: name.trim(),
+    category: category,
+    expertise: expertise || `${category} Emergency Response`,
+    stationId: station ? station.stationId : 'STN-CEN-01',
+    stationName: station ? station.name : 'Central Depot',
+    latitude: latitude ? parseFloat(latitude) : (station ? station.latitude : 13.0604),
+    longitude: longitude ? parseFloat(longitude) : (station ? station.longitude : 80.2496),
+    personnelCount: parseInt(personnelCount || 6, 10),
+    vehicles: Array.isArray(vehicles) ? vehicles : (typeof vehicles === 'string' ? vehicles.split(',').map(v => v.trim()).filter(Boolean) : ['Emergency Vehicle']),
+    contact: contact || station?.contact || '+91 44 2859 3900',
+    status: status || 'Available',
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null,
+    createdAt: new Date().toISOString()
+  };
+
+  if (!store.teams) store.teams = [];
+  store.teams.push(newTeam);
+  saveStore(store);
+
+  broadcast('TEAM_CREATED', newTeam);
+  res.status(201).json({ success: true, team: newTeam });
+});
+
+app.patch('/api/teams/:id', (req, res) => {
+  const id = req.params.id;
+  const { status, latitude, longitude, assignedIncidentId, assignedIncidentTitle } = req.body;
+
+  if (!store.teams) store.teams = defaultTeams;
+  const team = store.teams.find(t => t.teamId === id);
+  if (!team) {
+    return res.status(404).json({ error: 'Response team not found' });
+  }
+
+  if (status) team.status = status;
+  if (latitude !== undefined) team.latitude = parseFloat(latitude);
+  if (longitude !== undefined) team.longitude = parseFloat(longitude);
+  if (assignedIncidentId !== undefined) team.assignedIncidentId = assignedIncidentId;
+  if (assignedIncidentTitle !== undefined) team.assignedIncidentTitle = assignedIncidentTitle;
+  if (assignedIncidentId) team.assignedAt = new Date().toISOString();
+
+  saveStore(store);
+  broadcast('TEAM_UPDATED', team);
+  res.json({ success: true, team });
+});
+
+app.delete('/api/teams/:id', (req, res) => {
+  const id = req.params.id;
+  if (!store.teams) store.teams = defaultTeams;
+  const initialLen = store.teams.length;
+  store.teams = store.teams.filter(t => t.teamId !== id);
+  saveStore(store);
+
+  broadcast('TEAM_DELETED', { teamId: id });
+  res.json({ success: true, deleted: store.teams.length < initialLen });
+});
+
+// Station Creation
+app.post('/api/stations', (req, res) => {
+  const {
+    stationId,
+    name,
+    zone,
+    address,
+    contact,
+    latitude,
+    longitude,
+    ambulances = {},
+    fireTenders = {},
+    ndrfTeams = {},
+    ervVehicles = {},
+    rescueBoats = {},
+    medicalSquads = {}
+  } = req.body;
+
+  if (!name || !zone) {
+    return res.status(400).json({ error: 'Station name and zone are required' });
+  }
+
+  const newStation = {
+    stationId: stationId || ('STN-' + zone.substring(0, 3).toUpperCase() + '-' + Date.now().toString().slice(-4)),
+    name: name.trim(),
+    zone: zone.trim(),
+    address: address || `${zone} Disaster Command Center`,
+    contact: contact || '+91 44 2859 1080',
+    distanceKm: 3.0,
+    latitude: latitude ? parseFloat(latitude) : 13.0604,
+    longitude: longitude ? parseFloat(longitude) : 80.2496,
+    ambulances: { als: ambulances.als || 4, bls: ambulances.bls || 8, deployed: 0 },
+    fireTenders: { water: fireTenders.water || 4, foam: fireTenders.foam || 2, ladder: fireTenders.ladder || 1, deployed: 0 },
+    ndrfTeams: { total: ndrfTeams.total || 4, activePersonnel: 96, deployed: 0 },
+    ervVehicles: { total: ervVehicles.total || 6, deployed: 0 },
+    rescueBoats: { total: rescueBoats.total || 4, deployed: 0 },
+    medicalSquads: { total: medicalSquads.total || 4, deployed: 0 },
+    status: 'Operational',
+    createdAt: new Date().toISOString()
+  };
+
+  if (!store.government_stations) store.government_stations = defaultStations;
+  store.government_stations.push(newStation);
+  saveStore(store);
+
   broadcast('GOVERNMENT_DISPATCH_UPDATED', { stations: store.government_stations });
-  res.json({ success: true, message: 'All government stations reset to full readiness capacity.' });
+  res.status(201).json({ success: true, station: newStation });
+});
+
+// AI Smart Recommendation & Ranking of Nearest Available Teams for an Incident
+app.get('/api/incidents/:id/recommended-teams', (req, res) => {
+  const id = req.params.id;
+  const incident = store.incidents.find(i => String(i.id) === String(id));
+  if (!incident) {
+    return res.status(404).json({ error: 'Incident not found' });
+  }
+
+  const teams = store.teams || defaultTeams;
+  const incCoords = extractIncidentCoords(incident);
+
+  // Compute suitability for each team
+  const scoredTeams = teams.map(team => {
+    const suitability = computeTeamSuitability(incident, team);
+    return {
+      ...team,
+      distanceKm: suitability.distKm,
+      matchScore: suitability.matchScore,
+      matchReason: suitability.matchReason,
+      categoryScore: suitability.categoryScore,
+      proximityScore: suitability.proximityScore,
+      availScore: suitability.availScore,
+      isCurrentlyAssigned: String(team.assignedIncidentId) === String(id)
+    };
+  });
+
+  // Rank from highest match score to lowest
+  scoredTeams.sort((a, b) => b.matchScore - a.matchScore);
+
+  const rankedTeams = scoredTeams.map((team, index) => ({
+    ...team,
+    rank: index + 1,
+    isBestFit: index === 0
+  }));
+
+  res.json({
+    success: true,
+    incident: {
+      ...incident,
+      coords: incCoords,
+      priority: calculateIncidentPriority(incident)
+    },
+    recommendedTeams: rankedTeams
+  });
+});
+
+// Assign Team to Incident
+app.post('/api/incidents/:id/assign-team', (req, res) => {
+  const id = req.params.id;
+  const { teamId } = req.body;
+
+  if (!teamId) {
+    return res.status(400).json({ error: 'Team ID is required' });
+  }
+
+  const incident = store.incidents.find(i => String(i.id) === String(id));
+  if (!incident) {
+    return res.status(404).json({ error: 'Incident not found' });
+  }
+
+  if (!store.teams) store.teams = defaultTeams;
+  const team = store.teams.find(t => t.teamId === teamId);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+
+  // Update Team
+  team.status = 'Dispatched';
+  team.assignedIncidentId = incident.id;
+  team.assignedIncidentTitle = incident.title;
+  team.assignedAt = new Date().toISOString();
+
+  // Update Incident
+  incident.status = 'In Progress';
+  incident.assignedTeamId = team.teamId;
+  incident.assignedTeamName = team.name;
+  incident.assignedTeamCategory = team.category;
+
+  saveStore(store);
+
+  broadcast('TEAM_ASSIGNED', { team, incident });
+  broadcast('INCIDENT_UPDATED', incident);
+
+  res.json({
+    success: true,
+    message: `${team.name} assigned and dispatched to "${incident.title}".`,
+    team,
+    incident
+  });
+});
+
+// Release Team from Assignment
+app.post('/api/teams/:id/release', (req, res) => {
+  const id = req.params.id;
+  if (!store.teams) store.teams = defaultTeams;
+  const team = store.teams.find(t => t.teamId === id);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+
+  const previousIncidentId = team.assignedIncidentId;
+  team.status = 'Available';
+  team.assignedIncidentId = null;
+  team.assignedIncidentTitle = null;
+  team.assignedAt = null;
+
+  // If incident had this team, update it
+  if (previousIncidentId) {
+    const inc = store.incidents.find(i => String(i.id) === String(previousIncidentId));
+    if (inc && inc.assignedTeamId === id) {
+      inc.assignedTeamId = null;
+      inc.assignedTeamName = null;
+    }
+  }
+
+  saveStore(store);
+  broadcast('TEAM_RELEASED', { teamId: id, team });
+
+  res.json({
+    success: true,
+    message: `${team.name} has completed operations and is now Available for dispatch.`,
+    team
+  });
+});
+
+// Find Nearest Incident for a specific Team
+app.get('/api/teams/:id/nearest-incident', (req, res) => {
+  const id = req.params.id;
+  if (!store.teams) store.teams = defaultTeams;
+  const team = store.teams.find(t => t.teamId === id);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+
+  const activeIncidents = (store.incidents || []).filter(i => i.status !== 'Resolved');
+  if (activeIncidents.length === 0) {
+    return res.json({ success: true, nearestIncident: null, message: 'No active incidents' });
+  }
+
+  const scored = activeIncidents.map(inc => {
+    const coords = extractIncidentCoords(inc);
+    const dist = calculateHaversineDistance(team.latitude, team.longitude, coords.lat, coords.lon);
+    const suit = computeTeamSuitability(inc, team);
+    return {
+      incident: inc,
+      distanceKm: dist,
+      matchScore: suit.matchScore,
+      matchReason: suit.matchReason
+    };
+  });
+
+  scored.sort((a, b) => b.matchScore - a.matchScore);
+  const best = scored[0];
+
+  res.json({
+    success: true,
+    team,
+    nearestIncident: best.incident,
+    distanceKm: best.distanceKm,
+    matchScore: best.matchScore,
+    matchReason: best.matchReason
+  });
 });
 
 // ----------------------------------------------------------------------------
@@ -703,17 +1302,39 @@ app.post('/api/auth/reauthenticate', (req, res) => {
 // ----------------------------------------------------------------------------
 
 app.get('/api/incidents', (req, res) => {
-  res.json({ success: true, incidents: store.incidents || [] });
+  const incidents = (store.incidents || []).map(inc => {
+    const priority = calculateIncidentPriority(inc);
+    const coords = extractIncidentCoords(inc);
+    return {
+      ...inc,
+      priorityScore: priority.priorityScore,
+      priorityRankTier: priority.rankTier,
+      coords
+    };
+  });
+
+  // Calculate dynamic rank for each incident (1 = highest priority)
+  const sorted = [...incidents].sort((a, b) => b.priorityScore - a.priorityScore);
+  const rankMap = new Map();
+  sorted.forEach((item, index) => {
+    rankMap.set(String(item.id), index + 1);
+  });
+
+  const ranked = incidents.map(item => ({
+    ...item,
+    priorityRank: rankMap.get(String(item.id)) || 1
+  }));
+
+  res.json({ success: true, incidents: ranked });
 });
 
 app.post('/api/incidents', (req, res) => {
   const inc = req.body;
-  const newIncident = {
+  const initial = {
     id: inc.id || Date.now(),
     title: inc.title || 'Emergency Report',
     category: inc.category || 'Other',
     severity: inc.severity || 'Medium',
-    severityScore: parseInt(inc.severityScore || 50, 10),
     location: inc.location || 'Unknown Location',
     affected: parseInt(inc.affected || 1, 10),
     description: inc.description || 'No description provided.',
@@ -723,6 +1344,17 @@ app.post('/api/incidents', (req, res) => {
     reportedBy: inc.reportedBy || 'Civilian',
     source: inc.source || 'form',
     createdAt: new Date().toISOString()
+  };
+
+  const priority = calculateIncidentPriority(initial);
+  const coords = extractIncidentCoords(initial);
+
+  const newIncident = {
+    ...initial,
+    severityScore: inc.severityScore ? parseInt(inc.severityScore, 10) : priority.priorityScore,
+    priorityScore: priority.priorityScore,
+    priorityRankTier: priority.rankTier,
+    coords
   };
 
   store.incidents.unshift(newIncident);

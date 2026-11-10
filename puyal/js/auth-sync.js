@@ -474,6 +474,102 @@ class RapidSync {
     const res = await fetch(`/api/sos/${sosId}/live-feed`);
     return await res.json();
   }
+
+  // Response Teams Management API
+  async fetchTeams() {
+    const res = await fetch('/api/teams');
+    const data = await res.json();
+    return data.teams || [];
+  }
+
+  async createTeam(teamData) {
+    const res = await fetch('/api/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(teamData)
+    });
+    return await res.json();
+  }
+
+  async updateTeam(teamId, patchData) {
+    const res = await fetch(`/api/teams/${teamId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchData)
+    });
+    return await res.json();
+  }
+
+  async deleteTeam(teamId) {
+    const res = await fetch(`/api/teams/${teamId}`, {
+      method: 'DELETE'
+    });
+    return await res.json();
+  }
+
+  async createStation(stationData) {
+    const res = await fetch('/api/stations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stationData)
+    });
+    return await res.json();
+  }
+
+  // AI Smart Team Recommendation & Assignment
+  async fetchRecommendedTeams(incidentId) {
+    const res = await fetch(`/api/incidents/${incidentId}/recommended-teams`);
+    return await res.json();
+  }
+
+  async assignTeamToIncident(incidentId, teamId) {
+    const res = await fetch(`/api/incidents/${incidentId}/assign-team`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId })
+    });
+    return await res.json();
+  }
+
+  async releaseTeam(teamId) {
+    const res = await fetch(`/api/teams/${teamId}/release`, {
+      method: 'POST'
+    });
+    return await res.json();
+  }
+
+  async fetchNearestIncidentForTeam(teamId) {
+    const res = await fetch(`/api/teams/${teamId}/nearest-incident`);
+    return await res.json();
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Client-side Priority Calculation & Ranking Helper
+// ----------------------------------------------------------------------------
+function computeIncidentPriority(incident) {
+  const sevScores = { 'Critical': 45, 'High': 32, 'Medium': 20, 'Low': 10 };
+  const sevScore = sevScores[incident.severity] || 20;
+  const affected = Math.max(1, parseInt(incident.affected || 1, 10));
+  const affectedScore = Math.min(30, Math.round(affected * 3.5));
+  const catScores = {
+    'SOS Emergency': 15, 'Fire': 15, 'Natural Disaster': 15, 'Structural Collapse': 14,
+    'Flood': 12, 'Road Accident': 10, 'Medical Emergency': 10, 'Violence/Crime': 8, 'Other': 5
+  };
+  const catScore = catScores[incident.category] || 8;
+  let timeScore = 5;
+  if (incident.timestamp || incident.createdAt) {
+    const timeMs = new Date(incident.createdAt || incident.timestamp).getTime();
+    if (!isNaN(timeMs)) {
+      const elapsedMinutes = Math.max(0, (Date.now() - timeMs) / (1000 * 60));
+      timeScore = incident.status !== 'Resolved' ? Math.min(10, Math.round(elapsedMinutes / 12)) : 0;
+    }
+  }
+  const score = Math.min(100, Math.round(sevScore + affectedScore + catScore + timeScore));
+  return {
+    priorityScore: score,
+    priorityRankTier: score >= 80 ? 'Critical' : score >= 60 ? 'High' : score >= 35 ? 'Medium' : 'Low'
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -527,4 +623,5 @@ window.universalLogin = universalLogin;
 window.universalRegister = universalRegister;
 window.universalLogout = universalLogout;
 window.requestEmergencyPermissions = requestEmergencyPermissions;
+window.computeIncidentPriority = computeIncidentPriority;
 window.logout = universalLogout;

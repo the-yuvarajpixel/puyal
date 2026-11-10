@@ -65,13 +65,13 @@
       <form id="incident-form">
         <div class="form-group">
           <label for="title">Incident Title *</label>
-          <input class="form-control" type="text" id="title" required placeholder="e.g., Multi-vehicle collision on NH-48" />
+          <input class="form-control" type="text" id="title" required placeholder="e.g., Multi-vehicle collision on NH-48" oninput="updateAISeveritySuggestion()" />
         </div>
 
         <div class="form-row">
           <div class="form-group">
             <label for="category">Emergency Category *</label>
-            <select class="form-control" id="category" required onchange="updateDynamicSeverityMeter()">
+            <select class="form-control" id="category" required onchange="updateAISeveritySuggestion()">
               <option value="Road Accident">Road Accident</option>
               <option value="Fire">Fire</option>
               <option value="Flood">Flood</option>
@@ -84,13 +84,29 @@
           </div>
           <div class="form-group">
             <label for="severity">Severity Level *</label>
-            <select class="form-control" id="severity" required onchange="updateDynamicSeverityMeter()">
+            <select class="form-control" id="severity" required onchange="onManualSeverityChange()">
               <option value="Auto">Auto-Classify (Threat Gauge)</option>
               <option value="Critical">Critical</option>
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
             </select>
+          </div>
+        </div>
+
+        <!-- ── AI Smart Severity Suggestion Card (Live as user types) ── -->
+        <div id="ai-severity-suggestion-card" class="ai-severity-suggestion-card">
+          <div class="ai-suggestion-header">
+            <div class="ai-spark-label">
+              <span>✨ AI Smart Severity Suggestion:</span>
+              <span id="ai-suggested-severity-badge" class="severity-score-badge meter-high">High (72/100)</span>
+            </div>
+            <button type="button" id="btn-apply-suggestion" class="btn-apply-suggestion" onclick="applySuggestedSeverity()">
+              ⚡ Apply Suggested: <span id="btn-suggested-text">High</span>
+            </button>
+          </div>
+          <div id="ai-suggestion-rationale" class="ai-suggestion-rationale">
+            Analyzing report details... Type title, category, and affected count to see live AI recommendation.
           </div>
         </div>
 
@@ -121,13 +137,13 @@
           </div>
           <div class="form-group">
             <label for="affected">People Affected *</label>
-            <input class="form-control" type="number" id="affected" min="0" value="1" required oninput="updateDynamicSeverityMeter()" />
+            <input class="form-control" type="number" id="affected" min="0" value="1" required oninput="updateAISeveritySuggestion()" />
           </div>
         </div>
 
         <div class="form-group">
           <label for="description">Incident Description *</label>
-          <textarea class="form-control" id="description" rows="3" required placeholder="Describe injuries, hazards, or immediate needs..."></textarea>
+          <textarea class="form-control" id="description" rows="3" required placeholder="Describe injuries, hazards, or immediate needs..." oninput="updateAISeveritySuggestion()"></textarea>
         </div>
 
         <div class="form-group">
@@ -139,6 +155,22 @@
           🚀 Submit Emergency Report
         </button>
       </form>
+    </section>
+
+    <!-- ── Community Active Incidents & Priority Ranking ── -->
+    <section class="card" style="max-width: 720px; margin: 24px auto 0;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy);">⚡ Active Regional Incidents &amp; Priority Rank</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+            Ranked by AI priority score (Severity, Affected, Category Risk &amp; Elapsed Time)
+          </p>
+        </div>
+        <span id="user-incidents-count" class="priority-rank-badge rank-top">Loading...</span>
+      </div>
+      <div id="user-incidents-list" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;">Loading active incidents...</div>
+      </div>
     </section>
 
   </main>
@@ -307,8 +339,15 @@
     }
 
     // ====================================================================
-    // DYNAMIC SEVERITY THREAT METER (Interactive calculation)
+    // DYNAMIC SEVERITY THREAT METER & AI SMART SUGGESTION
     // ====================================================================
+    let currentAISuggestion = {
+      severity: 'Medium',
+      score: 50,
+      rationale: ''
+    };
+    let manualSeveritySelected = false;
+
     function calculateThreatScore(category, affected, chosenSeverity) {
       let base = 30;
       const catWeights = {
@@ -336,10 +375,125 @@
       return total;
     }
 
+    function updateAISeveritySuggestion() {
+      const title = (document.getElementById('title').value || '').toLowerCase();
+      const desc = (document.getElementById('description').value || '').toLowerCase();
+      const cat = document.getElementById('category').value;
+      const affected = Math.max(1, parseInt(document.getElementById('affected').value || '1', 10));
+      const combinedText = title + ' ' + desc;
+
+      // Keyword risk patterns
+      const criticalKeywords = ['trapped', 'fire', 'explosion', 'collapsed', 'unconscious', 'burning', 'heavy flood', 'sinking', 'severe', 'casualties', 'critically', 'fatal', 'poison', 'chemical', 'blast', 'overflowing', 'drowning'];
+      const highKeywords = ['injured', 'bleeding', 'fracture', 'crash', 'collision', 'submerged', 'water rising', 'broken', 'hazard', 'struck', 'smoke'];
+
+      const critMatches = criticalKeywords.filter(k => combinedText.includes(k));
+      const highMatches = highKeywords.filter(k => combinedText.includes(k));
+
+      // Category baseline
+      const catBase = {
+        'Fire': 82, 'Natural Disaster': 88, 'Structural Collapse': 85,
+        'Flood': 74, 'Road Accident': 64, 'Medical Emergency': 62,
+        'Violence/Crime': 68, 'Other': 38
+      }[cat] || 45;
+
+      const affectedBonus = affected >= 10 ? 26 : affected >= 5 ? 18 : affected >= 2 ? 10 : 0;
+      const keywordBonus = (critMatches.length * 14) + (highMatches.length * 7);
+      const totalScore = Math.min(100, Math.max(18, catBase + affectedBonus + keywordBonus));
+
+      let suggestedSev = 'Medium';
+      if (totalScore >= 81) suggestedSev = 'Critical';
+      else if (totalScore >= 56) suggestedSev = 'High';
+      else if (totalScore >= 26) suggestedSev = 'Medium';
+      else suggestedSev = 'Low';
+
+      let rationale = `Category: ${cat} · ${affected} person(s) affected.`;
+      if (critMatches.length > 0) {
+        rationale += ` Detected urgent hazard indicators ("${critMatches.slice(0, 2).join('", "')}").`;
+      }
+      if (suggestedSev === 'Critical') {
+        rationale += ` AI recommends immediate Critical response priority.`;
+      } else if (suggestedSev === 'High') {
+        rationale += ` AI recommends High priority dispatch.`;
+      } else {
+        rationale += ` Standard priority dispatch suitable.`;
+      }
+
+      currentAISuggestion = {
+        severity: suggestedSev,
+        score: totalScore,
+        rationale
+      };
+
+      // Update UI elements
+      const card = document.getElementById('ai-severity-suggestion-card');
+      const badge = document.getElementById('ai-suggested-severity-badge');
+      const rationaleEl = document.getElementById('ai-suggestion-rationale');
+      const btnText = document.getElementById('btn-suggested-text');
+      const btnApply = document.getElementById('btn-apply-suggestion');
+      const sevDropdown = document.getElementById('severity');
+
+      card.className = 'ai-severity-suggestion-card' + (suggestedSev === 'Critical' ? ' high-threat' : suggestedSev === 'High' ? ' elevated-threat' : '');
+      badge.textContent = `${suggestedSev} (${totalScore}/100)`;
+      badge.className = 'severity-score-badge ' + (suggestedSev === 'Critical' ? 'meter-critical' : suggestedSev === 'High' ? 'meter-high' : suggestedSev === 'Medium' ? 'meter-medium' : 'meter-low');
+      btnText.textContent = suggestedSev;
+      rationaleEl.textContent = rationale;
+
+      // If user hasn't explicitly overridden manually, auto-align severity or show clear status
+      if (!manualSeveritySelected || sevDropdown.value === 'Auto') {
+        sevDropdown.value = suggestedSev;
+        btnApply.innerHTML = `✓ Applied: <strong>${suggestedSev}</strong>`;
+        btnApply.classList.add('applied');
+      } else {
+        if (sevDropdown.value === suggestedSev) {
+          btnApply.innerHTML = `✓ Applied: <strong>${suggestedSev}</strong>`;
+          btnApply.classList.add('applied');
+        } else {
+          btnApply.innerHTML = `⚡ Apply Suggested: <strong>${suggestedSev}</strong>`;
+          btnApply.classList.remove('applied');
+        }
+      }
+
+      updateDynamicSeverityMeter();
+    }
+
+    function applySuggestedSeverity() {
+      manualSeveritySelected = false;
+      const sevDropdown = document.getElementById('severity');
+      sevDropdown.value = currentAISuggestion.severity;
+      updateAISeveritySuggestion();
+      updateDynamicSeverityMeter();
+      showToast(`✨ AI Suggested Severity "${currentAISuggestion.severity}" applied to report!`, 'success');
+      speakText(`Applied AI suggested severity: ${currentAISuggestion.severity}`, 'en');
+    }
+
+    function onManualSeverityChange() {
+      const val = document.getElementById('severity').value;
+      if (val === 'Auto') {
+        manualSeveritySelected = false;
+        updateAISeveritySuggestion();
+      } else {
+        manualSeveritySelected = true;
+        const btnApply = document.getElementById('btn-apply-suggestion');
+        if (val === currentAISuggestion.severity) {
+          btnApply.innerHTML = `✓ Applied: <strong>${val}</strong>`;
+          btnApply.classList.add('applied');
+        } else {
+          btnApply.innerHTML = `⚡ Apply Suggested: <strong>${currentAISuggestion.severity}</strong>`;
+          btnApply.classList.remove('applied');
+          showToast(`Manual severity set to ${val}. Click above to re-apply AI suggestion anytime.`, 'info');
+        }
+        updateDynamicSeverityMeter();
+      }
+    }
+
     function updateDynamicSeverityMeter() {
       const cat = document.getElementById('category').value;
       const affected = document.getElementById('affected').value;
-      const chosen = document.getElementById('severity').value;
+      let chosen = document.getElementById('severity').value;
+
+      if (chosen === 'Auto') {
+        chosen = currentAISuggestion.severity;
+      }
 
       const score = calculateThreatScore(cat, affected, chosen);
       const bar = document.getElementById('severity-meter-bar');
@@ -369,7 +523,68 @@
       return score;
     }
 
-    updateDynamicSeverityMeter();
+    // ====================================================================
+    // USER COMMUNITY INCIDENTS & PRIORITY RANKINGS
+    // ====================================================================
+    let userIncidents = [];
+
+    async function loadUserIncidents() {
+      try {
+        const list = await rapidSync.fetchIncidents();
+        userIncidents = list || [];
+        renderUserIncidents();
+      } catch (e) {
+        console.warn('Failed to load incidents in user portal:', e);
+      }
+    }
+
+    function renderUserIncidents() {
+      const container = document.getElementById('user-incidents-list');
+      const countEl = document.getElementById('user-incidents-count');
+      if (!container) return;
+
+      countEl.textContent = `${userIncidents.length} active`;
+
+      if (userIncidents.length === 0) {
+        container.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;">No active incidents reported in this zone.</div>`;
+        return;
+      }
+
+      // Sort by priority rank (highest priority first)
+      const sorted = [...userIncidents].sort((a, b) => (b.priorityScore || 50) - (a.priorityScore || 50));
+
+      container.innerHTML = sorted.map((item, idx) => {
+        const rank = idx + 1;
+        const rankClass = rank === 1 ? 'rank-top' : rank <= 3 ? 'rank-high' : 'rank-mid';
+        const teamAssigned = item.assignedTeamName ? `🚑 Dispatched: <strong>${item.assignedTeamName}</strong>` : '⏳ Awaiting Command Team Assignment';
+
+        return `
+          <div style="background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 240px;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                <span class="priority-rank-badge ${rankClass}">Rank #${rank} Priority</span>
+                <span style="font-weight: 800; font-size: 13px; color: var(--navy);">${item.title}</span>
+                <span class="sev-badge sev-${item.severity}" style="font-size: 11px;">${item.severity}</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-secondary);">
+                📍 ${item.location} · 👥 ${item.affected} affected · 🕒 ${item.timestamp}
+              </div>
+              <div style="font-size: 11px; color: ${item.assignedTeamName ? 'var(--success)' : 'var(--warning)'}; margin-top: 4px; font-weight: 600;">
+                ${teamAssigned}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 12px; font-weight: 700; color: var(--navy); display: block;">Score: ${item.priorityScore || 50}/100</span>
+              <span style="font-size: 11px; color: var(--text-muted);">${item.status}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    updateAISeveritySuggestion();
+    loadUserIncidents();
+    setInterval(loadUserIncidents, 6000);
 
     // ====================================================================
     // PERMISSIONS READINESS BAR INITIALIZATION
@@ -886,6 +1101,18 @@
     rapidSync.on('INCIDENT_UPDATED', (updated) => {
       showToast(`📢 Dispatch status update: "${updated.title}" is now ${updated.status}`, 'info');
       speakText(`Incident status updated to ${updated.status}`, 'en');
+      loadUserIncidents();
+    });
+
+    rapidSync.on('INCIDENT_CREATED', () => {
+      loadUserIncidents();
+    });
+
+    rapidSync.on('TEAM_ASSIGNED', (data) => {
+      loadUserIncidents();
+      if (data && data.incident) {
+        showToast(`🚑 Emergency Team ${data.team.name} dispatched to "${data.incident.title}"!`, 'info');
+      }
     });
 
     rapidSync.on('SOS_RESOLVED', (data) => {
@@ -894,6 +1121,7 @@
         speakText('Emergency responders have been dispatched to your location.', 'en');
         deactivateSOS();
       }
+      loadUserIncidents();
     });
   </script>
 
