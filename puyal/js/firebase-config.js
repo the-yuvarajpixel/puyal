@@ -1,9 +1,8 @@
 // ============================================================================
 // Firebase Configuration — RapidResponse Command
-// Replace these values with YOUR Firebase project credentials
 // ============================================================================
 
-const firebaseConfig = {
+window.firebaseConfig = {
   apiKey: "AIzaSyBHsr1bOYcBb1VuVGj-I0e3UBaYYT7uMKI",
   authDomain: "login-form-a7498.firebaseapp.com",
   projectId: "login-form-a7498",
@@ -12,10 +11,21 @@ const firebaseConfig = {
   appId: "1:236112498498:web:def3bba42fc23233c72e21"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Safe initialization of Firebase Auth and Firestore
+try {
+  if (typeof firebase !== 'undefined') {
+    if (!firebase.apps || firebase.apps.length === 0) {
+      firebase.initializeApp(window.firebaseConfig);
+    }
+    window.auth = firebase.auth();
+    window.db = firebase.firestore();
+  }
+} catch (e) {
+  console.warn('Firebase initialization in fallback mode:', e);
+}
+
+var auth = window.auth;
+var db = window.db;
 
 // ============================================================================
 // Auth Helper Utilities
@@ -26,42 +36,49 @@ const db = firebase.firestore();
  */
 function requireAuth(role) {
   return new Promise((resolve, reject) => {
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        window.location.href = 'index.html';
-        reject('Not authenticated');
-        return;
-      }
-
-      // Check role from Firestore
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
       try {
-        const doc = await db.collection('users').doc(user.uid).get();
-        if (doc.exists) {
-          const data = doc.data();
-          if (data.role !== role) {
-            alert('Access denied. You do not have ' + role + ' privileges.');
-            auth.signOut();
-            window.location.href = 'index.html';
-            reject('Wrong role');
-            return;
-          }
-          resolve({ user, profile: data });
-        } else {
-          // First time — create profile with the requested role
-          const profile = {
-            email: user.email,
-            role: role,
-            displayName: user.displayName || user.email.split('@')[0],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          };
-          await db.collection('users').doc(user.uid).set(profile);
-          resolve({ user, profile });
+        const u = JSON.parse(savedUser);
+        if (u && (u.role === role || localStorage.getItem('userRole') === role)) {
+          resolve({ user: u, profile: u });
+          return;
         }
-      } catch (err) {
-        console.error('Auth check error:', err);
-        resolve({ user, profile: { role: role, email: user.email } });
-      }
-    });
+      } catch (e) {}
+    }
+
+    if (window.auth && window.auth.onAuthStateChanged) {
+      window.auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+          window.location.href = 'index.html';
+          reject('Not authenticated');
+          return;
+        }
+
+        try {
+          if (window.db) {
+            const doc = await window.db.collection('users').doc(user.uid).get();
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.role !== role) {
+                alert('Access denied. You do not have ' + role + ' privileges.');
+                logout();
+                reject('Wrong role');
+                return;
+              }
+              resolve({ user, profile: data });
+              return;
+            }
+          }
+          resolve({ user, profile: { role: role, email: user.email } });
+        } catch (err) {
+          resolve({ user, profile: { role: role, email: user.email } });
+        }
+      });
+    } else {
+      window.location.href = 'index.html';
+      reject('Auth unavailable');
+    }
   });
 }
 
@@ -71,10 +88,9 @@ function requireAuth(role) {
 function logout() {
   localStorage.removeItem('userRole');
   localStorage.removeItem('currentUser');
-  if (typeof auth !== 'undefined' && auth.signOut) {
-    auth.signOut().then(() => {
-      window.location.href = 'index.html';
-    }).catch(() => {
+  localStorage.removeItem('emailForSignIn');
+  if (window.auth && window.auth.signOut) {
+    window.auth.signOut().catch(() => {}).finally(() => {
       window.location.href = 'index.html';
     });
   } else {
@@ -82,3 +98,5 @@ function logout() {
   }
 }
 
+window.logout = logout;
+window.requireAuth = requireAuth;

@@ -1,0 +1,107 @@
+{
+  "users": [
+    {
+      "uid": "demo_user_1",
+      "email": "civilian.demo@rapidresponse.org",
+      "password": "demopassword123",
+      "role": "user",
+      "displayName": "Civilian Responder (Demo)",
+      "createdAt": "2026-11-10T07:16:31.240Z"
+    },
+    {
+      "uid": "demo_admin_1",
+      "email": "admin.demo@rapidresponse.org",
+      "password": "demopassword123",
+      "role": "admin",
+      "displayName": "HQ Command Dispatcher",
+      "createdAt": "2026-11-10T07:16:31.240Z"
+    }
+  ],
+  "incidents": [
+    {
+      "id": 1794295022471,
+      "title": "🚨 LIVE SOS ALERT — civilian.demo@rapidresponse.org",
+      "category": "SOS Emergency",
+      "severity": "Critical",
+      "location": "13.0827, 80.2707 (GPS ±3.5m)",
+      "affected": 1,
+      "description": "SOS triggered by civilian.demo@rapidresponse.org. Live camera and audio feed initiated. Dispatched to command center.",
+      "contact": "civilian.demo@rapidresponse.org",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 7:17:02 AM",
+      "reportedBy": "civilian.demo@rapidresponse.org",
+      "source": "sos",
+      "createdAt": "2026-11-10T07:17:02.471Z"
+    },
+    {
+      "id": 1794295019000,
+      "title": "Test Emergency Incident",
+      "category": "Fire",
+      "severity": "Critical",
+      "location": "Main Street Building 3",
+      "affected": 4,
+      "description": "Smoke detected in second floor",
+      "contact": "Not provided",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 7:16:59 AM",
+      "reportedBy": "civilian.demo@rapidresponse.org",
+      "source": "form",
+      "createdAt": "2026-11-10T07:16:59.001Z"
+    },
+    {
+      "id": 1731195000001,
+      "title": "Structural Risk & Water Surge Alert",
+      "category": "Flood",
+      "severity": "Critical",
+      "location": "Bridge Sector 4B, Riverfront",
+      "affected": 8,
+      "description": "Water surge overflowing embankment. Structural safety assessment needed immediately.",
+      "contact": "Civilian Emergency Watch",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 7:01:31 AM",
+      "reportedBy": "civilian.demo@rapidresponse.org",
+      "source": "form"
+    },
+    {
+      "id": 1731195000002,
+      "title": "[Voice Report] Road Accident Emergency",
+      "category": "Road Accident",
+      "severity": "High",
+      "location": "12.9716, 77.5946 (GPS Auto)",
+      "affected": 3,
+      "description": "Two vehicles collided at intersection. Paramedics dispatched.",
+      "contact": "Voice Report",
+      "status": "In Progress",
+      "timestamp": "11/10/2026, 6:41:31 AM",
+      "reportedBy": "civilian.demo@rapidresponse.org",
+      "source": "voice"
+    }
+  ],
+  "sos_alerts": [
+    {
+      "id": "sos_1794295022470",
+      "userId": "demo_user_1",
+      "email": "civilian.demo@rapidresponse.org",
+      "latitude": "13.0827",
+      "longitude": "80.2707",
+      "accuracy": "3.5",
+      "active": false,
+      "media": {
+        "hasVideo": true,
+        "hasAudio": true
+      },
+      "timestamp": "2026-11-10T07:17:02.470Z",
+      "displayTime": "7:17:02 AM",
+      "resolvedAt": "2026-11-10T07:17:14.298Z"
+    }
+  ],
+  "emailTokens": [
+    {
+      "token": "link_1794295014734_zcysbhj",
+      "email": "civilian.demo@rapidresponse.org",
+      "role": "user",
+      "expiresAt": 1794296814734,
+      "createdAt": "2026-11-10T07:16:54.734Z"
+    }
+  ]
+}

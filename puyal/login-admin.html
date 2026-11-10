@@ -3,10 +3,52 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse — Admin Login</title>
+  <title>RapidResponse — Admin Control Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .auth-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      background: var(--subtle);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .auth-tab.active {
+      background: #fff;
+      color: var(--navy);
+      box-shadow: var(--shadow-xs);
+    }
+    .magic-link-banner {
+      background: var(--info-soft);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      padding: 12px;
+      border-radius: var(--radius-md);
+      margin-top: 14px;
+      font-size: 13px;
+      text-align: left;
+    }
+    .magic-link-banner a {
+      color: var(--info);
+      font-weight: 700;
+      word-break: break-all;
+    }
+  </style>
 </head>
 <body>
 
@@ -16,19 +58,31 @@
         <span class="sos-tag">SOS</span>
         <h1>RapidResponse</h1>
       </div>
-      <span class="role-badge admin-badge">Admin Control</span>
-      <p class="login-subtitle">Authorized personnel only — manage and respond to incidents</p>
+      <span class="role-badge admin-badge">Admin Command Center</span>
+      <p class="login-subtitle">Authorized dispatch personnel — live incident tracking &amp; SOS feed</p>
 
       <div id="login-error" class="login-error"></div>
+      <div id="login-success" class="toast success" style="position: static; margin-bottom: 16px; display: none;"></div>
 
+      <!-- Auth Method Tabs -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="tab-password" onclick="switchAuthTab('password')">
+          Password Sign In
+        </button>
+        <button type="button" class="auth-tab" id="tab-magic" onclick="switchAuthTab('magic')">
+          ✨ Passwordless Link
+        </button>
+      </div>
+
+      <!-- Password Auth Form -->
       <form class="login-form" id="admin-login-form">
         <div class="form-group">
-          <label for="email">Admin Email</label>
-          <input type="email" id="email" placeholder="admin@organization.com" required />
+          <label for="email">Admin Email Address</label>
+          <input type="email" id="email" placeholder="admin@rapidresponse.org" required value="admin.demo@rapidresponse.org" />
         </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" placeholder="Enter admin password" required />
+        <div class="form-group" id="pwd-group">
+          <label for="password">Admin Password</label>
+          <input type="password" id="password" placeholder="Enter admin password" required value="demopassword123" />
         </div>
         <button type="submit" class="btn-login admin-btn" id="btn-submit">
           Sign In as Admin
@@ -37,25 +91,69 @@
           <span id="toggle-text">Need admin access?</span>
           <a id="toggle-link" onclick="toggleAuthMode()">Register admin account</a>
         </div>
-        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-          <button type="button" class="btn" style="width: 100%; background: var(--navy-light); color: #fff; padding: 10px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; border: none;" onclick="demoLogin()">
-            ⚡ Quick Demo Admin Sign In
-          </button>
-        </div>
       </form>
+
+      <!-- Passwordless Magic Link Form -->
+      <form class="login-form hidden" id="magic-link-form">
+        <div class="form-group">
+          <label for="magic-email">Admin Email Address</label>
+          <input type="email" id="magic-email" placeholder="admin@organization.com" required value="admin.demo@rapidresponse.org" />
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+          A passwordless admin access link will be generated. Use it on any device to open Command Control.
+        </p>
+        <button type="submit" class="btn-login admin-btn" id="btn-magic-submit">
+          📧 Send Admin Access Link
+        </button>
+        <div id="magic-result" class="magic-link-banner hidden"></div>
+      </form>
+
+      <!-- Demo Sign-In Action (Cross-device linked) -->
+      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+        <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; padding: 12px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; cursor: pointer; border: none; box-shadow: 0 2px 8px rgba(220,38,38,0.3);" onclick="demoLogin()">
+          ⚡ Quick Demo Admin Sign In
+        </button>
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+          Linked to Demo Civilian account — receives all live SOS broadcasts &amp; emergency reports.
+        </p>
+      </div>
 
       <a href="index.html" class="back-link">← Back to role selection</a>
     </div>
   </div>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase Compatibility SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
+  <script src="js/auth-sync.js"></script>
 
   <script>
+    window._currentRole = 'admin';
     let isSignUp = false;
+
+    // Check if already signed in
+    const existing = localStorage.getItem('currentUser');
+    if (existing) {
+      try {
+        const u = JSON.parse(existing);
+        if (u.role === 'admin') {
+          if (!window.location.search.includes('finishSignUp') && !window.location.search.includes('mode=signIn')) {
+            window.location.href = 'dashboard-admin.html';
+          }
+        }
+      } catch (e) {}
+    }
+
+    function switchAuthTab(tab) {
+      const isPwd = tab === 'password';
+      document.getElementById('tab-password').classList.toggle('active', isPwd);
+      document.getElementById('tab-magic').classList.toggle('active', !isPwd);
+      document.getElementById('admin-login-form').classList.toggle('hidden', !isPwd);
+      document.getElementById('magic-link-form').classList.toggle('hidden', isPwd);
+      document.getElementById('login-error').style.display = 'none';
+    }
 
     function toggleAuthMode() {
       isSignUp = !isSignUp;
@@ -71,108 +169,133 @@
       el.style.display = 'block';
     }
 
-    function demoLogin() {
-      const mockAdmin = { uid: 'admin_demo_' + Date.now(), email: 'admin@rapidresponse.command', role: 'admin', displayName: 'HQ Commander' };
-      localStorage.setItem('currentUser', JSON.stringify(mockAdmin));
-      localStorage.setItem('userRole', 'admin');
-      window.location.href = 'dashboard-admin.html';
+    function showSuccess(msg) {
+      const el = document.getElementById('login-success');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 6000);
     }
 
-    // Check if already logged in as admin
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const u = JSON.parse(savedUser);
-        if (u.role === 'admin') {
-          window.location.href = 'dashboard-admin.html';
-        }
-      } catch (e) {}
-    }
+    // ------------------------------------------------------------------------
+    // Email Link Passwordless Sign-In Check on Page Load
+    // ------------------------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', async () => {
+      const authRef = window.auth || (typeof auth !== 'undefined' ? auth : null);
+      const isEmailLinkFn = window.isSignInWithEmailLink || (typeof isSignInWithEmailLink === 'function' ? isSignInWithEmailLink : null);
+      const signInFn = window.signInWithEmailLink || (typeof signInWithEmailLink === 'function' ? signInWithEmailLink : null);
 
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          const doc = await db.collection('users').doc(user.uid).get();
-          if (doc.exists && doc.data().role === 'admin') {
-            localStorage.setItem('currentUser', JSON.stringify({ uid: user.uid, email: user.email, role: 'admin', displayName: user.displayName || user.email.split('@')[0] }));
-            window.location.href = 'dashboard-admin.html';
+      if (isEmailLinkFn && isEmailLinkFn(authRef, window.location.href)) {
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+          const urlParams = new URLSearchParams(window.location.search);
+          email = urlParams.get('email');
+          if (!email) {
+            email = window.prompt('Please confirm your admin email address');
           }
-        } catch (e) {
-          console.log('Auth check:', e);
+        }
+
+        if (email && signInFn) {
+          try {
+            showSuccess('Verifying admin sign-in link...');
+            const user = await signInFn(authRef, email, window.location.href);
+            proceedToDashboard(user);
+          } catch (error) {
+            console.error('Email link admin sign in error:', error);
+            showError('Could not sign in with this link: ' + (error.message || 'Link expired or invalid'));
+          }
         }
       }
     });
 
+    // ------------------------------------------------------------------------
+    // Password Form Submission
+    // ------------------------------------------------------------------------
     document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = document.getElementById('email').value;
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const btn = document.getElementById('btn-submit');
 
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>';
+      btn.innerHTML = '<span class="spinner"></span> Signing in...';
       document.getElementById('login-error').style.display = 'none';
 
       try {
-        let userCredential;
+        let user;
         if (isSignUp) {
-          userCredential = await auth.createUserWithEmailAndPassword(email, password);
-          // Store admin profile
-          await db.collection('users').doc(userCredential.user.uid).set({
-            email: email,
-            role: 'admin',
-            displayName: email.split('@')[0],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+          user = await universalRegister(email, password, 'admin', email.split('@')[0]);
         } else {
-          userCredential = await auth.signInWithEmailAndPassword(email, password);
-          // Verify role
-          const doc = await db.collection('users').doc(userCredential.user.uid).get();
-          if (doc.exists && doc.data().role !== 'admin') {
-            showError('This account is registered as User. Please use the Civilian login.');
-            auth.signOut();
-            btn.disabled = false;
-            btn.textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
-            return;
-          }
+          user = await universalLogin(email, password, 'admin');
         }
-
-        const loggedUser = {
-          uid: userCredential.user.uid,
-          email: email,
-          role: 'admin',
-          displayName: email.split('@')[0]
-        };
-        localStorage.setItem('currentUser', JSON.stringify(loggedUser));
-        localStorage.setItem('userRole', 'admin');
-        window.location.href = 'dashboard-admin.html';
+        proceedToDashboard(user);
       } catch (err) {
-        console.warn('Firebase admin auth returned:', err);
-        if (err.code === 'auth/unauthorized-domain' || err.code === 'auth/api-key-not-valid' || (err.message && err.message.includes('authorized domain'))) {
-          const localAdmin = {
-            uid: 'admin_' + Date.now(),
-            email: email,
-            role: 'admin',
-            displayName: email.split('@')[0]
-          };
-          localStorage.setItem('currentUser', JSON.stringify(localAdmin));
-          localStorage.setItem('userRole', 'admin');
-          window.location.href = 'dashboard-admin.html';
-          return;
-        }
-
-        let message = 'Authentication failed. Please try again.';
-        if (err.code === 'auth/user-not-found') message = 'No admin account found. Register first.';
-        else if (err.code === 'auth/wrong-password') message = 'Incorrect password.';
-        else if (err.code === 'auth/invalid-credential') message = 'Invalid credentials. Check email and password.';
-        else if (err.code === 'auth/email-already-in-use') message = 'Email already registered. Try signing in.';
-        else if (err.code === 'auth/weak-password') message = 'Password must be at least 6 characters.';
-        else if (err.code === 'auth/invalid-email') message = 'Invalid email address format.';
-        showError(message);
+        console.error('Sign-in error:', err);
+        showError(err.message || 'Authentication failed. Please verify admin credentials.');
         btn.disabled = false;
         btn.textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
       }
     });
+
+    // ------------------------------------------------------------------------
+    // Magic Link Form Submission
+    // ------------------------------------------------------------------------
+    document.getElementById('magic-link-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('magic-email').value.trim();
+      const btn = document.getElementById('btn-magic-submit');
+      const banner = document.getElementById('magic-result');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating admin link...';
+
+      try {
+        const result = await sendSignInLinkToEmail(auth, email, {
+          url: window.location.origin + '/login-admin.html?finishSignUp=true',
+          handleCodeInApp: true
+        });
+
+        banner.classList.remove('hidden');
+        banner.innerHTML = `
+          <strong>✅ Admin link generated for ${email}!</strong><br>
+          <div style="margin: 8px 0; font-size: 12px; color: var(--text-secondary);">
+            Click the link below or copy it to any browser/device to open Admin Command:
+          </div>
+          <a href="${result.magicLink || '#'}" class="btn" style="display: inline-block; background: var(--primary); color: #fff; padding: 6px 14px; font-size: 12px; text-decoration: none; border-radius: var(--radius-sm); margin-top: 4px;">
+            🔗 Open Admin Command Dashboard →
+          </a>
+        `;
+        showSuccess('Admin access link ready! Click above to proceed.');
+      } catch (err) {
+        showError('Could not send admin link: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📧 Send Admin Access Link';
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Quick Demo Admin Sign In
+    // ------------------------------------------------------------------------
+    async function demoLogin() {
+      const demoAdmin = {
+        uid: 'demo_admin_1',
+        email: 'admin.demo@rapidresponse.org',
+        role: 'admin',
+        displayName: 'HQ Command Dispatcher'
+      };
+      localStorage.setItem('currentUser', JSON.stringify(demoAdmin));
+      localStorage.setItem('userRole', 'admin');
+
+      try {
+        await universalLogin(demoAdmin.email, 'demopassword123', 'admin');
+      } catch (e) {}
+
+      proceedToDashboard(demoAdmin);
+    }
+
+    function proceedToDashboard(user) {
+      window.location.href = 'dashboard-admin.html';
+    }
   </script>
 
 </body>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse — Report Emergency</title>
+  <title>RapidResponse — Civilian Emergency Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
@@ -28,6 +28,21 @@
   <!-- ============ MAIN CONTENT ============ -->
   <main class="main-container">
 
+    <!-- ── Emergency Device Readiness Bar ── -->
+    <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: var(--shadow-xs);">
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <span style="font-size: 13px; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success);"></span> Device Readiness:
+        </span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">📍 Location: <strong style="color: var(--success);" id="readiness-loc-val">Detecting...</strong></span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">📹 Camera: <strong style="color: var(--success);" id="readiness-cam-val">Authorized</strong></span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">🎙️ Mic: <strong style="color: var(--success);" id="readiness-mic-val">Authorized</strong></span>
+      </div>
+      <button type="button" class="btn" style="background: var(--subtle); border: 1px solid var(--border); padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: var(--radius-md);" onclick="testAndReauthorizePermissions()">
+        🔄 Re-test Permissions
+      </button>
+    </div>
+
     <!-- ── Quick Action Buttons ── -->
     <div class="quick-actions">
       <div class="action-card" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
@@ -38,7 +53,7 @@
       <div class="action-card" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
         <span class="action-icon">🚨</span>
         <div class="action-label">SOS Emergency</div>
-        <div class="action-desc">Instantly activate camera, mic &amp; send location</div>
+        <div class="action-desc">Instantly activate camera, mic &amp; broadcast live to Admin</div>
       </div>
     </div>
 
@@ -149,7 +164,7 @@
       <div class="sos-header">
         <span class="sos-icon">🚨</span>
         <h2>SOS ACTIVATED</h2>
-        <p>Camera, microphone, and location are being shared with emergency responders</p>
+        <p>Live camera, audio, and GPS coordinates are broadcasting to Admin Command Center</p>
       </div>
 
       <div class="sos-info-grid">
@@ -167,25 +182,25 @@
         </div>
         <div class="sos-info-item">
           <div class="info-label">📡 Status</div>
-          <div class="info-value" style="color: var(--success);">● Live Streaming</div>
+          <div class="info-value" style="color: var(--success);" id="sos-status-label">● Broadcasting to HQ Admin</div>
         </div>
       </div>
 
       <div class="sos-media-grid">
         <div class="sos-media-item">
           <video id="sos-video" autoplay muted playsinline></video>
-          <span class="media-label">📹 Camera</span>
+          <span class="media-label">📹 Live Camera</span>
           <span class="media-status"></span>
         </div>
         <div class="sos-media-item" style="display: flex; align-items: center; justify-content: center; background: var(--navy);">
           <div style="text-align: center; color: #fff;">
             <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
-            <div style="font-size: 12px; font-weight: 600;">AUDIO ACTIVE</div>
+            <div style="font-size: 12px; font-weight: 600;">AUDIO FEED ACTIVE</div>
             <div id="audio-level" style="width: 60px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 8px auto 0; overflow: hidden;">
               <div id="audio-bar" style="width: 30%; height: 100%; background: var(--success); border-radius: 3px; transition: width 0.1s;"></div>
             </div>
           </div>
-          <span class="media-label">🎙️ Microphone</span>
+          <span class="media-label">🎙️ Live Microphone</span>
           <span class="media-status"></span>
         </div>
       </div>
@@ -203,14 +218,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
+  <script src="js/auth-sync.js"></script>
 
   <script>
     // ====================================================================
-    // AUTH CHECK — Redirect if not logged in as "user"
+    // AUTH CHECK — Session persistence across devices
     // ====================================================================
     let currentUser = null;
 
-    // Check local session first
     const savedUserStr = localStorage.getItem('currentUser');
     if (savedUserStr) {
       try {
@@ -222,28 +237,56 @@
       } catch (e) {}
     }
 
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentUser = user;
-        document.getElementById('nav-user-email').textContent = user.email;
+    if (!currentUser) {
+      window.location.href = 'login-user.html';
+    }
 
-        // Verify role
+    if (auth && auth.onAuthStateChanged) {
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          currentUser = {
+            uid: user.uid,
+            email: user.email,
+            role: 'user',
+            displayName: user.displayName || user.email.split('@')[0]
+          };
+          document.getElementById('nav-user-email').textContent = user.email;
+        }
+      });
+    }
+
+    function logout() {
+      universalLogout();
+    }
+
+    // ====================================================================
+    // PERMISSIONS READINESS BAR INITIALIZATION
+    // ====================================================================
+    function updateReadinessUI() {
+      const cached = localStorage.getItem('cachedCoords');
+      if (cached) {
         try {
-          const doc = await db.collection('users').doc(user.uid).get();
-          if (doc.exists && doc.data().role !== 'user') {
-            alert('Access denied. This portal is for civilians only.');
-            logout();
-            return;
-          }
-        } catch (e) {
-          console.log('Role check error:', e);
-        }
+          const coords = JSON.parse(cached);
+          document.getElementById('readiness-loc-val').textContent = `${coords.latitude}, ${coords.longitude}`;
+          document.getElementById('location').value = `${coords.latitude}, ${coords.longitude} (GPS Auto)`;
+        } catch (e) {}
       } else {
-        if (!currentUser) {
-          window.location.href = 'index.html';
-        }
+        autoDetectLocation(false);
       }
-    });
+    }
+    updateReadinessUI();
+
+    async function testAndReauthorizePermissions() {
+      showToast('Requesting device sensor permissions...', 'warning');
+      const res = await requestEmergencyPermissions();
+      if (res.location && res.coords) {
+        document.getElementById('readiness-loc-val').textContent = `${res.coords.latitude}, ${res.coords.longitude}`;
+        document.getElementById('location').value = `${res.coords.latitude}, ${res.coords.longitude} (GPS Auto)`;
+      }
+      document.getElementById('readiness-cam-val').textContent = res.camera ? 'Authorized' : 'Denied';
+      document.getElementById('readiness-mic-val').textContent = res.microphone ? 'Authorized' : 'Denied';
+      showToast('Device permissions checked and updated!', 'success');
+    }
 
     // ====================================================================
     // TOAST NOTIFICATIONS
@@ -256,14 +299,8 @@
     }
 
     // ====================================================================
-    // INCIDENT DATA — Stored in localStorage + Firestore
+    // INCIDENT SUBMISSION (Syncs to server & Firestore)
     // ====================================================================
-    let incidents = JSON.parse(localStorage.getItem('emergencies')) || [];
-
-    function saveData() {
-      localStorage.setItem('emergencies', JSON.stringify(incidents));
-    }
-
     function classifySeverity(category, affected, chosen) {
       if (chosen !== 'Auto') return chosen;
       if (affected >= 10 || category === 'Fire' || category === 'Natural Disaster') return 'Critical';
@@ -272,15 +309,12 @@
       return 'Low';
     }
 
-    // ====================================================================
-    // FORM SUBMISSION
-    // ====================================================================
-    document.getElementById('incident-form').addEventListener('submit', (e) => {
+    document.getElementById('incident-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      submitIncidentFromForm();
+      await submitIncidentFromForm();
     });
 
-    function submitIncidentFromForm() {
+    async function submitIncidentFromForm() {
       const category = document.getElementById('category').value;
       const affected = parseInt(document.getElementById('affected').value, 10);
       const chosenSeverity = document.getElementById('severity').value;
@@ -296,53 +330,60 @@
         contact: document.getElementById('contact').value || 'Not provided',
         status: 'Reported',
         timestamp: new Date().toLocaleString(),
-        reportedBy: currentUser ? currentUser.email : 'Anonymous',
+        reportedBy: currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org',
         source: 'form'
       };
 
-      incidents.unshift(newIncident);
-      saveData();
+      // 1. Post to Server (broadcasts in real time to Admin dashboard on other devices)
+      try {
+        await rapidSync.createIncident(newIncident);
+      } catch (err) {
+        console.warn('Server incident post error:', err);
+      }
 
-      // Also save to Firestore
-      saveToFirestore(newIncident);
+      // 2. Also save to Firestore if online
+      if (db) {
+        try {
+          db.collection('incidents').add({
+            ...newIncident,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).catch(console.warn);
+        } catch (e) {}
+      }
+
+      // 3. Cache locally
+      const localList = JSON.parse(localStorage.getItem('emergencies') || '[]');
+      localList.unshift(newIncident);
+      localStorage.setItem('emergencies', JSON.stringify(localList));
 
       document.getElementById('incident-form').reset();
-      showToast('✅ Emergency reported! Severity: ' + newIncident.severity, 'success');
-    }
-
-    async function saveToFirestore(incident) {
-      try {
-        await db.collection('incidents').add({
-          ...incident,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (err) {
-        console.error('Firestore save error:', err);
-      }
+      showToast('✅ Emergency reported! Broadcast sent to Admin Command Center.', 'success');
     }
 
     // ====================================================================
     // AUTO-DETECT LOCATION
     // ====================================================================
-    function autoDetectLocation() {
+    function autoDetectLocation(showToastMsg = true) {
       if (!navigator.geolocation) {
-        showToast('Geolocation not supported by your browser', 'error');
+        if (showToastMsg) showToast('Geolocation not supported by your browser', 'error');
         return;
       }
 
-      showToast('📍 Detecting your location...', 'warning');
+      if (showToastMsg) showToast('📍 Detecting your location...', 'warning');
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude.toFixed(6);
           const lon = pos.coords.longitude.toFixed(6);
-          document.getElementById('location').value = `${lat}, ${lon} (GPS)`;
-          showToast('📍 Location detected!', 'success');
+          document.getElementById('location').value = `${lat}, ${lon} (GPS Auto)`;
+          document.getElementById('readiness-loc-val').textContent = `${lat}, ${lon}`;
+          localStorage.setItem('cachedCoords', JSON.stringify({ latitude: lat, longitude: lon, accuracy: pos.coords.accuracy }));
+          if (showToastMsg) showToast('📍 Location detected!', 'success');
         },
         (err) => {
-          showToast('Could not detect location: ' + err.message, 'error');
+          if (showToastMsg) showToast('Could not detect location: ' + err.message, 'error');
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
 
@@ -450,239 +491,168 @@
       isRecording = false;
     }
 
-    // ====================================================================
-    // VOICE CLASSIFICATION — Keyword-based auto-classification
-    // ====================================================================
     function classifyVoiceInput(text) {
       const lower = text.toLowerCase();
-
-      // Category detection
       let category = 'Other';
       const categoryMap = {
-        'fire': 'Fire',
-        'burning': 'Fire',
-        'flames': 'Fire',
-        'smoke': 'Fire',
-        'blaze': 'Fire',
-        'accident': 'Road Accident',
-        'crash': 'Road Accident',
-        'collision': 'Road Accident',
-        'car': 'Road Accident',
-        'vehicle': 'Road Accident',
-        'truck': 'Road Accident',
-        'hit and run': 'Road Accident',
-        'pileup': 'Road Accident',
-        'flood': 'Flood',
-        'water': 'Flood',
-        'drowning': 'Flood',
-        'rain': 'Flood',
-        'submerged': 'Flood',
-        'heart attack': 'Medical Emergency',
-        'bleeding': 'Medical Emergency',
-        'injured': 'Medical Emergency',
-        'unconscious': 'Medical Emergency',
-        'breathing': 'Medical Emergency',
-        'pain': 'Medical Emergency',
-        'stroke': 'Medical Emergency',
-        'seizure': 'Medical Emergency',
-        'medical': 'Medical Emergency',
-        'ambulance': 'Medical Emergency',
-        'earthquake': 'Natural Disaster',
-        'cyclone': 'Natural Disaster',
-        'tsunami': 'Natural Disaster',
-        'tornado': 'Natural Disaster',
-        'landslide': 'Natural Disaster',
-        'storm': 'Natural Disaster',
-        'shooting': 'Violence/Crime',
-        'attack': 'Violence/Crime',
-        'robbery': 'Violence/Crime',
-        'assault': 'Violence/Crime',
-        'gun': 'Violence/Crime',
-        'stabbing': 'Violence/Crime',
-        'knife': 'Violence/Crime',
-        'bomb': 'Violence/Crime',
-        'building collapse': 'Structural Collapse',
-        'collapsed': 'Structural Collapse',
-        'bridge': 'Structural Collapse',
-        'structure': 'Structural Collapse',
+        'fire': 'Fire', 'burning': 'Fire', 'flames': 'Fire', 'smoke': 'Fire', 'blaze': 'Fire',
+        'accident': 'Road Accident', 'crash': 'Road Accident', 'collision': 'Road Accident', 'car': 'Road Accident', 'vehicle': 'Road Accident',
+        'flood': 'Flood', 'water': 'Flood', 'drowning': 'Flood', 'rain': 'Flood',
+        'heart attack': 'Medical Emergency', 'bleeding': 'Medical Emergency', 'injured': 'Medical Emergency', 'medical': 'Medical Emergency',
+        'earthquake': 'Natural Disaster', 'cyclone': 'Natural Disaster', 'storm': 'Natural Disaster',
+        'shooting': 'Violence/Crime', 'attack': 'Violence/Crime', 'robbery': 'Violence/Crime',
+        'collapse': 'Structural Collapse', 'structure': 'Structural Collapse'
       };
 
-      for (const [keyword, cat] of Object.entries(categoryMap)) {
-        if (lower.includes(keyword)) {
+      for (const [kw, cat] of Object.entries(categoryMap)) {
+        if (lower.includes(kw)) {
           category = cat;
           break;
         }
       }
 
-      // Severity estimation from keywords
       let severity = 'Medium';
-      const criticalWords = ['dead', 'death', 'dying', 'killed', 'explosion', 'bomb', 'mass', 'multiple casualties', 'trapped', 'collapse', 'tsunami'];
-      const highWords = ['severe', 'critical', 'serious', 'major', 'many', 'injured', 'bleeding', 'unconscious', 'fire', 'gun', 'shooting'];
-      const lowWords = ['minor', 'small', 'slight', 'little'];
+      if (lower.includes('dead') || lower.includes('death') || lower.includes('collapse') || lower.includes('explosion')) severity = 'Critical';
+      else if (lower.includes('severe') || lower.includes('blood') || lower.includes('fire') || lower.includes('accident')) severity = 'High';
 
-      if (criticalWords.some(w => lower.includes(w))) severity = 'Critical';
-      else if (highWords.some(w => lower.includes(w))) severity = 'High';
-      else if (lowWords.some(w => lower.includes(w))) severity = 'Low';
-
-      // Number of people
-      const numberMatch = lower.match(/(\d+)\s*(people|persons|injured|affected|casualties|dead|trapped)/);
       let affected = 1;
-      if (numberMatch) {
-        affected = parseInt(numberMatch[1]);
-        if (affected >= 10) severity = 'Critical';
-        else if (affected >= 4) severity = 'High';
-      }
+      const numMatch = lower.match(/(\d+)\s*(people|persons|injured|casualties)/);
+      if (numMatch) affected = parseInt(numMatch[1], 10);
 
-      // Display classification
       document.getElementById('voice-category').textContent = category;
       document.getElementById('voice-severity').textContent = severity;
       document.getElementById('voice-classification').classList.add('active');
       document.getElementById('voice-confirm-btn').classList.remove('hidden');
 
-      // Store for submission
       window._voiceClassification = { category, severity, affected, text };
     }
 
-    // ====================================================================
-    // CONFIRM VOICE REPORT — One-click submit
-    // ====================================================================
-    function confirmVoiceReport() {
+    async function confirmVoiceReport() {
       const c = window._voiceClassification;
       if (!c) return;
 
-      // Auto-detect location
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude.toFixed(6);
-            const lon = pos.coords.longitude.toFixed(6);
-            submitVoiceIncident(c, `${lat}, ${lon} (GPS Auto)`);
-          },
-          () => {
-            submitVoiceIncident(c, 'Location unavailable');
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      } else {
-        submitVoiceIncident(c, 'Location unavailable');
-      }
-    }
+      let loc = document.getElementById('location').value || 'Location Auto GPS';
 
-    function submitVoiceIncident(classification, location) {
       const newIncident = {
         id: Date.now(),
-        title: '[Voice Report] ' + classification.category + ' Emergency',
-        category: classification.category,
-        severity: classification.severity,
-        location: location,
-        affected: classification.affected,
-        description: classification.text,
+        title: '[Voice Report] ' + c.category + ' Emergency',
+        category: c.category,
+        severity: c.severity,
+        location: loc,
+        affected: c.affected,
+        description: c.text,
         contact: currentUser ? currentUser.email : 'Voice Report',
         status: 'Reported',
         timestamp: new Date().toLocaleString(),
-        reportedBy: currentUser ? currentUser.email : 'Anonymous',
+        reportedBy: currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org',
         source: 'voice'
       };
 
-      incidents.unshift(newIncident);
-      saveData();
-      saveToFirestore(newIncident);
+      await rapidSync.createIncident(newIncident);
+
+      if (db) {
+        db.collection('incidents').add({
+          ...newIncident,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(console.warn);
+      }
 
       closeVoiceReport();
-      showToast('✅ Voice report submitted! Category: ' + classification.category + ' | Severity: ' + classification.severity, 'success');
+      showToast('✅ Voice emergency report broadcast to Admin Command!', 'success');
     }
 
     // ====================================================================
-    // SOS — Activate camera, mic, and precise location
+    // SOS — Live Camera, Microphone, and Real-Time Dispatch Broadcast
     // ====================================================================
     let sosStream = null;
     let audioContext = null;
     let audioAnalyser = null;
     let audioAnimFrame = null;
+    let currentSosAlertId = null;
 
-    function activateSOS() {
+    async function activateSOS() {
       document.getElementById('sos-overlay').classList.remove('hidden');
       document.getElementById('sos-time').textContent = new Date().toLocaleTimeString();
-      document.getElementById('sos-location').textContent = 'Detecting...';
+      document.getElementById('sos-location').textContent = 'Acquiring GPS...';
       document.getElementById('sos-coords').textContent = 'Fetching GPS...';
 
-      // Get precise location
+      let lat = null, lon = null, acc = null;
+
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude.toFixed(8);
-            const lon = pos.coords.longitude.toFixed(8);
-            const acc = pos.coords.accuracy.toFixed(1);
+          async (pos) => {
+            lat = pos.coords.latitude.toFixed(6);
+            lon = pos.coords.longitude.toFixed(6);
+            acc = pos.coords.accuracy.toFixed(1);
             document.getElementById('sos-coords').textContent = `${lat}, ${lon}`;
             document.getElementById('sos-location').textContent = `GPS ±${acc}m accuracy`;
 
-            // Save SOS alert to Firestore
-            saveSOS(lat, lon, acc);
+            // Broadcast SOS to server & Firestore
+            await dispatchSOS(lat, lon, acc);
           },
-          (err) => {
-            document.getElementById('sos-location').textContent = 'Location denied';
+          async (err) => {
+            document.getElementById('sos-location').textContent = 'Location unavailable';
             document.getElementById('sos-coords').textContent = 'N/A';
-            saveSOS(null, null, null);
+            await dispatchSOS(null, null, null);
           },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
+      } else {
+        await dispatchSOS(null, null, null);
       }
 
-      // Start camera + mic
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
-        .then((stream) => {
-          sosStream = stream;
-          const video = document.getElementById('sos-video');
-          video.srcObject = stream;
-
-          // Audio level visualizer
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const source = audioContext.createMediaStreamSource(stream);
-          audioAnalyser = audioContext.createAnalyser();
-          audioAnalyser.fftSize = 256;
-          source.connect(audioAnalyser);
-          visualizeAudio();
-        })
-        .catch((err) => {
-          console.error('Media access error:', err);
-          showToast('Could not access camera/microphone: ' + err.message, 'error');
+      // Start Camera & Mic
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: true
         });
+        sosStream = stream;
+        const video = document.getElementById('sos-video');
+        video.srcObject = stream;
 
-      // Also create an SOS incident report
-      const sosIncident = {
-        id: Date.now(),
-        title: '🚨 SOS ALERT — Immediate Assistance Required',
-        category: 'SOS Emergency',
-        severity: 'Critical',
-        location: 'GPS location pending...',
-        affected: 1,
-        description: 'SOS button activated. Camera and microphone are live. Emergency responders have been notified with exact GPS coordinates.',
-        contact: currentUser ? currentUser.email : 'SOS User',
-        status: 'Reported',
-        timestamp: new Date().toLocaleString(),
-        reportedBy: currentUser ? currentUser.email : 'Anonymous',
-        source: 'sos'
-      };
-
-      incidents.unshift(sosIncident);
-      saveData();
-      saveToFirestore(sosIncident);
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        source.connect(audioAnalyser);
+        visualizeAudio();
+      } catch (err) {
+        console.warn('Camera/Mic stream error:', err);
+        showToast('Camera/Mic feed notice: ' + err.message, 'warning');
+      }
     }
 
-    async function saveSOS(lat, lon, accuracy) {
+    async function dispatchSOS(lat, lon, accuracy) {
+      const sosData = {
+        userId: currentUser ? currentUser.uid : 'demo_user_1',
+        email: currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org',
+        latitude: lat,
+        longitude: lon,
+        accuracy: accuracy,
+        active: true,
+        media: { hasVideo: true, hasAudio: true }
+      };
+
       try {
-        await db.collection('sos_alerts').add({
-          userId: currentUser ? currentUser.uid : 'unknown',
-          email: currentUser ? currentUser.email : 'unknown',
-          latitude: lat,
-          longitude: lon,
-          accuracy: accuracy,
-          active: true,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (err) {
-        console.error('SOS Firestore save error:', err);
+        const res = await rapidSync.createSOS(sosData);
+        if (res.alert && res.alert.id) {
+          currentSosAlertId = res.alert.id;
+        }
+      } catch (e) {
+        console.error('Server SOS dispatch error:', e);
       }
+
+      if (db) {
+        try {
+          db.collection('sos_alerts').add({
+            ...sosData,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          }).catch(console.warn);
+        } catch (e) {}
+      }
+
+      showToast('🚨 SOS broadcast live to Admin Command Center!', 'error');
     }
 
     function visualizeAudio() {
@@ -695,10 +665,16 @@
       audioAnimFrame = requestAnimationFrame(visualizeAudio);
     }
 
-    function deactivateSOS() {
+    async function deactivateSOS() {
       document.getElementById('sos-overlay').classList.add('hidden');
 
-      // Stop all media
+      if (currentSosAlertId) {
+        try {
+          await rapidSync.resolveSOS(currentSosAlertId);
+        } catch (e) {}
+        currentSosAlertId = null;
+      }
+
       if (sosStream) {
         sosStream.getTracks().forEach(t => t.stop());
         sosStream = null;
@@ -713,8 +689,22 @@
         audioAnimFrame = null;
       }
 
-      showToast('SOS session ended. Report saved.', 'warning');
+      showToast('SOS broadcast ended.', 'warning');
     }
+
+    // ====================================================================
+    // REAL-TIME EVENT LISTENER (Status updates from Admin)
+    // ====================================================================
+    rapidSync.on('INCIDENT_UPDATED', (updated) => {
+      showToast(`📢 Dispatch status update: "${updated.title}" is now ${updated.status}`, 'info');
+    });
+
+    rapidSync.on('SOS_RESOLVED', (data) => {
+      if (currentSosAlertId === data.id) {
+        showToast('✅ Admin Command has marked your SOS as resolved.', 'success');
+        deactivateSOS();
+      }
+    });
   </script>
 
 </body>

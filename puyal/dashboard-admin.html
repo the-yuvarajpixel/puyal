@@ -3,10 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse — Admin Dashboard</title>
+  <title>RapidResponse — Admin Command Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .emergency-alert-banner {
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: var(--radius-lg);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.35);
+      animation: alertPulse 2s infinite alternate;
+    }
+    @keyframes alertPulse {
+      from { box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+      to { box-shadow: 0 0 24px rgba(220, 38, 38, 0.8); }
+    }
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(5, 150, 105, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(5, 150, 105, 0.3);
+    }
+  </style>
 </head>
 <body>
 
@@ -14,9 +45,10 @@
   <nav class="navbar">
     <div class="nav-brand">
       <span class="sos-tag">SOS</span>
-      <h1>RapidResponse — Admin Control</h1>
+      <h1>RapidResponse — Admin Command Center</h1>
     </div>
     <div class="nav-right">
+      <span class="sync-badge" id="sync-status">● Live Stream Active</span>
       <span class="nav-user" id="nav-admin-email">Loading...</span>
       <button class="nav-btn btn-logout" onclick="logout()">Logout</button>
     </div>
@@ -28,10 +60,26 @@
   <!-- ============ MAIN CONTENT ============ -->
   <main class="main-container">
 
+    <!-- ── Live SOS Critical Alert Banner (Auto-shows when SOS is active) ── -->
+    <div id="active-emergency-banner" class="emergency-alert-banner hidden">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 28px;">🚨</span>
+        <div>
+          <div style="font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">ACTIVE SOS BROADCAST RECEIVED</div>
+          <div style="font-size: 13px; opacity: 0.95;" id="banner-sos-details">Civilian reporting live distress</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-confirm" style="background: #fff; color: var(--danger); font-weight: 800; padding: 8px 16px; border: none; cursor: pointer; border-radius: var(--radius-md);" onclick="resolveTopSOS()">
+          ✅ Dispatch Responders &amp; Resolve
+        </button>
+      </div>
+    </div>
+
     <!-- ── Live SOS Feed ── -->
     <div class="live-feed-card" id="live-feed-card">
       <div class="live-feed-header">
-        <h3><span class="live-dot"></span> Live SOS Alerts</h3>
+        <h3><span class="live-dot"></span> Live SOS Alerts (Cross-Device Feed)</h3>
         <span style="font-size: 12px; color: var(--text-muted);" id="sos-count">0 active</span>
       </div>
       <div class="live-feed-body" id="live-feed-body">
@@ -70,7 +118,7 @@
     <!-- ── Incidents Table ── -->
     <div class="table-card">
       <div class="table-header">
-        <h3>All Reported Incidents</h3>
+        <h3>All Reported Incidents (Live Synchronized)</h3>
         <div class="filters">
           <select class="filter-select" id="filter-severity" onchange="renderDashboard()">
             <option value="All">All Severities</option>
@@ -132,53 +180,46 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
+  <script src="js/auth-sync.js"></script>
 
   <script>
     // ====================================================================
-    // AUTH CHECK — Must be admin
+    // AUTH CHECK — Admin Control Session
     // ====================================================================
     let currentAdmin = null;
 
-    // Check local session first
     const savedAdminStr = localStorage.getItem('currentUser');
     if (savedAdminStr) {
       try {
         const parsed = JSON.parse(savedAdminStr);
         if (parsed && (parsed.role === 'admin' || localStorage.getItem('userRole') === 'admin')) {
           currentAdmin = parsed;
-          document.getElementById('nav-admin-email').textContent = parsed.email || 'Admin HQ';
-          loadIncidents();
-          loadSOSAlerts();
+          document.getElementById('nav-admin-email').textContent = parsed.email || 'HQ Commander';
         }
       } catch (e) {}
     }
 
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentAdmin = user;
-        document.getElementById('nav-admin-email').textContent = user.email;
+    if (!currentAdmin) {
+      window.location.href = 'login-admin.html';
+    }
 
-        // Verify role
-        try {
-          const doc = await db.collection('users').doc(user.uid).get();
-          if (doc.exists && doc.data().role !== 'admin') {
-            alert('Access denied. Admin privileges required.');
-            logout();
-            return;
-          }
-        } catch (e) {
-          console.log('Role check error:', e);
+    if (auth && auth.onAuthStateChanged) {
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          currentAdmin = {
+            uid: user.uid,
+            email: user.email,
+            role: 'admin',
+            displayName: user.displayName || user.email.split('@')[0]
+          };
+          document.getElementById('nav-admin-email').textContent = user.email;
         }
+      });
+    }
 
-        // Load data if not already loaded
-        loadIncidents();
-        loadSOSAlerts();
-      } else {
-        if (!currentAdmin) {
-          window.location.href = 'index.html';
-        }
-      }
-    });
+    function logout() {
+      universalLogout();
+    }
 
     // ====================================================================
     // TOAST
@@ -191,164 +232,185 @@
     }
 
     // ====================================================================
-    // INCIDENT DATA
+    // EMERGENCY AUDIO ALARM SYNTHESIS
+    // ====================================================================
+    function playEmergencyAlertChime() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      } catch (e) {}
+    }
+
+    // ====================================================================
+    // DATA STORE & SYNCHRONIZATION
     // ====================================================================
     let incidents = [];
+    let sosAlerts = [];
 
-    function loadIncidents() {
-      // Load from localStorage first for instant display
-      incidents = JSON.parse(localStorage.getItem('emergencies')) || [];
-      renderDashboard();
-
-      // Then sync from Firestore for cross-device data
-      db.collection('incidents')
-        .orderBy('createdAt', 'desc')
-        .limit(200)
-        .onSnapshot((snapshot) => {
-          const firestoreIncidents = [];
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            firestoreIncidents.push({
-              id: data.id || doc.id,
-              firestoreId: doc.id,
-              title: data.title,
-              category: data.category,
-              severity: data.severity,
-              location: data.location,
-              affected: data.affected,
-              description: data.description,
-              contact: data.contact,
-              status: data.status,
-              timestamp: data.timestamp,
-              reportedBy: data.reportedBy || 'Unknown',
-              source: data.source || 'form'
-            });
-          });
-
-          // Merge: prefer Firestore data, fall back to localStorage
-          if (firestoreIncidents.length > 0) {
-            // Combine unique incidents from both sources
-            const idSet = new Set();
-            const merged = [];
-            for (const inc of firestoreIncidents) {
-              if (!idSet.has(inc.id)) {
-                idSet.add(inc.id);
-                merged.push(inc);
-              }
-            }
-            for (const inc of incidents) {
-              if (!idSet.has(inc.id)) {
-                idSet.add(inc.id);
-                merged.push(inc);
-              }
-            }
-            incidents = merged;
-          }
-
-          renderDashboard();
-        }, (err) => {
-          console.log('Firestore listen error (using localStorage):', err);
-          renderDashboard();
-        });
-    }
-
-    function saveData() {
-      localStorage.setItem('emergencies', JSON.stringify(incidents));
-    }
-
-    // ====================================================================
-    // LIVE SOS FEED
-    // ====================================================================
-    function loadSOSAlerts() {
-      db.collection('sos_alerts')
-        .where('active', '==', true)
-        .orderBy('timestamp', 'desc')
-        .limit(20)
-        .onSnapshot((snapshot) => {
-          const body = document.getElementById('live-feed-body');
-          const noMsg = document.getElementById('no-sos-msg');
-          const count = document.getElementById('sos-count');
-
-          if (snapshot.empty) {
-            noMsg.style.display = 'block';
-            count.textContent = '0 active';
-            body.innerHTML = '<div class="live-feed-empty">No active SOS alerts. All is calm.</div>';
-            return;
-          }
-
-          count.textContent = snapshot.size + ' active';
-          let html = '';
-          snapshot.forEach((doc) => {
-            const d = doc.data();
-            const time = d.timestamp ? d.timestamp.toDate().toLocaleString() : 'Just now';
-            html += `
-              <div class="live-sos-item">
-                <div class="sos-user-info">
-                  <span class="sos-user-name">🚨 ${d.email || 'Unknown User'}</span>
-                  <span class="sos-time">${time}</span>
-                </div>
-                <div class="sos-location">
-                  📍 ${d.latitude ? d.latitude + ', ' + d.longitude + ' (±' + (d.accuracy || '?') + 'm)' : 'Location unavailable'}
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                  <button class="btn btn-confirm" style="padding: 6px 14px; font-size: 12px;" onclick="resolveSOSAlert('${doc.id}')">
-                    ✅ Mark Resolved
-                  </button>
-                  ${d.latitude ? `<a href="https://www.google.com/maps?q=${d.latitude},${d.longitude}" target="_blank" class="btn" style="background: var(--info); color: #fff; padding: 6px 14px; font-size: 12px; text-decoration: none;">🗺️ View Map</a>` : ''}
-                </div>
-              </div>
-            `;
-          });
-          body.innerHTML = html;
-        }, (err) => {
-          console.log('SOS listen error:', err);
-        });
-    }
-
-    async function resolveSOSAlert(docId) {
+    async function loadAllData() {
       try {
-        await db.collection('sos_alerts').doc(docId).update({ active: false });
-        showToast('SOS alert resolved.', 'success');
+        const [incList, sosList] = await Promise.all([
+          rapidSync.fetchIncidents(),
+          rapidSync.fetchSOS()
+        ]);
+        incidents = incList;
+        sosAlerts = sosList;
+        renderDashboard();
+        renderSOSFeed();
+      } catch (err) {
+        console.warn('Sync load fallback to local storage:', err);
+        incidents = JSON.parse(localStorage.getItem('emergencies') || '[]');
+        renderDashboard();
+      }
+    }
+
+    loadAllData();
+    // Fast periodic background sync every 4 seconds to guarantee cross-device consistency
+    setInterval(loadAllData, 4000);
+
+    // ====================================================================
+    // REAL-TIME EVENT BUS (SSE Listeners)
+    // ====================================================================
+    rapidSync.on('SOS_ACTIVATED', (alert) => {
+      playEmergencyAlertChime();
+      sosAlerts.unshift(alert);
+      renderSOSFeed();
+      showToast(`🚨 INCOMING SOS ALERT from ${alert.email}!`, 'error');
+    });
+
+    rapidSync.on('SOS_RESOLVED', (data) => {
+      sosAlerts = sosAlerts.map(a => a.id === data.id ? { ...a, active: false } : a);
+      renderSOSFeed();
+    });
+
+    rapidSync.on('INCIDENT_CREATED', (inc) => {
+      playEmergencyAlertChime();
+      if (!incidents.some(i => String(i.id) === String(inc.id))) {
+        incidents.unshift(inc);
+        renderDashboard();
+        showToast(`📢 Incident reported: "${inc.title}" (${inc.severity})`, 'warning');
+      }
+    });
+
+    rapidSync.on('INCIDENT_UPDATED', (inc) => {
+      const idx = incidents.findIndex(i => String(i.id) === String(inc.id));
+      if (idx !== -1) {
+        incidents[idx] = inc;
+        renderDashboard();
+      }
+    });
+
+    rapidSync.on('INCIDENT_DELETED', (data) => {
+      incidents = incidents.filter(i => String(i.id) !== String(data.id));
+      renderDashboard();
+    });
+
+    // ====================================================================
+    // LIVE SOS FEED RENDERER
+    // ====================================================================
+    function renderSOSFeed() {
+      const body = document.getElementById('live-feed-body');
+      const countEl = document.getElementById('sos-count');
+      const banner = document.getElementById('active-emergency-banner');
+      const bannerDetails = document.getElementById('banner-sos-details');
+
+      const activeAlerts = sosAlerts.filter(a => a.active);
+      countEl.textContent = `${activeAlerts.length} active`;
+
+      if (activeAlerts.length === 0) {
+        banner.classList.add('hidden');
+        body.innerHTML = '<div class="live-feed-empty" id="no-sos-msg">No active SOS alerts. All is calm.</div>';
+        return;
+      }
+
+      // Show top emergency alert banner
+      const topAlert = activeAlerts[0];
+      banner.classList.remove('hidden');
+      bannerDetails.textContent = `Target: ${topAlert.email} | Location: ${topAlert.latitude ? `${topAlert.latitude}, ${topAlert.longitude} (±${topAlert.accuracy || 5}m)` : 'GPS Pending'} | Time: ${topAlert.displayTime || 'Just now'}`;
+
+      let html = '';
+      activeAlerts.forEach((d) => {
+        const time = d.displayTime || new Date(d.timestamp).toLocaleTimeString();
+        html += `
+          <div class="live-sos-item" style="border-left: 4px solid var(--danger);">
+            <div class="sos-user-info">
+              <span class="sos-user-name">🚨 ${d.email || 'Civilian Distress Call'}</span>
+              <span class="sos-time">${time}</span>
+            </div>
+            <div class="sos-location">
+              📍 ${d.latitude ? `${d.latitude}, ${d.longitude} (±${d.accuracy || 5}m)` : 'GPS Coordinates Pending...'}
+            </div>
+            <div style="font-size: 11px; color: var(--success); margin-top: 4px;">
+              ● Live Camera &amp; Mic Feed Broadcasting
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+              <button class="btn btn-confirm" style="padding: 6px 14px; font-size: 12px;" onclick="resolveSOSAlert('${d.id}')">
+                ✅ Dispatch &amp; Mark Resolved
+              </button>
+              ${d.latitude ? `<a href="https://www.google.com/maps?q=${d.latitude},${d.longitude}" target="_blank" class="btn" style="background: var(--info); color: #fff; padding: 6px 14px; font-size: 12px; text-decoration: none;">🗺️ Satellite Map</a>` : ''}
+            </div>
+          </div>
+        `;
+      });
+      body.innerHTML = html;
+    }
+
+    async function resolveTopSOS() {
+      const activeAlerts = sosAlerts.filter(a => a.active);
+      if (activeAlerts.length > 0) {
+        await resolveSOSAlert(activeAlerts[0].id);
+      }
+    }
+
+    async function resolveSOSAlert(id) {
+      try {
+        await rapidSync.resolveSOS(id);
+        sosAlerts = sosAlerts.map(a => a.id === id ? { ...a, active: false } : a);
+        renderSOSFeed();
+        showToast('SOS alert marked resolved. Dispatch confirmed.', 'success');
       } catch (err) {
         showToast('Error resolving SOS: ' + err.message, 'error');
       }
     }
 
     // ====================================================================
-    // UPDATE STATUS
+    // UPDATE INCIDENT STATUS
     // ====================================================================
-    function updateStatus(id, newStatus) {
-      const item = incidents.find(i => String(i.id) === String(id));
-      if (item) {
-        item.status = newStatus;
-        saveData();
-
-        // Update in Firestore if it has a firestoreId
-        if (item.firestoreId) {
-          db.collection('incidents').doc(item.firestoreId).update({ status: newStatus }).catch(console.error);
-        }
-
+    async function updateStatus(id, newStatus) {
+      try {
+        await rapidSync.updateIncident(id, newStatus);
+        const item = incidents.find(i => String(i.id) === String(id));
+        if (item) item.status = newStatus;
         renderDashboard();
-        showToast('Status updated to: ' + newStatus, 'success');
+        showToast('Incident updated to: ' + newStatus, 'success');
+      } catch (e) {
+        showToast('Failed to update incident: ' + e.message, 'error');
       }
     }
 
     // ====================================================================
     // DELETE INCIDENT
     // ====================================================================
-    function deleteIncident(id) {
+    async function deleteIncident(id) {
       if (confirm('Delete this incident report permanently?')) {
-        const item = incidents.find(i => String(i.id) === String(id));
-
-        // Remove from Firestore
-        if (item && item.firestoreId) {
-          db.collection('incidents').doc(item.firestoreId).delete().catch(console.error);
+        try {
+          await rapidSync.deleteIncident(id);
+          incidents = incidents.filter(i => String(i.id) !== String(id));
+          renderDashboard();
+          showToast('Incident removed from active tracking.', 'warning');
+        } catch (e) {
+          showToast('Failed to delete: ' + e.message, 'error');
         }
-
-        incidents = incidents.filter(i => String(i.id) !== String(id));
-        saveData();
-        renderDashboard();
-        showToast('Incident deleted.', 'warning');
       }
     }
 
@@ -360,7 +422,6 @@
       if (!item) return;
 
       document.getElementById('modal-title').innerText = item.title;
-
       const sourceIcon = item.source === 'voice' ? '🎙️' : item.source === 'sos' ? '🚨' : '📝';
 
       document.getElementById('modal-body').innerHTML = `
@@ -390,13 +451,11 @@
       const statFilter = document.getElementById('filter-status').value;
       const srcFilter = document.getElementById('filter-source').value;
 
-      // KPI Stats
       document.getElementById('stat-total').innerText = incidents.length;
       document.getElementById('stat-critical').innerText = incidents.filter(i => i.severity === 'Critical').length;
       document.getElementById('stat-pending').innerText = incidents.filter(i => i.status !== 'Resolved').length;
       document.getElementById('stat-resolved').innerText = incidents.filter(i => i.status === 'Resolved').length;
 
-      // Category breakdown
       const catCounts = {};
       incidents.forEach(i => catCounts[i.category] = (catCounts[i.category] || 0) + 1);
       document.getElementById('category-stats').innerHTML = Object.entries(catCounts)
@@ -404,14 +463,12 @@
         .map(([cat, count]) => `<span class="cat-pill">${cat}: <strong>${count}</strong></span>`)
         .join('') || '<span style="font-size:12px;color:var(--text-faint);">No data yet</span>';
 
-      // Filtered list
       const filtered = incidents.filter(i =>
         (sevFilter === 'All' || i.severity === sevFilter) &&
         (statFilter === 'All' || i.status === statFilter) &&
         (srcFilter === 'All' || i.source === srcFilter)
       );
 
-      // Source icons
       const sourceIcons = { voice: '🎙️', sos: '🚨', form: '📝' };
 
       document.getElementById('incident-table').innerHTML = filtered.map(item => `
