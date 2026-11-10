@@ -1375,3 +1375,299 @@ tr.row-critical:hover {
     max-width: 300px;
   }
 }
+
+/* ============================================================================
+   Dynamic Threat Severity Meter
+   ============================================================================ */
+.severity-meter-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin: 16px 0;
+  box-shadow: var(--shadow-xs);
+}
+.severity-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.severity-score-badge {
+  font-weight: 800;
+  font-size: 14px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+.meter-track {
+  width: 100%;
+  height: 12px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+}
+.meter-fill {
+  height: 100%;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.35s ease;
+  border-radius: 6px;
+}
+.meter-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.meter-low { background: #10b981; }
+.meter-medium { background: #f59e0b; }
+.meter-high { background: #f97316; }
+.meter-critical { background: #ef4444; animation: criticalPulse 1.5s infinite alternate; }
+
+@keyframes criticalPulse {
+  0% { opacity: 0.85; filter: brightness(1); }
+  100% { opacity: 1; filter: brightness(1.25); box-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+}
+
+/* ============================================================================
+   Bhashini Multilingual AI Selector
+   ============================================================================ */
+.bhashini-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.lang-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lang-select {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--navy);
+}
+
+/* ============================================================================
+   Government Platform & Resource Allocation Styles
+   ============================================================================ */
+.gov-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  margin: 24px 0;
+  box-shadow: var(--shadow-sm);
+}
+.gov-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.gov-badge {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.5px;
+}
+.gov-stations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+.gov-station-card {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.gov-station-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: #94a3b8;
+}
+.station-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.station-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.station-zone {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.fleet-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  text-align: center;
+}
+.fleet-num {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy);
+}
+.fleet-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Smart Grouping Box */
+.group-dispatch-panel {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-top: 20px;
+}
+.group-dispatch-title {
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.conservation-badge {
+  background: #059669;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+/* ============================================================================
+   Live Video & Audio SOS Receiver Modal
+   ============================================================================ */
+.live-stream-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+.live-stream-box {
+  background: var(--navy);
+  color: #fff;
+  border-radius: var(--radius-xl);
+  max-width: 680px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: modalFadeIn 0.2s ease;
+}
+.stream-header {
+  padding: 16px 20px;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.stream-body {
+  padding: 20px;
+}
+.video-stream-container {
+  width: 100%;
+  height: 320px;
+  background: #000;
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stream-rec-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(220, 38, 38, 0.9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.5px;
+}
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: recBlink 1s infinite;
+}
+@keyframes recBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.audio-visualizer-wave {
+  width: 100%;
+  height: 48px;
+  background: rgba(0,0,0,0.4);
+  border-radius: var(--radius-md);
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  gap: 4px;
+}
+.audio-wave-bar {
+  width: 4px;
+  height: 12px;
+  background: var(--success);
+  border-radius: 2px;
+  transition: height 0.1s ease;
+}
+

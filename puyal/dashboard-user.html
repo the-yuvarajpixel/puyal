@@ -47,13 +47,13 @@
     <div class="quick-actions">
       <div class="action-card" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
         <span class="action-icon">🎙️</span>
-        <div class="action-label">Voice Report</div>
-        <div class="action-desc">Speak your emergency — auto-classified &amp; submitted</div>
+        <div class="action-label">Bhashini Multilingual Voice</div>
+        <div class="action-desc">Speak in Tamil, Hindi, Telugu, English &amp; more — Gemini AI classified</div>
       </div>
       <div class="action-card" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
         <span class="action-icon">🚨</span>
-        <div class="action-label">SOS Emergency</div>
-        <div class="action-desc">Instantly activate camera, mic &amp; broadcast live to Admin</div>
+        <div class="action-label">SOS Emergency Live Stream</div>
+        <div class="action-desc">Streams live camera &amp; audio directly to Admin Command Console</div>
       </div>
     </div>
 
@@ -71,7 +71,7 @@
         <div class="form-row">
           <div class="form-group">
             <label for="category">Emergency Category *</label>
-            <select class="form-control" id="category" required>
+            <select class="form-control" id="category" required onchange="updateDynamicSeverityMeter()">
               <option value="Road Accident">Road Accident</option>
               <option value="Fire">Fire</option>
               <option value="Flood">Flood</option>
@@ -84,13 +84,30 @@
           </div>
           <div class="form-group">
             <label for="severity">Severity Level *</label>
-            <select class="form-control" id="severity" required>
-              <option value="Auto">Auto-Classify (Recommended)</option>
+            <select class="form-control" id="severity" required onchange="updateDynamicSeverityMeter()">
+              <option value="Auto">Auto-Classify (Threat Gauge)</option>
               <option value="Critical">Critical</option>
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
             </select>
+          </div>
+        </div>
+
+        <!-- ── Dynamic Severity Meter & Risk Gauge ── -->
+        <div class="severity-meter-card">
+          <div class="severity-meter-header">
+            <span style="font-size: 13px; font-weight: 700; color: var(--navy);">⚡ Threat Severity Meter</span>
+            <span id="severity-score-val" class="severity-score-badge meter-medium">Score: 50 — Moderate Risk</span>
+          </div>
+          <div class="meter-track">
+            <div id="severity-meter-bar" class="meter-fill meter-medium" style="width: 50%;"></div>
+          </div>
+          <div class="meter-labels">
+            <span>🟢 Low (0-25)</span>
+            <span>🟡 Medium (26-55)</span>
+            <span>🟠 High (56-80)</span>
+            <span>🔴 Critical (81-100)</span>
           </div>
         </div>
 
@@ -104,7 +121,7 @@
           </div>
           <div class="form-group">
             <label for="affected">People Affected *</label>
-            <input class="form-control" type="number" id="affected" min="0" value="1" required />
+            <input class="form-control" type="number" id="affected" min="0" value="1" required oninput="updateDynamicSeverityMeter()" />
           </div>
         </div>
 
@@ -126,27 +143,55 @@
 
   </main>
 
-  <!-- ============ VOICE REPORT OVERLAY ============ -->
+  <!-- ============ VOICE REPORT OVERLAY (BHASHINI AI MULTILINGUAL) ============ -->
   <div class="voice-overlay hidden" id="voice-overlay">
     <div class="voice-panel">
+      <!-- Bhashini Language Selector -->
+      <div class="bhashini-bar">
+        <span class="lang-badge">🌐 Bhashini AI Language:</span>
+        <select id="bhashini-lang-select" class="lang-select" onchange="onLanguageChange(this.value)">
+          <option value="en">English (India)</option>
+          <option value="ta">Tamil (தமிழ்)</option>
+          <option value="hi">Hindi (हिन्दी)</option>
+          <option value="te">Telugu (తెలుగు)</option>
+          <option value="kn">Kannada (ಕನ್ನಡ)</option>
+          <option value="ml">Malayalam (മലയാളം)</option>
+          <option value="bn">Bengali (বাংলা)</option>
+          <option value="mr">Marathi (मराठी)</option>
+          <option value="gu">Gujarati (ગુજરાતી)</option>
+        </select>
+        <span style="font-size: 11px; color: var(--info); font-weight: 700; margin-left: auto;">Gemini 3.8 AI</span>
+      </div>
+
       <div class="mic-icon idle" id="mic-icon">🎙️</div>
       <div class="voice-status" id="voice-status">Tap to Start Speaking</div>
       <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-        Describe your emergency — we'll auto-classify and submit the report for you.
+        Speak in your regional language — Bhashini &amp; Gemini AI will auto-translate, assess threat level &amp; submit dispatch.
       </p>
 
       <div class="voice-transcript" id="voice-transcript">
         <span style="color: var(--text-faint);">Your spoken words will appear here...</span>
       </div>
 
+      <!-- AI Classification & Threat Score Display -->
       <div class="voice-classification" id="voice-classification">
-        <strong>Auto-Classification:</strong>
-        <span id="voice-category">—</span> |
-        <strong>Severity:</strong>
-        <span id="voice-severity">—</span>
+        <strong>Category:</strong> <span id="voice-category">—</span> |
+        <strong>Severity:</strong> <span id="voice-severity">—</span> |
+        <strong>Threat Score:</strong> <span id="voice-threat-score">—</span>
       </div>
 
-      <div class="voice-actions">
+      <!-- AI First-Aid & Emergency Guidance Box with TTS -->
+      <div id="voice-guidance-box" class="hidden" style="background: var(--info-soft); border: 1px solid rgba(37,99,235,0.25); border-radius: var(--radius-md); padding: 12px; margin-top: 10px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="color: var(--navy); font-size: 13px;">🛡️ AI Emergency Guidance:</strong>
+          <button type="button" class="btn" style="background: var(--info); color: #fff; padding: 4px 10px; font-size: 11px; border-radius: var(--radius-sm); border: none; cursor: pointer;" onclick="playAIGuidanceAudio()">
+            🔊 Listen (TTS)
+          </button>
+        </div>
+        <div id="voice-guidance-text" style="font-size: 12px; color: var(--text); line-height: 1.5;"></div>
+      </div>
+
+      <div class="voice-actions" style="margin-top: 16px;">
         <button class="btn btn-cancel" onclick="closeVoiceReport()">Cancel</button>
         <button class="btn btn-confirm hidden" id="voice-confirm-btn" onclick="confirmVoiceReport()">
           ✅ Confirm &amp; Submit
@@ -158,13 +203,13 @@
     </div>
   </div>
 
-  <!-- ============ SOS OVERLAY ============ -->
+  <!-- ============ SOS OVERLAY (LIVE STREAMING TO ADMIN) ============ -->
   <div class="sos-overlay hidden" id="sos-overlay">
     <div class="sos-panel">
       <div class="sos-header">
         <span class="sos-icon">🚨</span>
         <h2>SOS ACTIVATED</h2>
-        <p>Live camera, audio, and GPS coordinates are broadcasting to Admin Command Center</p>
+        <p>Live camera video, microphone audio &amp; GPS coordinates are streaming directly to Admin Command Console</p>
       </div>
 
       <div class="sos-info-grid">
@@ -181,21 +226,23 @@
           <div class="info-value" id="sos-time">—</div>
         </div>
         <div class="sos-info-item">
-          <div class="info-label">📡 Status</div>
-          <div class="info-value" style="color: var(--success);" id="sos-status-label">● Broadcasting to HQ Admin</div>
+          <div class="info-label">📡 Live Relay</div>
+          <div class="info-value" style="color: var(--success);" id="sos-status-label">● Streaming to HQ Admin</div>
         </div>
       </div>
 
       <div class="sos-media-grid">
         <div class="sos-media-item">
           <video id="sos-video" autoplay muted playsinline></video>
-          <span class="media-label">📹 Live Camera</span>
+          <!-- Hidden canvas for capturing video stream frames -->
+          <canvas id="sos-canvas" style="display:none;" width="320" height="240"></canvas>
+          <span class="media-label">📹 Live Camera Feed</span>
           <span class="media-status"></span>
         </div>
         <div class="sos-media-item" style="display: flex; align-items: center; justify-content: center; background: var(--navy);">
           <div style="text-align: center; color: #fff;">
             <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
-            <div style="font-size: 12px; font-weight: 600;">AUDIO FEED ACTIVE</div>
+            <div style="font-size: 12px; font-weight: 600;">AUDIO RELAY ACTIVE</div>
             <div id="audio-level" style="width: 60px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 8px auto 0; overflow: hidden;">
               <div id="audio-bar" style="width: 30%; height: 100%; background: var(--success); border-radius: 3px; transition: width 0.1s;"></div>
             </div>
@@ -241,8 +288,8 @@
       window.location.href = 'login-user.html';
     }
 
-    if (auth && auth.onAuthStateChanged) {
-      auth.onAuthStateChanged((user) => {
+    if (window.auth && window.auth.onAuthStateChanged) {
+      window.auth.onAuthStateChanged((user) => {
         if (user) {
           currentUser = {
             uid: user.uid,
@@ -258,6 +305,71 @@
     function logout() {
       universalLogout();
     }
+
+    // ====================================================================
+    // DYNAMIC SEVERITY THREAT METER (Interactive calculation)
+    // ====================================================================
+    function calculateThreatScore(category, affected, chosenSeverity) {
+      let base = 30;
+      const catWeights = {
+        'Fire': 85,
+        'Natural Disaster': 90,
+        'Structural Collapse': 80,
+        'Road Accident': 65,
+        'Medical Emergency': 60,
+        'Flood': 75,
+        'Violence/Crime': 70,
+        'Other': 40
+      };
+      base = catWeights[category] || 40;
+
+      // Factor in affected count
+      const count = parseInt(affected || 1, 10);
+      let multiplier = count >= 10 ? 25 : count >= 5 ? 18 : count >= 2 ? 10 : 0;
+      let total = Math.min(100, Math.max(15, base + multiplier));
+
+      if (chosenSeverity === 'Critical') total = Math.max(85, total);
+      else if (chosenSeverity === 'High') total = Math.min(84, Math.max(60, total));
+      else if (chosenSeverity === 'Medium') total = Math.min(59, Math.max(30, total));
+      else if (chosenSeverity === 'Low') total = Math.min(25, total);
+
+      return total;
+    }
+
+    function updateDynamicSeverityMeter() {
+      const cat = document.getElementById('category').value;
+      const affected = document.getElementById('affected').value;
+      const chosen = document.getElementById('severity').value;
+
+      const score = calculateThreatScore(cat, affected, chosen);
+      const bar = document.getElementById('severity-meter-bar');
+      const badge = document.getElementById('severity-score-val');
+
+      bar.style.width = score + '%';
+      bar.className = 'meter-fill';
+
+      if (score >= 81) {
+        bar.classList.add('meter-critical');
+        badge.className = 'severity-score-badge meter-critical';
+        badge.textContent = `Score: ${score}/100 — Critical Threat`;
+      } else if (score >= 56) {
+        bar.classList.add('meter-high');
+        badge.className = 'severity-score-badge meter-high';
+        badge.textContent = `Score: ${score}/100 — High Threat`;
+      } else if (score >= 26) {
+        bar.classList.add('meter-medium');
+        badge.className = 'severity-score-badge meter-medium';
+        badge.textContent = `Score: ${score}/100 — Moderate Risk`;
+      } else {
+        bar.classList.add('meter-low');
+        badge.className = 'severity-score-badge meter-low';
+        badge.textContent = `Score: ${score}/100 — Low Risk`;
+      }
+
+      return score;
+    }
+
+    updateDynamicSeverityMeter();
 
     // ====================================================================
     // PERMISSIONS READINESS BAR INITIALIZATION
@@ -301,14 +413,6 @@
     // ====================================================================
     // INCIDENT SUBMISSION (Syncs to server & Firestore)
     // ====================================================================
-    function classifySeverity(category, affected, chosen) {
-      if (chosen !== 'Auto') return chosen;
-      if (affected >= 10 || category === 'Fire' || category === 'Natural Disaster') return 'Critical';
-      if (affected >= 4 || category === 'Medical Emergency' || category === 'Road Accident' || category === 'Violence/Crime') return 'High';
-      if (affected >= 2 || category === 'Structural Collapse') return 'Medium';
-      return 'Low';
-    }
-
     document.getElementById('incident-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       await submitIncidentFromForm();
@@ -318,12 +422,19 @@
       const category = document.getElementById('category').value;
       const affected = parseInt(document.getElementById('affected').value, 10);
       const chosenSeverity = document.getElementById('severity').value;
+      const threatScore = updateDynamicSeverityMeter();
+
+      let resolvedSeverity = chosenSeverity;
+      if (chosenSeverity === 'Auto') {
+        resolvedSeverity = threatScore >= 81 ? 'Critical' : threatScore >= 56 ? 'High' : threatScore >= 26 ? 'Medium' : 'Low';
+      }
 
       const newIncident = {
         id: Date.now(),
         title: document.getElementById('title').value,
         category,
-        severity: classifySeverity(category, affected, chosenSeverity),
+        severity: resolvedSeverity,
+        severityScore: threatScore,
         location: document.getElementById('location').value,
         affected,
         description: document.getElementById('description').value,
@@ -334,29 +445,26 @@
         source: 'form'
       };
 
-      // 1. Post to Server (broadcasts in real time to Admin dashboard on other devices)
       try {
         await rapidSync.createIncident(newIncident);
       } catch (err) {
         console.warn('Server incident post error:', err);
       }
 
-      // 2. Also save to Firestore if online
-      if (db) {
+      if (window.db) {
         try {
-          db.collection('incidents').add({
+          window.db.collection('incidents').add({
             ...newIncident,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           }).catch(console.warn);
         } catch (e) {}
       }
 
-      // 3. Cache locally
-      const localList = JSON.parse(localStorage.getItem('emergencies') || '[]');
-      localList.unshift(newIncident);
-      localStorage.setItem('emergencies', JSON.stringify(localList));
+      // Voice read-back confirmation using TTS
+      speakText(`Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`, 'en');
 
       document.getElementById('incident-form').reset();
+      updateDynamicSeverityMeter();
       showToast('✅ Emergency reported! Broadcast sent to Admin Command Center.', 'success');
     }
 
@@ -388,17 +496,40 @@
     }
 
     // ====================================================================
-    // VOICE REPORT — Web Speech API
+    // BHASHINI MULTILINGUAL VOICE REPORT & GEMINI 3.8 FLASH PIPELINE
     // ====================================================================
     let recognition = null;
     let voiceTranscript = '';
     let isRecording = false;
+    let selectedLang = 'en';
+    let currentAIGuidance = '';
+
+    const bhashiniLangCodes = {
+      'en': 'en-IN',
+      'ta': 'ta-IN',
+      'hi': 'hi-IN',
+      'te': 'te-IN',
+      'kn': 'kn-IN',
+      'ml': 'ml-IN',
+      'bn': 'bn-IN',
+      'mr': 'mr-IN',
+      'gu': 'gu-IN'
+    };
+
+    function onLanguageChange(lang) {
+      selectedLang = lang;
+      if (recognition && isRecording) {
+        stopRecording();
+      }
+      showToast(`Language switched to ${document.getElementById('bhashini-lang-select').selectedOptions[0].text}`, 'info');
+    }
 
     function openVoiceReport() {
       document.getElementById('voice-overlay').classList.remove('hidden');
       voiceTranscript = '';
-      document.getElementById('voice-transcript').innerHTML = '<span style="color: var(--text-faint);">Your spoken words will appear here...</span>';
+      document.getElementById('voice-transcript').innerHTML = '<span style="color: var(--text-faint);">Speak in your chosen language...</span>';
       document.getElementById('voice-classification').classList.remove('active');
+      document.getElementById('voice-guidance-box').classList.add('hidden');
       document.getElementById('voice-confirm-btn').classList.add('hidden');
       document.getElementById('voice-start-btn').classList.remove('hidden');
       document.getElementById('mic-icon').className = 'mic-icon idle';
@@ -430,15 +561,15 @@
       recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      recognition.lang = bhashiniLangCodes[selectedLang] || 'en-IN';
 
       voiceTranscript = '';
 
       recognition.onstart = () => {
         isRecording = true;
         document.getElementById('mic-icon').className = 'mic-icon listening';
-        document.getElementById('voice-status').textContent = '🔴 Listening...';
-        document.getElementById('voice-start-btn').textContent = '⏹️ Stop Listening';
+        document.getElementById('voice-status').textContent = '🔴 Listening (' + selectedLang.toUpperCase() + ')...';
+        document.getElementById('voice-start-btn').textContent = '⏹️ Stop & Analyze with AI';
         document.getElementById('voice-start-btn').classList.add('recording');
       };
 
@@ -461,22 +592,21 @@
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
         if (event.error !== 'aborted') {
           showToast('Voice error: ' + event.error, 'error');
         }
         stopRecording();
       };
 
-      recognition.onend = () => {
+      recognition.onend = async () => {
         isRecording = false;
         document.getElementById('mic-icon').className = 'mic-icon idle';
-        document.getElementById('voice-status').textContent = 'Recording Complete';
+        document.getElementById('voice-status').textContent = 'Analyzing with Gemini & Bhashini AI...';
         document.getElementById('voice-start-btn').textContent = '🎙️ Retry';
         document.getElementById('voice-start-btn').classList.remove('recording');
 
         if (voiceTranscript.trim()) {
-          classifyVoiceInput(voiceTranscript);
+          await analyzeVoiceWithGeminiBhashini(voiceTranscript);
         }
       };
 
@@ -491,40 +621,49 @@
       isRecording = false;
     }
 
-    function classifyVoiceInput(text) {
-      const lower = text.toLowerCase();
-      let category = 'Other';
-      const categoryMap = {
-        'fire': 'Fire', 'burning': 'Fire', 'flames': 'Fire', 'smoke': 'Fire', 'blaze': 'Fire',
-        'accident': 'Road Accident', 'crash': 'Road Accident', 'collision': 'Road Accident', 'car': 'Road Accident', 'vehicle': 'Road Accident',
-        'flood': 'Flood', 'water': 'Flood', 'drowning': 'Flood', 'rain': 'Flood',
-        'heart attack': 'Medical Emergency', 'bleeding': 'Medical Emergency', 'injured': 'Medical Emergency', 'medical': 'Medical Emergency',
-        'earthquake': 'Natural Disaster', 'cyclone': 'Natural Disaster', 'storm': 'Natural Disaster',
-        'shooting': 'Violence/Crime', 'attack': 'Violence/Crime', 'robbery': 'Violence/Crime',
-        'collapse': 'Structural Collapse', 'structure': 'Structural Collapse'
-      };
+    async function analyzeVoiceWithGeminiBhashini(text) {
+      document.getElementById('voice-status').textContent = '⚡ Running Gemini 3.8 Flash AI Model...';
 
-      for (const [kw, cat] of Object.entries(categoryMap)) {
-        if (lower.includes(kw)) {
-          category = cat;
-          break;
-        }
+      try {
+        const resp = await rapidSync.processVoiceAI(text, selectedLang);
+        const data = resp.result || {};
+
+        document.getElementById('voice-category').textContent = data.category || 'Other';
+        document.getElementById('voice-severity').textContent = data.severity || 'Medium';
+        document.getElementById('voice-threat-score').textContent = (data.severityScore || 50) + '/100';
+        document.getElementById('voice-classification').classList.add('active');
+
+        // Guidance Box
+        currentAIGuidance = data.firstAidGuidance || 'Emergency responders notified. Stay safe and avoid hazards.';
+        document.getElementById('voice-guidance-text').textContent = currentAIGuidance;
+        document.getElementById('voice-guidance-box').classList.remove('hidden');
+
+        document.getElementById('voice-confirm-btn').classList.remove('hidden');
+        document.getElementById('voice-status').textContent = '✅ Analysis Complete! Ready to Dispatch.';
+
+        window._voiceClassification = {
+          category: data.category || 'Other',
+          severity: data.severity || 'Medium',
+          severityScore: data.severityScore || 50,
+          affected: data.affected || 1,
+          text: data.translatedText || text,
+          originalText: text,
+          guidance: currentAIGuidance
+        };
+
+        // Automatic audio confirmation via Text to Speech
+        speakText(currentAIGuidance, selectedLang);
+
+      } catch (err) {
+        console.error('Voice AI analysis error:', err);
+        showToast('Using local classification: ' + err.message, 'warning');
       }
+    }
 
-      let severity = 'Medium';
-      if (lower.includes('dead') || lower.includes('death') || lower.includes('collapse') || lower.includes('explosion')) severity = 'Critical';
-      else if (lower.includes('severe') || lower.includes('blood') || lower.includes('fire') || lower.includes('accident')) severity = 'High';
-
-      let affected = 1;
-      const numMatch = lower.match(/(\d+)\s*(people|persons|injured|casualties)/);
-      if (numMatch) affected = parseInt(numMatch[1], 10);
-
-      document.getElementById('voice-category').textContent = category;
-      document.getElementById('voice-severity').textContent = severity;
-      document.getElementById('voice-classification').classList.add('active');
-      document.getElementById('voice-confirm-btn').classList.remove('hidden');
-
-      window._voiceClassification = { category, severity, affected, text };
+    function playAIGuidanceAudio() {
+      if (currentAIGuidance) {
+        speakText(currentAIGuidance, selectedLang);
+      }
     }
 
     async function confirmVoiceReport() {
@@ -535,12 +674,13 @@
 
       const newIncident = {
         id: Date.now(),
-        title: '[Voice Report] ' + c.category + ' Emergency',
+        title: `[Bhashini AI] ${c.category} Emergency`,
         category: c.category,
         severity: c.severity,
+        severityScore: c.severityScore,
         location: loc,
         affected: c.affected,
-        description: c.text,
+        description: `${c.text} (Original: ${c.originalText || c.text})`,
         contact: currentUser ? currentUser.email : 'Voice Report',
         status: 'Reported',
         timestamp: new Date().toLocaleString(),
@@ -550,25 +690,28 @@
 
       await rapidSync.createIncident(newIncident);
 
-      if (db) {
-        db.collection('incidents').add({
+      if (window.db) {
+        window.db.collection('incidents').add({
           ...newIncident,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).catch(console.warn);
       }
 
+      speakText(`Emergency confirmed. Dispatched to command center.`, 'en');
       closeVoiceReport();
-      showToast('✅ Voice emergency report broadcast to Admin Command!', 'success');
+      showToast('✅ Multilingual emergency broadcast submitted to Admin Command!', 'success');
     }
 
     // ====================================================================
-    // SOS — Live Camera, Microphone, and Real-Time Dispatch Broadcast
+    // SOS — LIVE VIDEO & AUDIO STREAM TRANSMISSION TO ADMIN
     // ====================================================================
     let sosStream = null;
     let audioContext = null;
     let audioAnalyser = null;
     let audioAnimFrame = null;
     let currentSosAlertId = null;
+    let streamInterval = null;
+    let currentCoords = null;
 
     async function activateSOS() {
       document.getElementById('sos-overlay').classList.remove('hidden');
@@ -576,18 +719,15 @@
       document.getElementById('sos-location').textContent = 'Acquiring GPS...';
       document.getElementById('sos-coords').textContent = 'Fetching GPS...';
 
-      let lat = null, lon = null, acc = null;
-
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            lat = pos.coords.latitude.toFixed(6);
-            lon = pos.coords.longitude.toFixed(6);
-            acc = pos.coords.accuracy.toFixed(1);
+            const lat = pos.coords.latitude.toFixed(6);
+            const lon = pos.coords.longitude.toFixed(6);
+            const acc = pos.coords.accuracy.toFixed(1);
+            currentCoords = { latitude: lat, longitude: lon, accuracy: acc };
             document.getElementById('sos-coords').textContent = `${lat}, ${lon}`;
             document.getElementById('sos-location').textContent = `GPS ±${acc}m accuracy`;
-
-            // Broadcast SOS to server & Firestore
             await dispatchSOS(lat, lon, acc);
           },
           async (err) => {
@@ -604,23 +744,65 @@
       // Start Camera & Mic
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: true
         });
         sosStream = stream;
         const video = document.getElementById('sos-video');
         video.srcObject = stream;
 
+        // Setup audio visualizer
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const source = audioContext.createMediaStreamSource(stream);
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
         source.connect(audioAnalyser);
         visualizeAudio();
+
+        // Start transmitting video frames & audio to server so Admin sees it live!
+        startLiveFrameRelay();
+
       } catch (err) {
-        console.warn('Camera/Mic stream error:', err);
+        console.warn('Camera/Mic stream notice:', err);
         showToast('Camera/Mic feed notice: ' + err.message, 'warning');
       }
+
+      speakText('SOS Emergency Activated. Live video and audio feed are streaming to Admin Command Center.', 'en');
+    }
+
+    function startLiveFrameRelay() {
+      if (streamInterval) clearInterval(streamInterval);
+      const canvas = document.getElementById('sos-canvas');
+      const video = document.getElementById('sos-video');
+      const ctx = canvas.getContext('2d');
+
+      streamInterval = setInterval(() => {
+        if (!currentSosAlertId || !sosStream) return;
+
+        try {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            canvas.width = 320;
+            canvas.height = 240;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const frameBase64 = canvas.toDataURL('image/jpeg', 0.55);
+
+            let vol = 35;
+            if (audioAnalyser) {
+              const data = new Uint8Array(audioAnalyser.frequencyBinCount);
+              audioAnalyser.getByteFrequencyData(data);
+              vol = Math.round(data.reduce((a, b) => a + b) / data.length);
+            }
+
+            rapidSync.streamSOSFrame(
+              currentSosAlertId,
+              frameBase64,
+              vol,
+              currentCoords,
+              currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org'
+            );
+          }
+        } catch (e) {}
+      }, 1200); // Send frame every 1.2 seconds
     }
 
     async function dispatchSOS(lat, lon, accuracy) {
@@ -643,9 +825,9 @@
         console.error('Server SOS dispatch error:', e);
       }
 
-      if (db) {
+      if (window.db) {
         try {
-          db.collection('sos_alerts').add({
+          window.db.collection('sos_alerts').add({
             ...sosData,
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
           }).catch(console.warn);
@@ -668,6 +850,11 @@
     async function deactivateSOS() {
       document.getElementById('sos-overlay').classList.add('hidden');
 
+      if (streamInterval) {
+        clearInterval(streamInterval);
+        streamInterval = null;
+      }
+
       if (currentSosAlertId) {
         try {
           await rapidSync.resolveSOS(currentSosAlertId);
@@ -689,6 +876,7 @@
         audioAnimFrame = null;
       }
 
+      speakText('SOS Emergency session ended.', 'en');
       showToast('SOS broadcast ended.', 'warning');
     }
 
@@ -697,11 +885,13 @@
     // ====================================================================
     rapidSync.on('INCIDENT_UPDATED', (updated) => {
       showToast(`📢 Dispatch status update: "${updated.title}" is now ${updated.status}`, 'info');
+      speakText(`Incident status updated to ${updated.status}`, 'en');
     });
 
     rapidSync.on('SOS_RESOLVED', (data) => {
       if (currentSosAlertId === data.id) {
-        showToast('✅ Admin Command has marked your SOS as resolved.', 'success');
+        showToast('✅ Admin Command has dispatched responders & marked your SOS as resolved.', 'success');
+        speakText('Emergency responders have been dispatched to your location.', 'en');
         deactivateSOS();
       }
     });

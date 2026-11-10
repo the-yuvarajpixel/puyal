@@ -102,6 +102,185 @@
       "role": "user",
       "expiresAt": 1794296814734,
       "createdAt": "2026-11-10T07:16:54.734Z"
+    },
+    {
+      "token": "link_1794297944654_1pdxc7k",
+      "email": "civilian.demo@rapidresponse.org",
+      "role": "user",
+      "expiresAt": 1794299744654,
+      "createdAt": "2026-11-10T08:05:44.654Z"
+    }
+  ],
+  "government_stations": [
+    {
+      "stationId": "STN-CEN-01",
+      "name": "EOC Central Disaster Command Depot",
+      "zone": "Central Metro",
+      "address": "Anna Salai Disaster Operations Complex",
+      "contact": "+91 44 2859 3900",
+      "distanceKm": 2.4,
+      "ambulances": {
+        "als": 4,
+        "bls": 12,
+        "deployed": 5
+      },
+      "fireTenders": {
+        "water": 6,
+        "foam": 4,
+        "ladder": 2,
+        "deployed": 4
+      },
+      "ndrfTeams": {
+        "total": 4,
+        "activePersonnel": 120,
+        "deployed": 3
+      },
+      "ervVehicles": {
+        "total": 10,
+        "deployed": 3
+      },
+      "rescueBoats": {
+        "total": 8,
+        "deployed": 1
+      },
+      "medicalSquads": {
+        "total": 6,
+        "deployed": 2
+      },
+      "status": "Operational"
+    },
+    {
+      "stationId": "STN-NTH-02",
+      "name": "North Metro Fire & Trauma Response Base",
+      "zone": "North Industrial Belt",
+      "address": "GT Road Industrial Corridor",
+      "contact": "+91 44 2522 1108",
+      "distanceKm": 5.1,
+      "ambulances": {
+        "als": 4,
+        "bls": 8,
+        "deployed": 1
+      },
+      "fireTenders": {
+        "water": 10,
+        "foam": 6,
+        "ladder": 3,
+        "deployed": 3
+      },
+      "ndrfTeams": {
+        "total": 4,
+        "activePersonnel": 96,
+        "deployed": 1
+      },
+      "ervVehicles": {
+        "total": 8,
+        "deployed": 2
+      },
+      "rescueBoats": {
+        "total": 4,
+        "deployed": 0
+      },
+      "medicalSquads": {
+        "total": 4,
+        "deployed": 1
+      },
+      "status": "Operational"
+    },
+    {
+      "stationId": "STN-CST-03",
+      "name": "Coastal Marine & Flood Rescue Station",
+      "zone": "Coastal & Riverfront Zone",
+      "address": "Marina Coastal Relief Outpost",
+      "contact": "+91 44 2844 7100",
+      "distanceKm": 3.8,
+      "ambulances": {
+        "als": 3,
+        "bls": 6,
+        "deployed": 1
+      },
+      "fireTenders": {
+        "water": 4,
+        "foam": 2,
+        "ladder": 1,
+        "deployed": 1
+      },
+      "ndrfTeams": {
+        "total": 6,
+        "activePersonnel": 144,
+        "deployed": 3
+      },
+      "ervVehicles": {
+        "total": 6,
+        "deployed": 1
+      },
+      "rescueBoats": {
+        "total": 16,
+        "deployed": 4
+      },
+      "medicalSquads": {
+        "total": 5,
+        "deployed": 2
+      },
+      "status": "Operational"
+    },
+    {
+      "stationId": "STN-STH-04",
+      "name": "South Expressway Rapid Trauma Depot",
+      "zone": "South Highway Corridor",
+      "address": "NH-48 Emergency Response Base",
+      "contact": "+91 44 2234 1080",
+      "distanceKm": 7.2,
+      "ambulances": {
+        "als": 8,
+        "bls": 14,
+        "deployed": 4
+      },
+      "fireTenders": {
+        "water": 6,
+        "foam": 3,
+        "ladder": 1,
+        "deployed": 2
+      },
+      "ndrfTeams": {
+        "total": 3,
+        "activePersonnel": 72,
+        "deployed": 1
+      },
+      "ervVehicles": {
+        "total": 12,
+        "deployed": 4
+      },
+      "rescueBoats": {
+        "total": 2,
+        "deployed": 0
+      },
+      "medicalSquads": {
+        "total": 5,
+        "deployed": 2
+      },
+      "status": "Operational"
+    }
+  ],
+  "dispatches": [
+    {
+      "dispatchId": "DISP-927515",
+      "area": "GT Road Industrial Belt",
+      "stationId": "STN-CEN-01",
+      "stationName": "EOC Central Disaster Command Depot",
+      "severity": "Critical",
+      "affectedCount": 6,
+      "groupedFleet": {
+        "alsAmbulances": 2,
+        "blsAmbulances": 2,
+        "fireTenders": 2,
+        "ndrfTeams": 1,
+        "rescueBoats": 0,
+        "totalVehicles": 7
+      },
+      "conservationPercent": 53,
+      "status": "En Route",
+      "dispatchedAt": "8:05:27 AM",
+      "timestamp": "2026-11-10T08:05:27.516Z"
     }
   ]
 }

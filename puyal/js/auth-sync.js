@@ -426,10 +426,98 @@ class RapidSync {
     });
     return await res.json();
   }
+
+  async processVoiceAI(text, language = 'en') {
+    const res = await fetch('/api/ai/process-voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, language })
+    });
+    return await res.json();
+  }
+
+  async fetchGovStations() {
+    const res = await fetch('/api/government/stations');
+    return await res.json();
+  }
+
+  async groupDispatchGovFleet(dispatchParams) {
+    const res = await fetch('/api/government/group-dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dispatchParams)
+    });
+    return await res.json();
+  }
+
+  async resetGovFleet() {
+    const res = await fetch('/api/government/reset-fleet', {
+      method: 'POST'
+    });
+    return await res.json();
+  }
+
+  async streamSOSFrame(sosId, frameBase64, audioLevel, coords, email) {
+    try {
+      const res = await fetch(`/api/sos/${sosId}/stream-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frameBase64, audioLevel, coords, email })
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  }
+
+  async fetchSOSLiveFeed(sosId) {
+    const res = await fetch(`/api/sos/${sosId}/live-feed`);
+    return await res.json();
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Accurate Emergency Text-to-Speech (TTS) Engine
+// ----------------------------------------------------------------------------
+function speakText(text, lang = 'en') {
+  if (!('speechSynthesis' in window)) {
+    console.warn('Text-to-speech not supported on this browser');
+    return;
+  }
+
+  window.speechSynthesis.cancel(); // Stop any pending utterance
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  const langMap = {
+    'en': 'en-US',
+    'ta': 'ta-IN',
+    'hi': 'hi-IN',
+    'te': 'te-IN',
+    'kn': 'kn-IN',
+    'ml': 'ml-IN',
+    'bn': 'bn-IN',
+    'mr': 'mr-IN',
+    'gu': 'gu-IN'
+  };
+
+  const targetLang = langMap[lang] || lang || 'en-US';
+  utterance.lang = targetLang;
+  utterance.rate = 0.95; // Slightly slower for clear emergency instructions
+  utterance.pitch = 1.0;
+
+  // Try to pick matching voice
+  const voices = window.speechSynthesis.getVoices();
+  const matchedVoice = voices.find(v => v.lang.startsWith(targetLang) || v.lang.startsWith(lang));
+  if (matchedVoice) {
+    utterance.voice = matchedVoice;
+  }
+
+  window.speechSynthesis.speak(utterance);
 }
 
 // Global exports
 window.rapidSync = new RapidSync();
+window.speakText = speakText;
 window.sendSignInLinkToEmail = sendSignInLinkToEmail;
 window.isSignInWithEmailLink = isSignInWithEmailLink;
 window.signInWithEmailLink = signInWithEmailLink;
