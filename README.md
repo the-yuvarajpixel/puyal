@@ -22,9 +22,9 @@ RapidResponse Command is a real-time emergency dispatch and disaster response pl
 ## 🚀 Key Features
 
 1. **Location-Based Team Assignment & Smart AI Dispatch**
-   - Haversine distance calculations from incident GPS coordinates to station bases.
+   - Algorithm based distance calculations from incident GPS coordinates to station bases.
    - Smart classification: Category Expertise (45%), Proximity Distance (40%), Readiness Status (15%).
-   - 1-Click Dispatch: Dispatches best-fit team, marks team busy, and sets incident status to `In Progress`.
+   - 1-Click Dispatch: Dispatches best-fit team, marks team busy, and sets incident status to best fit .
 
 2. **Tactical GIS Disaster Map & Real-Time Route Visualizer**
    - **Open-source Leaflet + OpenStreetMap engine** (no external API keys required).
@@ -44,6 +44,9 @@ RapidResponse Command is a real-time emergency dispatch and disaster response pl
    - Real-time video frame transmission from civilian camera feeds.
    - Live acoustic visualizer & optional audio monitor for command operators.
 
+5. **Voice Access for easy S.O.S reporting**
+   - Multiple languages speech-to-text api integration
+   
 ---
 
 ## 🌐 Running Locally
