@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RapidResponse — Report Emergency</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ============ NAVBAR ============ -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="sos-tag">SOS</span>
+      <h1>RapidResponse Command</h1>
+    </div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-user-email">Loading...</span>
+      <button class="nav-btn btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- ============ TOAST NOTIFICATION ============ -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main-container">
+
+    <!-- ── Quick Action Buttons ── -->
+    <div class="quick-actions">
+      <div class="action-card" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
+        <span class="action-icon">🎙️</span>
+        <div class="action-label">Voice Report</div>
+        <div class="action-desc">Speak your emergency — auto-classified &amp; submitted</div>
+      </div>
+      <div class="action-card" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
+        <span class="action-icon">🚨</span>
+        <div class="action-label">SOS Emergency</div>
+        <div class="action-desc">Instantly activate camera, mic &amp; send location</div>
+      </div>
+    </div>
+
+    <!-- ── Report Form ── -->
+    <section class="card" style="max-width: 720px; margin: 0 auto;">
+      <h2 class="section-title">Report an Emergency Incident</h2>
+      <p class="section-subtitle">Provide accurate details so response teams can prioritize and dispatch help.</p>
+
+      <form id="incident-form">
+        <div class="form-group">
+          <label for="title">Incident Title *</label>
+          <input class="form-control" type="text" id="title" required placeholder="e.g., Multi-vehicle collision on NH-48" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="category">Emergency Category *</label>
+            <select class="form-control" id="category" required>
+              <option value="Road Accident">Road Accident</option>
+              <option value="Fire">Fire</option>
+              <option value="Flood">Flood</option>
+              <option value="Medical Emergency">Medical Emergency</option>
+              <option value="Natural Disaster">Natural Disaster</option>
+              <option value="Violence/Crime">Violence / Crime</option>
+              <option value="Structural Collapse">Structural Collapse</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="severity">Severity Level *</label>
+            <select class="form-control" id="severity" required>
+              <option value="Auto">Auto-Classify (Recommended)</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="location">Location *</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="form-control" type="text" id="location" required placeholder="Area, Landmark, or Coordinates" style="flex: 1;" />
+              <button type="button" class="btn" style="background: var(--info); color: #fff; padding: 10px 14px; white-space: nowrap;" onclick="autoDetectLocation()">📍 Auto</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="affected">People Affected *</label>
+            <input class="form-control" type="number" id="affected" min="0" value="1" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Incident Description *</label>
+          <textarea class="form-control" id="description" rows="3" required placeholder="Describe injuries, hazards, or immediate needs..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="contact">Contact Information (Optional)</label>
+          <input class="form-control" type="text" id="contact" placeholder="Name / Phone Number" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+          🚀 Submit Emergency Report
+        </button>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- ============ VOICE REPORT OVERLAY ============ -->
+  <div class="voice-overlay hidden" id="voice-overlay">
+    <div class="voice-panel">
+      <div class="mic-icon idle" id="mic-icon">🎙️</div>
+      <div class="voice-status" id="voice-status">Tap to Start Speaking</div>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        Describe your emergency — we'll auto-classify and submit the report for you.
+      </p>
+
+      <div class="voice-transcript" id="voice-transcript">
+        <span style="color: var(--text-faint);">Your spoken words will appear here...</span>
+      </div>
+
+      <div class="voice-classification" id="voice-classification">
+        <strong>Auto-Classification:</strong>
+        <span id="voice-category">—</span> |
+        <strong>Severity:</strong>
+        <span id="voice-severity">—</span>
+      </div>
+
+      <div class="voice-actions">
+        <button class="btn btn-cancel" onclick="closeVoiceReport()">Cancel</button>
+        <button class="btn btn-confirm hidden" id="voice-confirm-btn" onclick="confirmVoiceReport()">
+          ✅ Confirm &amp; Submit
+        </button>
+        <button class="btn btn-voice" id="voice-start-btn" onclick="toggleVoiceRecording()">
+          🎙️ Start Listening
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SOS OVERLAY ============ -->
+  <div class="sos-overlay hidden" id="sos-overlay">
+    <div class="sos-panel">
+      <div class="sos-header">
+        <span class="sos-icon">🚨</span>
+        <h2>SOS ACTIVATED</h2>
+        <p>Camera, microphone, and location are being shared with emergency responders</p>
+      </div>
+
+      <div class="sos-info-grid">
+        <div class="sos-info-item">
+          <div class="info-label">📍 Location</div>
+          <div class="info-value" id="sos-location">Detecting...</div>
+        </div>
+        <div class="sos-info-item">
+          <div class="info-label">📐 Coordinates</div>
+          <div class="info-value" id="sos-coords">Fetching GPS...</div>
+        </div>
+        <div class="sos-info-item">
+          <div class="info-label">⏱️ Active Since</div>
+          <div class="info-value" id="sos-time">—</div>
+        </div>
+        <div class="sos-info-item">
+          <div class="info-label">📡 Status</div>
+          <div class="info-value" style="color: var(--success);">● Live Streaming</div>
+        </div>
+      </div>
+
+      <div class="sos-media-grid">
+        <div class="sos-media-item">
+          <video id="sos-video" autoplay muted playsinline></video>
+          <span class="media-label">📹 Camera</span>
+          <span class="media-status"></span>
+        </div>
+        <div class="sos-media-item" style="display: flex; align-items: center; justify-content: center; background: var(--navy);">
+          <div style="text-align: center; color: #fff;">
+            <div style="font-size: 36px; margin-bottom: 8px;">🎙️</div>
+            <div style="font-size: 12px; font-weight: 600;">AUDIO ACTIVE</div>
+            <div id="audio-level" style="width: 60px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 8px auto 0; overflow: hidden;">
+              <div id="audio-bar" style="width: 30%; height: 100%; background: var(--success); border-radius: 3px; transition: width 0.1s;"></div>
+            </div>
+          </div>
+          <span class="media-label">🎙️ Microphone</span>
+          <span class="media-status"></span>
+        </div>
+      </div>
+
+      <div class="sos-actions">
+        <button class="btn btn-end-sos" onclick="deactivateSOS()">
+          ✕ End SOS Session
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCRIPTS ============ -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
+  <script>
+    // ====================================================================
+    // AUTH CHECK — Redirect if not logged in as "user"
+    // ====================================================================
+    let currentUser = null;
+
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = 'index.html';
+        return;
+      }
+      currentUser = user;
+      document.getElementById('nav-user-email').textContent = user.email;
+
+      // Verify role
+      try {
+        const doc = await db.collection('users').doc(user.uid).get();
+        if (doc.exists && doc.data().role !== 'user') {
+          alert('Access denied. This portal is for civilians only.');
+          auth.signOut();
+          window.location.href = 'index.html';
+        }
+      } catch (e) {
+        console.log('Role check error:', e);
+      }
+    });
+
+    // ====================================================================
+    // TOAST NOTIFICATIONS
+    // ====================================================================
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast ' + type + ' show';
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    // ====================================================================
+    // INCIDENT DATA — Stored in localStorage + Firestore
+    // ====================================================================
+    let incidents = JSON.parse(localStorage.getItem('emergencies')) || [];
+
+    function saveData() {
+      localStorage.setItem('emergencies', JSON.stringify(incidents));
+    }
+
+    function classifySeverity(category, affected, chosen) {
+      if (chosen !== 'Auto') return chosen;
+      if (affected >= 10 || category === 'Fire' || category === 'Natural Disaster') return 'Critical';
+      if (affected >= 4 || category === 'Medical Emergency' || category === 'Road Accident' || category === 'Violence/Crime') return 'High';
+      if (affected >= 2 || category === 'Structural Collapse') return 'Medium';
+      return 'Low';
+    }
+
+    // ====================================================================
+    // FORM SUBMISSION
+    // ====================================================================
+    document.getElementById('incident-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      submitIncidentFromForm();
+    });
+
+    function submitIncidentFromForm() {
+      const category = document.getElementById('category').value;
+      const affected = parseInt(document.getElementById('affected').value, 10);
+      const chosenSeverity = document.getElementById('severity').value;
+
+      const newIncident = {
+        id: Date.now(),
+        title: document.getElementById('title').value,
+        category,
+        severity: classifySeverity(category, affected, chosenSeverity),
+        location: document.getElementById('location').value,
+        affected,
+        description: document.getElementById('description').value,
+        contact: document.getElementById('contact').value || 'Not provided',
+        status: 'Reported',
+        timestamp: new Date().toLocaleString(),
+        reportedBy: currentUser ? currentUser.email : 'Anonymous',
+        source: 'form'
+      };
+
+      incidents.unshift(newIncident);
+      saveData();
+
+      // Also save to Firestore
+      saveToFirestore(newIncident);
+
+      document.getElementById('incident-form').reset();
+      showToast('✅ Emergency reported! Severity: ' + newIncident.severity, 'success');
+    }
+
+    async function saveToFirestore(incident) {
+      try {
+        await db.collection('incidents').add({
+          ...incident,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (err) {
+        console.error('Firestore save error:', err);
+      }
+    }
+
+    // ====================================================================
+    // AUTO-DETECT LOCATION
+    // ====================================================================
+    function autoDetectLocation() {
+      if (!navigator.geolocation) {
+        showToast('Geolocation not supported by your browser', 'error');
+        return;
+      }
+
+      showToast('📍 Detecting your location...', 'warning');
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude.toFixed(6);
+          const lon = pos.coords.longitude.toFixed(6);
+          document.getElementById('location').value = `${lat}, ${lon} (GPS)`;
+          showToast('📍 Location detected!', 'success');
+        },
+        (err) => {
+          showToast('Could not detect location: ' + err.message, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    // ====================================================================
+    // VOICE REPORT — Web Speech API
+    // ====================================================================
+    let recognition = null;
+    let voiceTranscript = '';
+    let isRecording = false;
+
+    function openVoiceReport() {
+      document.getElementById('voice-overlay').classList.remove('hidden');
+      voiceTranscript = '';
+      document.getElementById('voice-transcript').innerHTML = '<span style="color: var(--text-faint);">Your spoken words will appear here...</span>';
+      document.getElementById('voice-classification').classList.remove('active');
+      document.getElementById('voice-confirm-btn').classList.add('hidden');
+      document.getElementById('voice-start-btn').classList.remove('hidden');
+      document.getElementById('mic-icon').className = 'mic-icon idle';
+      document.getElementById('voice-status').textContent = 'Tap to Start Speaking';
+      document.getElementById('voice-start-btn').textContent = '🎙️ Start Listening';
+      document.getElementById('voice-start-btn').classList.remove('recording');
+    }
+
+    function closeVoiceReport() {
+      document.getElementById('voice-overlay').classList.add('hidden');
+      stopRecording();
+    }
+
+    function toggleVoiceRecording() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
+    function startRecording() {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        showToast('Voice recognition not supported in this browser. Try Chrome.', 'error');
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      voiceTranscript = '';
+
+      recognition.onstart = () => {
+        isRecording = true;
+        document.getElementById('mic-icon').className = 'mic-icon listening';
+        document.getElementById('voice-status').textContent = '🔴 Listening...';
+        document.getElementById('voice-start-btn').textContent = '⏹️ Stop Listening';
+        document.getElementById('voice-start-btn').classList.add('recording');
+      };
+
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          } else {
+            interimTranscript += result[0].transcript;
+          }
+        }
+
+        voiceTranscript = finalTranscript;
+        const display = finalTranscript + '<span style="color: var(--text-faint);">' + interimTranscript + '</span>';
+        document.getElementById('voice-transcript').innerHTML = display || '<span style="color: var(--text-faint);">Listening...</span>';
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error !== 'aborted') {
+          showToast('Voice error: ' + event.error, 'error');
+        }
+        stopRecording();
+      };
+
+      recognition.onend = () => {
+        isRecording = false;
+        document.getElementById('mic-icon').className = 'mic-icon idle';
+        document.getElementById('voice-status').textContent = 'Recording Complete';
+        document.getElementById('voice-start-btn').textContent = '🎙️ Retry';
+        document.getElementById('voice-start-btn').classList.remove('recording');
+
+        if (voiceTranscript.trim()) {
+          classifyVoiceInput(voiceTranscript);
+        }
+      };
+
+      recognition.start();
+    }
+
+    function stopRecording() {
+      if (recognition) {
+        recognition.stop();
+        recognition = null;
+      }
+      isRecording = false;
+    }
+
+    // ====================================================================
+    // VOICE CLASSIFICATION — Keyword-based auto-classification
+    // ====================================================================
+    function classifyVoiceInput(text) {
+      const lower = text.toLowerCase();
+
+      // Category detection
+      let category = 'Other';
+      const categoryMap = {
+        'fire': 'Fire',
+        'burning': 'Fire',
+        'flames': 'Fire',
+        'smoke': 'Fire',
+        'blaze': 'Fire',
+        'accident': 'Road Accident',
+        'crash': 'Road Accident',
+        'collision': 'Road Accident',
+        'car': 'Road Accident',
+        'vehicle': 'Road Accident',
+        'truck': 'Road Accident',
+        'hit and run': 'Road Accident',
+        'pileup': 'Road Accident',
+        'flood': 'Flood',
+        'water': 'Flood',
+        'drowning': 'Flood',
+        'rain': 'Flood',
+        'submerged': 'Flood',
+        'heart attack': 'Medical Emergency',
+        'bleeding': 'Medical Emergency',
+        'injured': 'Medical Emergency',
+        'unconscious': 'Medical Emergency',
+        'breathing': 'Medical Emergency',
+        'pain': 'Medical Emergency',
+        'stroke': 'Medical Emergency',
+        'seizure': 'Medical Emergency',
+        'medical': 'Medical Emergency',
+        'ambulance': 'Medical Emergency',
+        'earthquake': 'Natural Disaster',
+        'cyclone': 'Natural Disaster',
+        'tsunami': 'Natural Disaster',
+        'tornado': 'Natural Disaster',
+        'landslide': 'Natural Disaster',
+        'storm': 'Natural Disaster',
+        'shooting': 'Violence/Crime',
+        'attack': 'Violence/Crime',
+        'robbery': 'Violence/Crime',
+        'assault': 'Violence/Crime',
+        'gun': 'Violence/Crime',
+        'stabbing': 'Violence/Crime',
+        'knife': 'Violence/Crime',
+        'bomb': 'Violence/Crime',
+        'building collapse': 'Structural Collapse',
+        'collapsed': 'Structural Collapse',
+        'bridge': 'Structural Collapse',
+        'structure': 'Structural Collapse',
+      };
+
+      for (const [keyword, cat] of Object.entries(categoryMap)) {
+        if (lower.includes(keyword)) {
+          category = cat;
+          break;
+        }
+      }
+
+      // Severity estimation from keywords
+      let severity = 'Medium';
+      const criticalWords = ['dead', 'death', 'dying', 'killed', 'explosion', 'bomb', 'mass', 'multiple casualties', 'trapped', 'collapse', 'tsunami'];
+      const highWords = ['severe', 'critical', 'serious', 'major', 'many', 'injured', 'bleeding', 'unconscious', 'fire', 'gun', 'shooting'];
+      const lowWords = ['minor', 'small', 'slight', 'little'];
+
+      if (criticalWords.some(w => lower.includes(w))) severity = 'Critical';
+      else if (highWords.some(w => lower.includes(w))) severity = 'High';
+      else if (lowWords.some(w => lower.includes(w))) severity = 'Low';
+
+      // Number of people
+      const numberMatch = lower.match(/(\d+)\s*(people|persons|injured|affected|casualties|dead|trapped)/);
+      let affected = 1;
+      if (numberMatch) {
+        affected = parseInt(numberMatch[1]);
+        if (affected >= 10) severity = 'Critical';
+        else if (affected >= 4) severity = 'High';
+      }
+
+      // Display classification
+      document.getElementById('voice-category').textContent = category;
+      document.getElementById('voice-severity').textContent = severity;
+      document.getElementById('voice-classification').classList.add('active');
+      document.getElementById('voice-confirm-btn').classList.remove('hidden');
+
+      // Store for submission
+      window._voiceClassification = { category, severity, affected, text };
+    }
+
+    // ====================================================================
+    // CONFIRM VOICE REPORT — One-click submit
+    // ====================================================================
+    function confirmVoiceReport() {
+      const c = window._voiceClassification;
+      if (!c) return;
+
+      // Auto-detect location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(6);
+            const lon = pos.coords.longitude.toFixed(6);
+            submitVoiceIncident(c, `${lat}, ${lon} (GPS Auto)`);
+          },
+          () => {
+            submitVoiceIncident(c, 'Location unavailable');
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      } else {
+        submitVoiceIncident(c, 'Location unavailable');
+      }
+    }
+
+    function submitVoiceIncident(classification, location) {
+      const newIncident = {
+        id: Date.now(),
+        title: '[Voice Report] ' + classification.category + ' Emergency',
+        category: classification.category,
+        severity: classification.severity,
+        location: location,
+        affected: classification.affected,
+        description: classification.text,
+        contact: currentUser ? currentUser.email : 'Voice Report',
+        status: 'Reported',
+        timestamp: new Date().toLocaleString(),
+        reportedBy: currentUser ? currentUser.email : 'Anonymous',
+        source: 'voice'
+      };
+
+      incidents.unshift(newIncident);
+      saveData();
+      saveToFirestore(newIncident);
+
+      closeVoiceReport();
+      showToast('✅ Voice report submitted! Category: ' + classification.category + ' | Severity: ' + classification.severity, 'success');
+    }
+
+    // ====================================================================
+    // SOS — Activate camera, mic, and precise location
+    // ====================================================================
+    let sosStream = null;
+    let audioContext = null;
+    let audioAnalyser = null;
+    let audioAnimFrame = null;
+
+    function activateSOS() {
+      document.getElementById('sos-overlay').classList.remove('hidden');
+      document.getElementById('sos-time').textContent = new Date().toLocaleTimeString();
+      document.getElementById('sos-location').textContent = 'Detecting...';
+      document.getElementById('sos-coords').textContent = 'Fetching GPS...';
+
+      // Get precise location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(8);
+            const lon = pos.coords.longitude.toFixed(8);
+            const acc = pos.coords.accuracy.toFixed(1);
+            document.getElementById('sos-coords').textContent = `${lat}, ${lon}`;
+            document.getElementById('sos-location').textContent = `GPS ±${acc}m accuracy`;
+
+            // Save SOS alert to Firestore
+            saveSOS(lat, lon, acc);
+          },
+          (err) => {
+            document.getElementById('sos-location').textContent = 'Location denied';
+            document.getElementById('sos-coords').textContent = 'N/A';
+            saveSOS(null, null, null);
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      }
+
+      // Start camera + mic
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
+        .then((stream) => {
+          sosStream = stream;
+          const video = document.getElementById('sos-video');
+          video.srcObject = stream;
+
+          // Audio level visualizer
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+          audioAnalyser = audioContext.createAnalyser();
+          audioAnalyser.fftSize = 256;
+          source.connect(audioAnalyser);
+          visualizeAudio();
+        })
+        .catch((err) => {
+          console.error('Media access error:', err);
+          showToast('Could not access camera/microphone: ' + err.message, 'error');
+        });
+
+      // Also create an SOS incident report
+      const sosIncident = {
+        id: Date.now(),
+        title: '🚨 SOS ALERT — Immediate Assistance Required',
+        category: 'SOS Emergency',
+        severity: 'Critical',
+        location: 'GPS location pending...',
+        affected: 1,
+        description: 'SOS button activated. Camera and microphone are live. Emergency responders have been notified with exact GPS coordinates.',
+        contact: currentUser ? currentUser.email : 'SOS User',
+        status: 'Reported',
+        timestamp: new Date().toLocaleString(),
+        reportedBy: currentUser ? currentUser.email : 'Anonymous',
+        source: 'sos'
+      };
+
+      incidents.unshift(sosIncident);
+      saveData();
+      saveToFirestore(sosIncident);
+    }
+
+    async function saveSOS(lat, lon, accuracy) {
+      try {
+        await db.collection('sos_alerts').add({
+          userId: currentUser ? currentUser.uid : 'unknown',
+          email: currentUser ? currentUser.email : 'unknown',
+          latitude: lat,
+          longitude: lon,
+          accuracy: accuracy,
+          active: true,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (err) {
+        console.error('SOS Firestore save error:', err);
+      }
+    }
+
+    function visualizeAudio() {
+      if (!audioAnalyser) return;
+      const data = new Uint8Array(audioAnalyser.frequencyBinCount);
+      audioAnalyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b) / data.length;
+      const level = Math.min(100, (avg / 128) * 100);
+      document.getElementById('audio-bar').style.width = level + '%';
+      audioAnimFrame = requestAnimationFrame(visualizeAudio);
+    }
+
+    function deactivateSOS() {
+      document.getElementById('sos-overlay').classList.add('hidden');
+
+      // Stop all media
+      if (sosStream) {
+        sosStream.getTracks().forEach(t => t.stop());
+        sosStream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+        audioAnalyser = null;
+      }
+      if (audioAnimFrame) {
+        cancelAnimationFrame(audioAnimFrame);
+        audioAnimFrame = null;
+      }
+
+      showToast('SOS session ended. Report saved.', 'warning');
+    }
+  </script>
+
+</body>
+</html>

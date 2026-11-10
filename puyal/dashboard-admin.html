@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RapidResponse — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ============ NAVBAR ============ -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="sos-tag">SOS</span>
+      <h1>RapidResponse — Admin Control</h1>
+    </div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-admin-email">Loading...</span>
+      <button class="nav-btn btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- ============ TOAST ============ -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main-container">
+
+    <!-- ── Live SOS Feed ── -->
+    <div class="live-feed-card" id="live-feed-card">
+      <div class="live-feed-header">
+        <h3><span class="live-dot"></span> Live SOS Alerts</h3>
+        <span style="font-size: 12px; color: var(--text-muted);" id="sos-count">0 active</span>
+      </div>
+      <div class="live-feed-body" id="live-feed-body">
+        <div class="live-feed-empty" id="no-sos-msg">
+          No active SOS alerts. All is calm.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── KPI Stats ── -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Reported</div>
+        <div id="stat-total" class="kpi-value">0</div>
+      </div>
+      <div class="kpi-card kpi-critical">
+        <div class="kpi-label">Critical Incidents</div>
+        <div id="stat-critical" class="kpi-value">0</div>
+      </div>
+      <div class="kpi-card kpi-pending">
+        <div class="kpi-label">Pending / Active</div>
+        <div id="stat-pending" class="kpi-value">0</div>
+      </div>
+      <div class="kpi-card kpi-resolved">
+        <div class="kpi-label">Resolved</div>
+        <div id="stat-resolved" class="kpi-value">0</div>
+      </div>
+    </div>
+
+    <!-- ── Category Stats ── -->
+    <div class="cat-box">
+      <div class="cat-title">Incidents by Category</div>
+      <div id="category-stats" class="cat-list"></div>
+    </div>
+
+    <!-- ── Incidents Table ── -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>All Reported Incidents</h3>
+        <div class="filters">
+          <select class="filter-select" id="filter-severity" onchange="renderDashboard()">
+            <option value="All">All Severities</option>
+            <option value="Critical">Critical Only</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <select class="filter-select" id="filter-status" onchange="renderDashboard()">
+            <option value="All">All Statuses</option>
+            <option value="Reported">Reported</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+          <select class="filter-select" id="filter-source" onchange="renderDashboard()">
+            <option value="All">All Sources</option>
+            <option value="form">Form</option>
+            <option value="voice">Voice</option>
+            <option value="sos">SOS</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Incident</th>
+              <th>Category</th>
+              <th>Severity</th>
+              <th>Location / Affected</th>
+              <th>Source</th>
+              <th>Status</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="incident-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ INCIDENT DETAIL MODAL ============ -->
+  <div id="detail-modal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-top">
+        <h3 id="modal-title"></h3>
+        <button onclick="closeModal()" class="modal-close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="modal-foot">
+        <button onclick="closeModal()" class="btn-close-modal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCRIPTS ============ -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
+  <script>
+    // ====================================================================
+    // AUTH CHECK — Must be admin
+    // ====================================================================
+    let currentAdmin = null;
+
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = 'index.html';
+        return;
+      }
+      currentAdmin = user;
+      document.getElementById('nav-admin-email').textContent = user.email;
+
+      // Verify role
+      try {
+        const doc = await db.collection('users').doc(user.uid).get();
+        if (doc.exists && doc.data().role !== 'admin') {
+          alert('Access denied. Admin privileges required.');
+          auth.signOut();
+          window.location.href = 'index.html';
+          return;
+        }
+      } catch (e) {
+        console.log('Role check error:', e);
+      }
+
+      // Load data
+      loadIncidents();
+      loadSOSAlerts();
+    });
+
+    // ====================================================================
+    // TOAST
+    // ====================================================================
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast ' + type + ' show';
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    // ====================================================================
+    // INCIDENT DATA
+    // ====================================================================
+    let incidents = [];
+
+    function loadIncidents() {
+      // Load from localStorage first for instant display
+      incidents = JSON.parse(localStorage.getItem('emergencies')) || [];
+      renderDashboard();
+
+      // Then sync from Firestore for cross-device data
+      db.collection('incidents')
+        .orderBy('createdAt', 'desc')
+        .limit(200)
+        .onSnapshot((snapshot) => {
+          const firestoreIncidents = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            firestoreIncidents.push({
+              id: data.id || doc.id,
+              firestoreId: doc.id,
+              title: data.title,
+              category: data.category,
+              severity: data.severity,
+              location: data.location,
+              affected: data.affected,
+              description: data.description,
+              contact: data.contact,
+              status: data.status,
+              timestamp: data.timestamp,
+              reportedBy: data.reportedBy || 'Unknown',
+              source: data.source || 'form'
+            });
+          });
+
+          // Merge: prefer Firestore data, fall back to localStorage
+          if (firestoreIncidents.length > 0) {
+            // Combine unique incidents from both sources
+            const idSet = new Set();
+            const merged = [];
+            for (const inc of firestoreIncidents) {
+              if (!idSet.has(inc.id)) {
+                idSet.add(inc.id);
+                merged.push(inc);
+              }
+            }
+            for (const inc of incidents) {
+              if (!idSet.has(inc.id)) {
+                idSet.add(inc.id);
+                merged.push(inc);
+              }
+            }
+            incidents = merged;
+          }
+
+          renderDashboard();
+        }, (err) => {
+          console.log('Firestore listen error (using localStorage):', err);
+          renderDashboard();
+        });
+    }
+
+    function saveData() {
+      localStorage.setItem('emergencies', JSON.stringify(incidents));
+    }
+
+    // ====================================================================
+    // LIVE SOS FEED
+    // ====================================================================
+    function loadSOSAlerts() {
+      db.collection('sos_alerts')
+        .where('active', '==', true)
+        .orderBy('timestamp', 'desc')
+        .limit(20)
+        .onSnapshot((snapshot) => {
+          const body = document.getElementById('live-feed-body');
+          const noMsg = document.getElementById('no-sos-msg');
+          const count = document.getElementById('sos-count');
+
+          if (snapshot.empty) {
+            noMsg.style.display = 'block';
+            count.textContent = '0 active';
+            body.innerHTML = '<div class="live-feed-empty">No active SOS alerts. All is calm.</div>';
+            return;
+          }
+
+          count.textContent = snapshot.size + ' active';
+          let html = '';
+          snapshot.forEach((doc) => {
+            const d = doc.data();
+            const time = d.timestamp ? d.timestamp.toDate().toLocaleString() : 'Just now';
+            html += `
+              <div class="live-sos-item">
+                <div class="sos-user-info">
+                  <span class="sos-user-name">🚨 ${d.email || 'Unknown User'}</span>
+                  <span class="sos-time">${time}</span>
+                </div>
+                <div class="sos-location">
+                  📍 ${d.latitude ? d.latitude + ', ' + d.longitude + ' (±' + (d.accuracy || '?') + 'm)' : 'Location unavailable'}
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                  <button class="btn btn-confirm" style="padding: 6px 14px; font-size: 12px;" onclick="resolveSOSAlert('${doc.id}')">
+                    ✅ Mark Resolved
+                  </button>
+                  ${d.latitude ? `<a href="https://www.google.com/maps?q=${d.latitude},${d.longitude}" target="_blank" class="btn" style="background: var(--info); color: #fff; padding: 6px 14px; font-size: 12px; text-decoration: none;">🗺️ View Map</a>` : ''}
+                </div>
+              </div>
+            `;
+          });
+          body.innerHTML = html;
+        }, (err) => {
+          console.log('SOS listen error:', err);
+        });
+    }
+
+    async function resolveSOSAlert(docId) {
+      try {
+        await db.collection('sos_alerts').doc(docId).update({ active: false });
+        showToast('SOS alert resolved.', 'success');
+      } catch (err) {
+        showToast('Error resolving SOS: ' + err.message, 'error');
+      }
+    }
+
+    // ====================================================================
+    // UPDATE STATUS
+    // ====================================================================
+    function updateStatus(id, newStatus) {
+      const item = incidents.find(i => String(i.id) === String(id));
+      if (item) {
+        item.status = newStatus;
+        saveData();
+
+        // Update in Firestore if it has a firestoreId
+        if (item.firestoreId) {
+          db.collection('incidents').doc(item.firestoreId).update({ status: newStatus }).catch(console.error);
+        }
+
+        renderDashboard();
+        showToast('Status updated to: ' + newStatus, 'success');
+      }
+    }
+
+    // ====================================================================
+    // DELETE INCIDENT
+    // ====================================================================
+    function deleteIncident(id) {
+      if (confirm('Delete this incident report permanently?')) {
+        const item = incidents.find(i => String(i.id) === String(id));
+
+        // Remove from Firestore
+        if (item && item.firestoreId) {
+          db.collection('incidents').doc(item.firestoreId).delete().catch(console.error);
+        }
+
+        incidents = incidents.filter(i => String(i.id) !== String(id));
+        saveData();
+        renderDashboard();
+        showToast('Incident deleted.', 'warning');
+      }
+    }
+
+    // ====================================================================
+    // VIEW DETAILS MODAL
+    // ====================================================================
+    function viewDetails(id) {
+      const item = incidents.find(i => String(i.id) === String(id));
+      if (!item) return;
+
+      document.getElementById('modal-title').innerText = item.title;
+
+      const sourceIcon = item.source === 'voice' ? '🎙️' : item.source === 'sos' ? '🚨' : '📝';
+
+      document.getElementById('modal-body').innerHTML = `
+        <p><strong>Category:</strong> ${item.category}</p>
+        <p><strong>Severity:</strong> <span class="sev-badge sev-${item.severity}">${item.severity}</span></p>
+        <p><strong>Status:</strong> ${item.status}</p>
+        <p><strong>Location:</strong> ${item.location}</p>
+        <p><strong>People Affected:</strong> ${item.affected}</p>
+        <p><strong>Contact:</strong> ${item.contact}</p>
+        <p><strong>Reported By:</strong> ${item.reportedBy || 'Unknown'}</p>
+        <p><strong>Reported At:</strong> ${item.timestamp}</p>
+        <p><strong>Source:</strong> ${sourceIcon} ${item.source || 'form'}</p>
+        <div class="modal-desc"><strong>Description:</strong><br>${item.description}</div>
+      `;
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('detail-modal').classList.add('hidden');
+    }
+
+    // ====================================================================
+    // RENDER DASHBOARD
+    // ====================================================================
+    function renderDashboard() {
+      const sevFilter = document.getElementById('filter-severity').value;
+      const statFilter = document.getElementById('filter-status').value;
+      const srcFilter = document.getElementById('filter-source').value;
+
+      // KPI Stats
+      document.getElementById('stat-total').innerText = incidents.length;
+      document.getElementById('stat-critical').innerText = incidents.filter(i => i.severity === 'Critical').length;
+      document.getElementById('stat-pending').innerText = incidents.filter(i => i.status !== 'Resolved').length;
+      document.getElementById('stat-resolved').innerText = incidents.filter(i => i.status === 'Resolved').length;
+
+      // Category breakdown
+      const catCounts = {};
+      incidents.forEach(i => catCounts[i.category] = (catCounts[i.category] || 0) + 1);
+      document.getElementById('category-stats').innerHTML = Object.entries(catCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, count]) => `<span class="cat-pill">${cat}: <strong>${count}</strong></span>`)
+        .join('') || '<span style="font-size:12px;color:var(--text-faint);">No data yet</span>';
+
+      // Filtered list
+      const filtered = incidents.filter(i =>
+        (sevFilter === 'All' || i.severity === sevFilter) &&
+        (statFilter === 'All' || i.status === statFilter) &&
+        (srcFilter === 'All' || i.source === srcFilter)
+      );
+
+      // Source icons
+      const sourceIcons = { voice: '🎙️', sos: '🚨', form: '📝' };
+
+      document.getElementById('incident-table').innerHTML = filtered.map(item => `
+        <tr class="${item.severity === 'Critical' ? 'row-critical' : ''}">
+          <td>
+            <div class="inc-title">${item.title}</div>
+            <div class="inc-time">${item.timestamp}</div>
+          </td>
+          <td>${item.category}</td>
+          <td><span class="sev-badge sev-${item.severity}">${item.severity}</span></td>
+          <td>
+            <div>${item.location}</div>
+            <div class="inc-time">${item.affected} affected</div>
+          </td>
+          <td>
+            <span style="font-size: 16px;" title="${item.source || 'form'}">${sourceIcons[item.source] || '📝'}</span>
+          </td>
+          <td>
+            <select onchange="updateStatus('${item.id}', this.value)" class="status-select">
+              <option ${item.status === 'Reported' ? 'selected' : ''}>Reported</option>
+              <option ${item.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+              <option ${item.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+            </select>
+          </td>
+          <td class="actions-cell">
+            <button onclick="viewDetails('${item.id}')" class="btn-link btn-view">View</button>
+            <button onclick="deleteIncident('${item.id}')" class="btn-link btn-del">Delete</button>
+          </td>
+        </tr>
+      `).join('') || `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text-faint);">No matching incidents found.</td></tr>`;
+    }
+  </script>
+
+</body>
+</html>

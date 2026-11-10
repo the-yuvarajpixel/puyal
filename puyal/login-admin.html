@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RapidResponse — Admin Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <div class="login-page">
+    <div class="login-card">
+      <div class="logo">
+        <span class="sos-tag">SOS</span>
+        <h1>RapidResponse</h1>
+      </div>
+      <span class="role-badge admin-badge">Admin Control</span>
+      <p class="login-subtitle">Authorized personnel only — manage and respond to incidents</p>
+
+      <div id="login-error" class="login-error"></div>
+
+      <form class="login-form" id="admin-login-form">
+        <div class="form-group">
+          <label for="email">Admin Email</label>
+          <input type="email" id="email" placeholder="admin@organization.com" required />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter admin password" required />
+        </div>
+        <button type="submit" class="btn-login admin-btn" id="btn-submit">
+          Sign In as Admin
+        </button>
+        <div class="toggle-auth">
+          <span id="toggle-text">Need admin access?</span>
+          <a id="toggle-link" onclick="toggleAuthMode()">Register admin account</a>
+        </div>
+      </form>
+
+      <a href="index.html" class="back-link">← Back to role selection</a>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
+  <script>
+    let isSignUp = false;
+
+    function toggleAuthMode() {
+      isSignUp = !isSignUp;
+      document.getElementById('btn-submit').textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
+      document.getElementById('toggle-text').textContent = isSignUp ? 'Already have access?' : 'Need admin access?';
+      document.getElementById('toggle-link').textContent = isSignUp ? 'Sign in' : 'Register admin account';
+      document.getElementById('login-error').style.display = 'none';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    // Check if already logged in as admin
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const doc = await db.collection('users').doc(user.uid).get();
+          if (doc.exists && doc.data().role === 'admin') {
+            window.location.href = 'dashboard-admin.html';
+          }
+        } catch (e) {
+          console.log('Auth check:', e);
+        }
+      }
+    });
+
+    document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-submit');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+      document.getElementById('login-error').style.display = 'none';
+
+      try {
+        let userCredential;
+        if (isSignUp) {
+          userCredential = await auth.createUserWithEmailAndPassword(email, password);
+          // Store admin profile
+          await db.collection('users').doc(userCredential.user.uid).set({
+            email: email,
+            role: 'admin',
+            displayName: email.split('@')[0],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          userCredential = await auth.signInWithEmailAndPassword(email, password);
+          // Verify role
+          const doc = await db.collection('users').doc(userCredential.user.uid).get();
+          if (doc.exists && doc.data().role !== 'admin') {
+            showError('This account is registered as User. Please use the Civilian login.');
+            auth.signOut();
+            btn.disabled = false;
+            btn.textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
+            return;
+          }
+        }
+
+        localStorage.setItem('userRole', 'admin');
+        window.location.href = 'dashboard-admin.html';
+      } catch (err) {
+        let message = 'Authentication failed. Please try again.';
+        if (err.code === 'auth/user-not-found') message = 'No admin account found. Register first.';
+        else if (err.code === 'auth/wrong-password') message = 'Incorrect password.';
+        else if (err.code === 'auth/invalid-credential') message = 'Invalid credentials. Check email and password.';
+        else if (err.code === 'auth/email-already-in-use') message = 'Email already registered. Try signing in.';
+        else if (err.code === 'auth/weak-password') message = 'Password must be at least 6 characters.';
+        else if (err.code === 'auth/invalid-email') message = 'Invalid email address format.';
+        showError(message);
+        btn.disabled = false;
+        btn.textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
+      }
+    });
+  </script>
+
+</body>
+</html>
