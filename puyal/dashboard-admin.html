@@ -48,12 +48,29 @@
   <nav class="navbar">
     <div class="nav-brand">
       <span class="sos-tag">SOS</span>
-      <h1>RapidResponse — Admin Command Center</h1>
+      <h1 data-i18n="nav.brand_admin">RapidResponse — Admin Command Center</h1>
     </div>
-    <div class="nav-right">
-      <span class="sync-badge" id="sync-status">● Live Stream Active</span>
+    <div class="nav-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <!-- Multilingual Translation Selector & Instant Translate Button -->
+      <div class="lang-selector-bar" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.18);">
+        <span style="font-size: 14px;">🌐</span>
+        <select id="global-lang-select" onchange="translatePage(this.value)" aria-label="Select Language" style="background: transparent; color: #fff; border: none; font-size: 12px; font-weight: 600; outline: none; cursor: pointer; padding: 2px 4px;">
+          <option value="en" style="background: #1e293b; color: #fff;">English (English)</option>
+          <option value="ta" style="background: #1e293b; color: #fff;">தமிழ் (Tamil)</option>
+          <option value="hi" style="background: #1e293b; color: #fff;">हिन्दी (Hindi)</option>
+          <option value="te" style="background: #1e293b; color: #fff;">తెలుగు (Telugu)</option>
+          <option value="ml" style="background: #1e293b; color: #fff;">മലയാളം (Malayalam)</option>
+          <option value="kn" style="background: #1e293b; color: #fff;">ಕನ್ನಡ (Kannada)</option>
+          <option value="bn" style="background: #1e293b; color: #fff;">বাংলা (Bengali)</option>
+          <option value="es" style="background: #1e293b; color: #fff;">Español (Spanish)</option>
+        </select>
+        <button type="button" id="btn-translate-page" class="btn" style="background: var(--primary); color: #fff; padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: none; cursor: pointer;" onclick="onGlobalTranslateClick()">
+          <span data-i18n="nav.translate_btn">🌐 Translate</span>
+        </button>
+      </div>
+      <span class="sync-badge" id="sync-status" data-i18n="nav.live_sync">● Live Stream Active</span>
       <span class="nav-user" id="nav-admin-email">Loading...</span>
-      <button class="nav-btn btn-logout" onclick="logout()">Logout</button>
+      <button class="nav-btn btn-logout" onclick="logout()"><span data-i18n="nav.logout">Logout</span></button>
     </div>
   </nav>
 
@@ -120,7 +137,7 @@
       <div class="analytics-grid-6">
         <!-- 1. Total Incidents -->
         <div class="analytics-card" style="border-top: 4px solid var(--navy);">
-          <div class="analytics-card-label">Total Incidents</div>
+          <div class="analytics-card-label" data-i18n="admin.kpi.total">Total Emergency Incidents</div>
           <div class="analytics-card-value" id="stat-total-incidents">0</div>
           <!-- Backward-compatible hidden ID for old script references if needed -->
           <span id="stat-total" style="display: none;">0</span>
@@ -131,7 +148,7 @@
 
         <!-- 2. Critical Incidents -->
         <div class="analytics-card" style="border-top: 4px solid var(--danger); background: #fff5f5;">
-          <div class="analytics-card-label" style="color: #991b1b;">Critical Incidents</div>
+          <div class="analytics-card-label" style="color: #991b1b;" data-i18n="admin.kpi.critical">Critical Incidents</div>
           <div class="analytics-card-value" id="stat-critical-incidents" style="color: var(--danger);">0</div>
           <span id="stat-critical" style="display: none;">0</span>
           <div class="analytics-card-sub" style="color: var(--danger); font-weight: 700;">
@@ -141,7 +158,7 @@
 
         <!-- 3. Available Response Teams -->
         <div class="analytics-card" style="border-top: 4px solid var(--success); background: #f0fdf4;">
-          <div class="analytics-card-label" style="color: #166534;">Available Teams</div>
+          <div class="analytics-card-label" style="color: #166534;" data-i18n="admin.kpi.available">Available Response Teams</div>
           <div class="analytics-card-value" id="stat-avail-teams-kpi" style="color: var(--success);">0</div>
           <div class="analytics-card-sub" style="color: #166534; font-weight: 700;">
             <span>✅ Ready for immediate dispatch</span>
@@ -150,7 +167,7 @@
 
         <!-- 4. Busy Response Teams -->
         <div class="analytics-card" style="border-top: 4px solid var(--warning); background: #fffbeb;">
-          <div class="analytics-card-label" style="color: #92400e;">Busy Teams</div>
+          <div class="analytics-card-label" style="color: #92400e;" data-i18n="admin.kpi.busy">Busy Response Teams</div>
           <div class="analytics-card-value" id="stat-busy-teams-kpi" style="color: var(--warning);">0</div>
           <div class="analytics-card-sub" style="color: #92400e; font-weight: 700;">
             <span>⚡ Dispatched / On scene</span>
@@ -159,7 +176,7 @@
 
         <!-- 5. Assigned Incidents -->
         <div class="analytics-card" style="border-top: 4px solid var(--info); background: #eff6ff;">
-          <div class="analytics-card-label" style="color: #1e40af;">Assigned Incidents</div>
+          <div class="analytics-card-label" style="color: #1e40af;" data-i18n="admin.kpi.assigned">Assigned Incidents</div>
           <div class="analytics-card-value" id="stat-assigned-incidents-kpi" style="color: var(--info);">0</div>
           <span id="stat-pending" style="display: none;">0</span>
           <div class="analytics-card-sub" style="color: #1e40af; font-weight: 700;">
@@ -169,7 +186,7 @@
 
         <!-- 6. Resolved Incidents -->
         <div class="analytics-card" style="border-top: 4px solid #059669;">
-          <div class="analytics-card-label" style="color: #065f46;">Resolved Incidents</div>
+          <div class="analytics-card-label" style="color: #065f46;" data-i18n="admin.kpi.resolved">Resolved Incidents</div>
           <div class="analytics-card-value" id="stat-resolved-incidents-kpi" style="color: #059669;">0</div>
           <span id="stat-resolved" style="display: none;">0</span>
           <div class="analytics-card-sub" style="color: #065f46;">
@@ -239,10 +256,10 @@
           <span class="gov-badge" style="background: #fef3c7; color: #92400e; border-color: #fde68a;">
             OPEN-SOURCE LEAFLET &amp; OPENSTREETMAP GIS
           </span>
-          <h2 style="font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 4px;">
+          <h2 style="font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 4px;" data-i18n="admin.map.heading">
             Tactical GPS Disaster Map &amp; Real-Time Route Visualizer
           </h2>
-          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;" data-i18n="admin.map.subheading">
             Real-time geospatial operational view of disaster pins, emergency response vehicles, station depots, civilian GPS beacons, and 2 km tactical response perimeters.
           </p>
         </div>
@@ -250,29 +267,34 @@
         <div class="map-toolbar">
           <!-- Layer Filter Buttons -->
           <button type="button" class="map-filter-btn active" id="btn-map-all" onclick="setMapFilter('all')">
-            🗺️ All Layers
+            <span data-i18n="admin.map.all_layers">🗺️ All Layers</span>
           </button>
           <button type="button" class="map-filter-btn" id="btn-map-disasters" onclick="setMapFilter('disasters')">
-            🚨 Disasters
+            <span data-i18n="admin.map.disasters">🚨 Disasters</span>
           </button>
           <button type="button" class="map-filter-btn" id="btn-map-vehicles" onclick="setMapFilter('vehicles')">
-            🚒 Vehicles
+            <span data-i18n="admin.map.vehicles">🚒 Vehicles</span>
           </button>
           <button type="button" class="map-filter-btn" id="btn-map-stations" onclick="setMapFilter('stations')">
-            🏢 Depots
+            <span data-i18n="admin.map.stations">🏢 Stations</span>
           </button>
           <button type="button" class="map-filter-btn" id="btn-map-sos" onclick="setMapFilter('sos')">
-            🚨 Civilian SOS
+            <span data-i18n="admin.map.sos">🚨 SOS Beacons</span>
           </button>
 
           <!-- 2km Radius Perimeter Toggle -->
           <button type="button" class="map-filter-btn btn-perimeter active" id="btn-map-2km" onclick="togglePerimeterCircles()">
-            ⭕ 2 km Perimeters: ON
+            <span data-i18n="admin.map.perimeter">⭕ 2 km Perimeters</span>: ON
           </button>
 
           <!-- Recenter Map -->
           <button type="button" class="map-filter-btn" onclick="recenterTacticalMap()">
-            🎯 Recenter
+            <span data-i18n="admin.map.center_btn">🎯 Recenter</span>
+          </button>
+
+          <!-- Real-Time Dispatch Route Simulation Button -->
+          <button type="button" class="map-filter-btn" style="background: #dc2626; color: #fff; font-weight: 800; border-color: #ef4444;" onclick="triggerDemoDispatchSimulation()">
+            🚀 Simulate Dispatch Demo
           </button>
 
           <!-- Focus specific incident dropdown -->
@@ -823,6 +845,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/auth-sync.js"></script>
+  <script src="js/translations.js"></script>
 
   <script>
     // ====================================================================
@@ -992,6 +1015,19 @@
       }
     });
     rapidSync.on('TEAM_RELEASED', () => loadAllData());
+
+    // Real-Time Dispatched Team Movement & Route Tracking
+    rapidSync.on('TEAM_MOVEMENT_UPDATED', (data) => {
+      if (data && data.team) {
+        const idx = responseTeams.findIndex(t => t.id === data.team.id);
+        if (idx !== -1) {
+          responseTeams[idx] = { ...responseTeams[idx], ...data.team };
+        } else {
+          responseTeams.push(data.team);
+        }
+        updateTacticalMap();
+      }
+    });
 
     // Handle incoming video frame from civilian during live streaming
     rapidSync.on('SOS_FRAME_UPDATE', (data) => {
@@ -2101,24 +2137,49 @@
 
     function extractItemCoords(item) {
       if (!item) return { lat: 13.0604, lon: 80.2496 };
-      if (item.latitude && item.longitude) {
+
+      // 1. Direct coords object
+      if (item.coords && typeof item.coords === 'object') {
+        const lat = parseFloat(item.coords.lat || item.coords.latitude);
+        const lon = parseFloat(item.coords.lon || item.coords.longitude || item.coords.lng);
+        if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+      }
+
+      // 2. Direct top-level fields
+      if (item.latitude !== undefined && item.longitude !== undefined && item.latitude !== null && item.longitude !== null) {
         const lat = parseFloat(item.latitude);
         const lon = parseFloat(item.longitude);
         if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
       }
-      if (item.coords && item.coords.lat && item.coords.lon) {
-        return { lat: parseFloat(item.coords.lat), lon: parseFloat(item.coords.lon) };
-      }
+
+      // 3. String location regex match
       const locStr = String(item.location || '');
-      const match = locStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      const match = locStr.match(/(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)/);
       if (match) {
-        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+        const lat = parseFloat(match[1]);
+        const lon = parseFloat(match[2]);
+        if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
       }
-      if (/bridge|river/i.test(locStr)) return { lat: 13.0827, lon: 80.2707 };
-      if (/industrial|gt road|chemical/i.test(locStr)) return { lat: 13.1200, lon: 80.2800 };
-      if (/expressway|nh-48|highway/i.test(locStr)) return { lat: 12.9800, lon: 80.2100 };
-      if (/airport|terminal/i.test(locStr)) return { lat: 12.9900, lon: 80.1700 };
-      if (/marina|coastal/i.test(locStr)) return { lat: 13.0450, lon: 80.2824 };
+
+      // 4. Regional landmark mapping
+      const lower = locStr.toLowerCase();
+      if (lower.includes('bridge') || lower.includes('river') || lower.includes('coast') || lower.includes('marina')) {
+        return { lat: 13.0450, lon: 80.2824 };
+      }
+      if (lower.includes('gt road') || lower.includes('north') || lower.includes('industrial') || lower.includes('port')) {
+        return { lat: 13.1200, lon: 80.2800 };
+      }
+      if (lower.includes('nh-48') || lower.includes('highway') || lower.includes('expressway') || lower.includes('south') || lower.includes('guindy')) {
+        return { lat: 12.9800, lon: 80.2100 };
+      }
+      if (lower.includes('airport') || lower.includes('terminal') || lower.includes('meenambakkam')) {
+        return { lat: 12.9900, lon: 80.1700 };
+      }
+      if (lower.includes('bangalore') || lower.includes('bengaluru')) {
+        return { lat: 12.9716, lon: 77.5946 };
+      }
+
+      // 5. Default Central Command Base Coordinates
       return { lat: 13.0604, lon: 80.2496 };
     }
 
@@ -2261,16 +2322,29 @@
         const isDisp = team.status === 'Dispatched';
         const statusClass = isAvail ? 'veh-avail' : isDisp ? 'veh-dispatched' : 'veh-onscene';
 
+        // Animated Beacon for Live Dispatched Emergency Vehicles
+        const beaconHtml = isDisp ? `
+          <div class="map-vehicle-beacon" title="🚑 ${team.name} — EN ROUTE (${team.progress || 35}%)">
+            <div class="beacon-ring"></div>
+            <div class="vehicle-core">
+              ${vIcon}
+            </div>
+          </div>
+        ` : `<div class="map-pin-vehicle ${statusClass}" title="${team.name}">${vIcon}</div>`;
+
         const vehicleMarkerIcon = L.divIcon({
           className: 'custom-map-icon',
-          html: `<div class="map-pin-vehicle ${statusClass}">${vIcon}</div>`,
-          iconSize: [38, 38],
-          iconAnchor: [19, 19],
-          popupAnchor: [0, -20]
+          html: beaconHtml,
+          iconSize: isDisp ? [44, 44] : [38, 38],
+          iconAnchor: isDisp ? [22, 22] : [19, 19],
+          popupAnchor: [0, -22]
         });
 
+        const progressPercent = team.progress || 35;
+        const speedKmh = team.speedKmh || 52;
+
         const popupContent = `
-          <div style="font-family: var(--font); min-width: 210px; padding: 4px;">
+          <div style="font-family: var(--font); min-width: 220px; padding: 4px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
               <span class="team-status-pill ${isAvail ? 'status-avail' : 'status-dispatched'}">● ${team.status}</span>
               <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">${team.id}</span>
@@ -2281,6 +2355,13 @@
               <div>🏢 <strong>Depot:</strong> ${team.stationName || 'Command Center'}</div>
               <div>👥 <strong>Crew:</strong> ${team.personnel || 8} Responders</div>
               <div>📞 <strong>Radio:</strong> ${team.contact}</div>
+              ${isDisp ? `
+                <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 6px; border-radius: 4px; margin-top: 6px;">
+                  <div style="color: #b45309; font-weight: 800; font-size: 11px;">⚡ LIVE EN ROUTE NAVIGATION</div>
+                  <div style="font-size: 11px; color: #92400e;">Speed: ~${speedKmh} km/h &bull; Route: ${progressPercent}% completed</div>
+                  <div style="font-size: 11px; color: #dc2626; font-weight: 700; margin-top: 2px;">Remaining: ${team.remainingDistKm || 1.4} km (ETA ~${team.etaMinutes || 3}m)</div>
+                </div>
+              ` : ''}
             </div>
             <div style="margin-top: 8px;">
               ${isAvail ? `
@@ -2299,32 +2380,43 @@
         const marker = L.marker([lat, lon], { icon: vehicleMarkerIcon }).bindPopup(popupContent);
         mapLayers.teams.addLayer(marker);
 
-        // 4. Draw Active Dispatch Routes
+        // 4. Draw Active Dispatch Routes (Full Real-Time Waypoint Navigation)
         if (isDisp && team.assignedIncidentId) {
           const targetInc = incidents.find(i => String(i.id) === String(team.assignedIncidentId));
           if (targetInc) {
             const incCoords = extractItemCoords(targetInc);
-            const distKm = calcDistanceKm(lat, lon, incCoords.lat, incCoords.lon);
-            const etaMins = Math.max(3, Math.round(distKm * 2));
+            const distKm = team.remainingDistKm !== undefined ? team.remainingDistKm : calcDistanceKm(lat, lon, incCoords.lat, incCoords.lon);
+            const etaMins = team.etaMinutes !== undefined ? team.etaMinutes : Math.max(1, Math.round(distKm * 1.8));
 
-            // Route Polyline
-            const polyline = L.polyline([[lat, lon], [incCoords.lat, incCoords.lon]], {
+            const originLat = team.originLatitude || 13.0610;
+            const originLon = team.originLongitude || 80.2490;
+
+            // Segment 1: Traveled Route (Depot Station to Vehicle) in solid emergency emerald
+            const traveledPolyline = L.polyline([[originLat, originLon], [lat, lon]], {
+              color: '#10b981',
+              weight: 5,
+              opacity: 0.85
+            }).bindTooltip(`🛣️ Cleared Navigation Route (${progressPercent}% covered)`);
+            mapLayers.routes.addLayer(traveledPolyline);
+
+            // Segment 2: Active Ahead Way (Vehicle to Target Incident) with animated pulsing dash
+            const aheadPolyline = L.polyline([[lat, lon], [incCoords.lat, incCoords.lon]], {
               color: '#dc2626',
-              weight: 4,
-              opacity: 0.85,
-              dashArray: '8, 8'
-            }).bindTooltip(`🚑 En Route: ${team.name} ➔ ${targetInc.title}<br>Distance: ${distKm} km · ETA: ~${etaMins} mins`, { sticky: true });
+              weight: 5,
+              opacity: 0.95,
+              className: 'route-pulse-dash',
+              dashArray: '10, 10'
+            }).bindTooltip(`🚑 En Route Way: ${team.name} ➔ ${targetInc.title}<br>Remaining: ${distKm} km · Speed: ${speedKmh} km/h · ETA: ~${etaMins} mins`, { sticky: true });
+            mapLayers.routes.addLayer(aheadPolyline);
 
-            mapLayers.routes.addLayer(polyline);
-
-            // Midpoint Route Badge
+            // Live Floating Route Telemetry Badge
             const midLat = (lat + incCoords.lat) / 2;
             const midLon = (lon + incCoords.lon) / 2;
             const routeBadgeIcon = L.divIcon({
               className: 'custom-map-icon',
-              html: `<div class="map-route-badge">📍 ${distKm} km (ETA ${etaMins}m)</div>`,
-              iconSize: [110, 24],
-              iconAnchor: [55, 12]
+              html: `<div class="map-route-badge">🚑 ${distKm} km to site · ETA ${etaMins}m (${progressPercent}%)</div>`,
+              iconSize: [160, 26],
+              iconAnchor: [80, 13]
             });
             const badgeMarker = L.marker([midLat, midLon], { icon: routeBadgeIcon, interactive: false });
             mapLayers.routes.addLayer(badgeMarker);
@@ -2469,6 +2561,36 @@
 
       showToast(`🎯 Centered on 2km zone for "${inc.title}"`, 'success');
     }
+
+    async function triggerDemoDispatchSimulation() {
+      try {
+        showToast('🚀 Starting live emergency dispatch simulation...', 'info');
+        const res = await fetch('/api/demo/simulate-dispatch', { method: 'POST' });
+        const data = await res.json();
+        if (data.success && data.team) {
+          const idx = responseTeams.findIndex(t => t.id === data.team.id);
+          if (idx !== -1) responseTeams[idx] = data.team;
+          else responseTeams.push(data.team);
+          updateTacticalMap();
+          renderTeams();
+          if (tacticalMap && data.team.latitude && data.team.longitude) {
+            tacticalMap.flyTo([data.team.latitude, data.team.longitude], 14, { duration: 1.2 });
+          }
+          showToast(`🚑 Dispatched ${data.team.name}! En route telemetry active.`, 'success');
+          speakText(`Live emergency dispatch simulation initialized for ${data.team.name}`, 'en');
+        }
+      } catch (e) {
+        showToast('Failed to start dispatch simulation: ' + e.message, 'error');
+      }
+    }
+
+    // Dynamic re-render on language change
+    window.addEventListener('languageChanged', () => {
+      if (typeof renderDashboard === 'function') renderDashboard();
+      if (typeof renderTeams === 'function') renderTeams();
+      if (typeof updateAdvancedAnalytics === 'function') updateAdvancedAnalytics();
+      if (typeof updateTacticalMap === 'function') updateTacticalMap();
+    });
   </script>
 
 </body>

@@ -143,15 +143,23 @@ const defaultTeams = [
     expertise: "Advanced Life Support & Critical Trauma",
     stationId: "STN-CEN-01",
     stationName: "EOC Central Disaster Command Depot",
-    latitude: 13.0595,
-    longitude: 80.2512,
+    latitude: 13.0554,
+    longitude: 80.2607,
+    originLatitude: 13.0610,
+    originLongitude: 80.2490,
+    targetLatitude: 13.0450,
+    targetLongitude: 80.2824,
+    progress: 35,
+    remainingDistKm: 1.4,
+    etaMinutes: 3,
+    speedKmh: 52,
     personnelCount: 5,
     vehicles: ["ALS Mobile ICU Ambulance", "Rapid Paramedic Bike"],
     contact: "+91 44 2859 3922",
-    status: "Available",
-    assignedIncidentId: null,
-    assignedIncidentTitle: null,
-    assignedAt: null
+    status: "Dispatched",
+    assignedIncidentId: 1731195000001,
+    assignedIncidentTitle: "Structural Risk & Water Surge Alert",
+    assignedAt: new Date().toISOString()
   },
   {
     teamId: "TEAM-NDRF-01",
@@ -227,30 +235,51 @@ const defaultTeams = [
 // Coordinate Extraction & Haversine Distance Calculation
 // ----------------------------------------------------------------------------
 function extractIncidentCoords(incident) {
-  if (incident.latitude && incident.longitude) {
+  if (!incident) return { lat: 13.0604, lon: 80.2496 };
+
+  // 1. Direct coords object
+  if (incident.coords && typeof incident.coords === 'object') {
+    const lat = parseFloat(incident.coords.lat || incident.coords.latitude);
+    const lon = parseFloat(incident.coords.lon || incident.coords.longitude || incident.coords.lng);
+    if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+  }
+
+  // 2. Direct top-level fields
+  if (incident.latitude !== undefined && incident.longitude !== undefined && incident.latitude !== null && incident.longitude !== null) {
     const lat = parseFloat(incident.latitude);
     const lon = parseFloat(incident.longitude);
     if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
   }
+
+  // 3. String location regex match
   const locStr = String(incident.location || '');
-  const match = locStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  const match = locStr.match(/(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)/);
   if (match) {
-    return {
-      lat: parseFloat(match[1]),
-      lon: parseFloat(match[2])
-    };
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+    if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
   }
+
+  // 4. Regional landmark mapping
   const lower = locStr.toLowerCase();
   if (lower.includes('bridge') || lower.includes('river') || lower.includes('coast') || lower.includes('marina')) {
     return { lat: 13.0450, lon: 80.2824 };
   }
-  if (lower.includes('gt road') || lower.includes('north') || lower.includes('industrial')) {
+  if (lower.includes('gt road') || lower.includes('north') || lower.includes('industrial') || lower.includes('port')) {
     return { lat: 13.1200, lon: 80.2800 };
   }
-  if (lower.includes('nh-48') || lower.includes('highway') || lower.includes('expressway') || lower.includes('south')) {
+  if (lower.includes('nh-48') || lower.includes('highway') || lower.includes('expressway') || lower.includes('south') || lower.includes('guindy')) {
     return { lat: 12.9800, lon: 80.2100 };
   }
-  return { lat: 13.0604, lon: 80.2496 }; // Central Metro baseline
+  if (lower.includes('airport') || lower.includes('terminal') || lower.includes('meenambakkam')) {
+    return { lat: 12.9900, lon: 80.1700 };
+  }
+  if (lower.includes('bangalore') || lower.includes('bengaluru')) {
+    return { lat: 12.9716, lon: 77.5946 };
+  }
+
+  // 5. Default Central Command Base Coordinates
+  return { lat: 13.0604, lon: 80.2496 };
 }
 
 function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
@@ -421,10 +450,16 @@ const defaultStore = {
       severity: 'Critical',
       severityScore: 92,
       location: 'Bridge Sector 4B, Riverfront',
+      latitude: 13.0450,
+      longitude: 80.2824,
+      coords: { lat: 13.0450, lon: 80.2824 },
       affected: 8,
       description: 'Water surge overflowing embankment. Structural safety assessment needed immediately.',
       contact: 'Civilian Emergency Watch',
-      status: 'Reported',
+      status: 'In Progress',
+      assignedTeamId: 'TEAM-MED-01',
+      assignedTeamName: 'Trauma ALS Rapid Squad 1',
+      assignedTeamCategory: 'Medical Emergency',
       timestamp: new Date(Date.now() - 1000 * 60 * 15).toLocaleString(),
       reportedBy: 'civilian.demo@rapidresponse.org',
       source: 'form'
@@ -788,7 +823,12 @@ app.post('/api/government/reset-fleet', (req, res) => {
 // ----------------------------------------------------------------------------
 
 app.get('/api/teams', (req, res) => {
-  const teams = store.teams || defaultTeams;
+  if (!store.teams) store.teams = defaultTeams;
+  const teams = (store.teams || defaultTeams).map(t => ({
+    ...t,
+    id: t.id || t.teamId,
+    teamId: t.teamId || t.id
+  }));
   res.json({ success: true, teams });
 });
 
@@ -990,11 +1030,26 @@ app.post('/api/incidents/:id/assign-team', (req, res) => {
     return res.status(404).json({ error: 'Team not found' });
   }
 
-  // Update Team
+  // Compute route coordinates & distance
+  const incCoords = extractIncidentCoords(incident);
+  const startLat = team.latitude || 13.0610;
+  const startLon = team.longitude || 80.2490;
+  const distKm = calculateHaversineDistance(startLat, startLon, incCoords.lat, incCoords.lon);
+
+  // Update Team with Real-Time Route Data
   team.status = 'Dispatched';
   team.assignedIncidentId = incident.id;
   team.assignedIncidentTitle = incident.title;
   team.assignedAt = new Date().toISOString();
+  team.originLatitude = startLat;
+  team.originLongitude = startLon;
+  team.targetLatitude = incCoords.lat;
+  team.targetLongitude = incCoords.lon;
+  team.progress = 5;
+  team.totalDistKm = distKm;
+  team.remainingDistKm = distKm;
+  team.etaMinutes = Math.max(1, Math.ceil(distKm * 1.8));
+  team.speedKmh = 52;
 
   // Update Incident
   incident.status = 'In Progress';
@@ -1010,6 +1065,83 @@ app.post('/api/incidents/:id/assign-team', (req, res) => {
   res.json({
     success: true,
     message: `${team.name} assigned and dispatched to "${incident.title}".`,
+    team,
+    incident
+  });
+});
+
+// Demo Dispatch Simulation Endpoint (1-Click Real-Time Route Test)
+app.post('/api/demo/simulate-dispatch', (req, res) => {
+  if (!store.teams) store.teams = defaultTeams;
+  if (!store.incidents) store.incidents = [];
+
+  // 1. Pick target incident (prefer unassigned or first demo incident)
+  let incident = store.incidents.find(i => i.status !== 'Resolved' && !i.assignedTeamId);
+  if (!incident && store.incidents.length > 0) {
+    incident = store.incidents[0];
+  }
+  if (!incident) {
+    incident = {
+      id: Date.now(),
+      title: 'Emergency Distress Signal',
+      category: 'Medical Emergency',
+      severity: 'Critical',
+      severityScore: 94,
+      location: 'Bridge Sector 4B, Riverfront',
+      latitude: 13.0450,
+      longitude: 80.2824,
+      coords: { lat: 13.0450, lon: 80.2824 },
+      affected: 4,
+      description: 'Emergency rescue unit requested immediately. High-priority dispatch active.',
+      contact: 'Civilian Emergency Watch',
+      status: 'Reported',
+      timestamp: new Date().toLocaleString(),
+      reportedBy: 'civilian.demo@rapidresponse.org',
+      source: 'form'
+    };
+    store.incidents.unshift(incident);
+  }
+
+  // 2. Pick best available team or reset first team
+  let team = store.teams.find(t => t.status === 'Available');
+  if (!team) {
+    team = store.teams[0];
+  }
+
+  const incCoords = extractIncidentCoords(incident);
+  const startLat = 13.0610;
+  const startLon = 80.2490;
+  const distKm = calculateHaversineDistance(startLat, startLon, incCoords.lat, incCoords.lon);
+
+  team.status = 'Dispatched';
+  team.assignedIncidentId = incident.id;
+  team.assignedIncidentTitle = incident.title;
+  team.assignedAt = new Date().toISOString();
+  team.originLatitude = startLat;
+  team.originLongitude = startLon;
+  team.targetLatitude = incCoords.lat;
+  team.targetLongitude = incCoords.lon;
+  team.progress = 10;
+  team.latitude = startLat + (incCoords.lat - startLat) * 0.10;
+  team.longitude = startLon + (incCoords.lon - startLon) * 0.10;
+  team.totalDistKm = distKm;
+  team.remainingDistKm = Math.round(distKm * 0.9 * 10) / 10;
+  team.etaMinutes = Math.max(1, Math.ceil(team.remainingDistKm * 1.8));
+  team.speedKmh = 54;
+
+  incident.status = 'In Progress';
+  incident.assignedTeamId = team.teamId;
+  incident.assignedTeamName = team.name;
+  incident.assignedTeamCategory = team.category;
+
+  saveStore(store);
+
+  broadcast('TEAM_ASSIGNED', { team, incident });
+  broadcast('INCIDENT_UPDATED', incident);
+
+  res.json({
+    success: true,
+    message: `Active dispatch simulation started: ${team.name} is navigating to ${incident.title}`,
     team,
     incident
   });
@@ -1352,6 +1484,8 @@ app.post('/api/incidents', (req, res) => {
     category: inc.category || 'Other',
     severity: inc.severity || 'Medium',
     location: inc.location || 'Unknown Location',
+    latitude: inc.latitude !== undefined && inc.latitude !== null && inc.latitude !== '' ? parseFloat(inc.latitude) : null,
+    longitude: inc.longitude !== undefined && inc.longitude !== null && inc.longitude !== '' ? parseFloat(inc.longitude) : null,
     affected: parseInt(inc.affected || 1, 10),
     description: inc.description || 'No description provided.',
     contact: inc.contact || 'Not provided',
@@ -1363,10 +1497,17 @@ app.post('/api/incidents', (req, res) => {
   };
 
   const priority = calculateIncidentPriority(initial);
-  const coords = extractIncidentCoords(initial);
+  const coords = extractIncidentCoords({
+    ...initial,
+    latitude: inc.latitude,
+    longitude: inc.longitude,
+    coords: inc.coords
+  });
 
   const newIncident = {
     ...initial,
+    latitude: coords.lat,
+    longitude: coords.lon,
     severityScore: inc.severityScore ? parseInt(inc.severityScore, 10) : priority.priorityScore,
     priorityScore: priority.priorityScore,
     priorityRankTier: priority.rankTier,
@@ -1419,14 +1560,18 @@ app.get('/api/sos', (req, res) => {
 app.post('/api/sos', (req, res) => {
   const { userId, email, latitude, longitude, accuracy, active = true, media = {} } = req.body;
 
+  const parsedLat = (latitude !== null && latitude !== undefined && !isNaN(parseFloat(latitude))) ? parseFloat(latitude) : 13.0604;
+  const parsedLon = (longitude !== null && longitude !== undefined && !isNaN(parseFloat(longitude))) ? parseFloat(longitude) : 80.2496;
+  const parsedAcc = accuracy ? parseFloat(accuracy) : 8.5;
+
   const alertId = 'sos_' + Date.now();
   const newAlert = {
     id: alertId,
     userId: userId || 'demo_user',
     email: email || 'civilian.demo@rapidresponse.org',
-    latitude: latitude || null,
-    longitude: longitude || null,
-    accuracy: accuracy || null,
+    latitude: parsedLat,
+    longitude: parsedLon,
+    accuracy: parsedAcc,
     active: active,
     media: {
       hasVideo: media.hasVideo !== false,
@@ -1445,7 +1590,10 @@ app.post('/api/sos', (req, res) => {
     category: 'SOS Emergency',
     severity: 'Critical',
     severityScore: 98,
-    location: latitude ? `${latitude}, ${longitude} (GPS ±${accuracy || 5}m)` : 'GPS Pending',
+    latitude: parsedLat,
+    longitude: parsedLon,
+    coords: { lat: parsedLat, lon: parsedLon },
+    location: `${parsedLat.toFixed(5)}, ${parsedLon.toFixed(5)} (GPS ±${parsedAcc}m)`,
     affected: 1,
     description: `SOS triggered by ${email || 'Civilian'}. Live camera and audio feed initiated. Dispatched to command center.`,
     contact: email || 'SOS Emergency',
@@ -1522,6 +1670,97 @@ app.use((req, res, next) => {
     next();
   }
 });
+// ----------------------------------------------------------------------------
+// Real-Time Dispatch Route Movement Simulation Engine
+// Advances dispatched teams along route towards incident location in real time
+// ----------------------------------------------------------------------------
+function simulateDispatchedTeamsMovement() {
+  if (!store || !store.teams) return;
+  let hasUpdates = false;
+
+  store.teams.forEach(team => {
+    if (team.status === 'Dispatched' && team.assignedIncidentId) {
+      const incident = (store.incidents || []).find(i => String(i.id) === String(team.assignedIncidentId));
+      if (!incident) return;
+
+      const incCoords = extractIncidentCoords(incident);
+      if (!team.originLatitude || !team.originLongitude) {
+        team.originLatitude = 13.0610;
+        team.originLongitude = 80.2490;
+      }
+      team.targetLatitude = incCoords.lat;
+      team.targetLongitude = incCoords.lon;
+
+      if (team.progress === undefined || team.progress === null || isNaN(team.progress)) {
+        team.progress = 5;
+      }
+
+      // Increment progress (loops continuously for active demo visualization)
+      if (team.progress >= 98) {
+        team.onSceneTicks = (team.onSceneTicks || 0) + 1;
+        if (team.onSceneTicks > 5) {
+          // Reset loop so the user can continuously observe real-time movement in demo
+          team.progress = 5;
+          team.status = 'Dispatched';
+          team.onSceneTicks = 0;
+        } else {
+          team.status = 'On Scene';
+          team.latitude = incCoords.lat;
+          team.longitude = incCoords.lon;
+          team.remainingDistKm = 0.05;
+          team.etaMinutes = 0;
+        }
+      } else {
+        team.progress = Math.min(98, team.progress + 4.5);
+        const f = team.progress / 100;
+
+        // Add natural road curvature offset
+        const curveOffset = Math.sin(f * Math.PI) * 0.0035;
+        const curLat = team.originLatitude + (team.targetLatitude - team.originLatitude) * f + curveOffset;
+        const curLon = team.originLongitude + (team.targetLongitude - team.originLongitude) * f + (curveOffset * 0.7);
+
+        team.latitude = parseFloat(curLat.toFixed(6));
+        team.longitude = parseFloat(curLon.toFixed(6));
+
+        const remKm = calculateHaversineDistance(team.latitude, team.longitude, incCoords.lat, incCoords.lon);
+        team.remainingDistKm = remKm;
+        team.etaMinutes = Math.max(1, Math.ceil(remKm * 1.8));
+      }
+
+      hasUpdates = true;
+      const normalizedTeam = {
+        ...team,
+        id: team.id || team.teamId,
+        teamId: team.teamId || team.id,
+        progress: Math.round(team.progress)
+      };
+
+      broadcast('TEAM_MOVEMENT_UPDATED', {
+        team: normalizedTeam,
+        teamId: normalizedTeam.id,
+        name: team.name,
+        category: team.category,
+        status: team.status,
+        latitude: team.latitude,
+        longitude: team.longitude,
+        origin: { lat: team.originLatitude, lon: team.originLongitude },
+        target: { lat: incCoords.lat, lon: incCoords.lon },
+        progress: Math.round(team.progress),
+        remainingDistKm: team.remainingDistKm,
+        etaMinutes: team.etaMinutes,
+        incidentId: team.assignedIncidentId,
+        incidentTitle: team.assignedIncidentTitle
+      });
+    }
+  });
+
+  if (hasUpdates) {
+    saveStore(store);
+  }
+}
+
+// Tick vehicle movement every 2.5 seconds
+setInterval(simulateDispatchedTeamsMovement, 2500);
 
 app.listen(PORT, HOST, () => {
   console.log(`RapidResponse Command server running at http://${HOST}:${PORT}`);

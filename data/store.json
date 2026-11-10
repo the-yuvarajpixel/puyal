@@ -15,9 +15,87 @@
       "role": "admin",
       "displayName": "HQ Command Dispatcher",
       "createdAt": "2026-11-10T07:16:31.240Z"
+    },
+    {
+      "uid": "master_admin_1",
+      "email": "master.admin@rapidresponse.gov",
+      "password": "MasterAdmin@2026!",
+      "role": "admin",
+      "displayName": "Supreme Master Commander",
+      "createdAt": "2026-11-10T10:37:56.104Z"
     }
   ],
   "incidents": [
+    {
+      "id": 1794307084119,
+      "title": "🚨 LIVE SOS ALERT — civilian.test@rapidresponse.org",
+      "category": "SOS Emergency",
+      "severity": "Critical",
+      "severityScore": 98,
+      "latitude": 13.0604,
+      "longitude": 80.2496,
+      "coords": {
+        "lat": 13.0604,
+        "lon": 80.2496
+      },
+      "location": "13.06040, 80.24960 (GPS ±8.5m)",
+      "affected": 1,
+      "description": "SOS triggered by civilian.test@rapidresponse.org. Live camera and audio feed initiated. Dispatched to command center.",
+      "contact": "civilian.test@rapidresponse.org",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 10:38:04 AM",
+      "reportedBy": "civilian.test@rapidresponse.org",
+      "source": "sos",
+      "createdAt": "2026-11-10T10:38:04.119Z"
+    },
+    {
+      "id": 1794307084105,
+      "title": "Bridge String Location Test",
+      "category": "Flood",
+      "severity": "High",
+      "location": "Bridge Sector 4B, Riverfront",
+      "latitude": 13.045,
+      "longitude": 80.2824,
+      "affected": 2,
+      "description": "No description provided.",
+      "contact": "Not provided",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 10:38:04 AM",
+      "reportedBy": "Civilian",
+      "source": "form",
+      "createdAt": "2026-11-10T10:38:04.105Z",
+      "severityScore": 51,
+      "priorityScore": 51,
+      "priorityRankTier": "Medium",
+      "coords": {
+        "lat": 13.045,
+        "lon": 80.2824
+      }
+    },
+    {
+      "id": 1794307084087,
+      "title": "GPS Verification Test",
+      "category": "Fire",
+      "severity": "Critical",
+      "location": "13.0827, 80.2707 (GPS Auto)",
+      "latitude": 13.0827,
+      "longitude": 80.2707,
+      "affected": 4,
+      "description": "No description provided.",
+      "contact": "Not provided",
+      "status": "Reported",
+      "timestamp": "11/10/2026, 10:38:04 AM",
+      "reportedBy": "Civilian",
+      "source": "form",
+      "createdAt": "2026-11-10T10:38:04.087Z",
+      "severityScore": 74,
+      "priorityScore": 74,
+      "priorityRankTier": "High",
+      "coords": {
+        "lat": 13.0827,
+        "lon": 80.2707
+      }
+    },
     {
       "id": 1794295022471,
       "title": "🚨 LIVE SOS ALERT — civilian.demo@rapidresponse.org",
@@ -81,6 +159,21 @@
     }
   ],
   "sos_alerts": [
+    {
+      "id": "sos_1794307084118",
+      "userId": "demo_user",
+      "email": "civilian.test@rapidresponse.org",
+      "latitude": 13.0604,
+      "longitude": 80.2496,
+      "accuracy": 8.5,
+      "active": true,
+      "media": {
+        "hasVideo": true,
+        "hasAudio": true
+      },
+      "timestamp": "2026-11-10T10:38:04.118Z",
+      "displayTime": "10:38:04 AM"
+    },
     {
       "id": "sos_1794295022470",
       "userId": "demo_user_1",

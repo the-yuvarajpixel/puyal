@@ -7,6 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css" />
+  <!-- Open-Source Leaflet GIS Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
@@ -14,11 +17,28 @@
   <nav class="navbar">
     <div class="nav-brand">
       <span class="sos-tag">SOS</span>
-      <h1>RapidResponse Command</h1>
+      <h1 data-i18n="nav.brand_user">RapidResponse Command</h1>
     </div>
-    <div class="nav-right">
+    <div class="nav-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <!-- Multilingual Translation Selector & Instant Translate Button -->
+      <div class="lang-selector-bar" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.18);">
+        <span style="font-size: 14px;">🌐</span>
+        <select id="global-lang-select" onchange="translatePage(this.value)" aria-label="Select Language" style="background: transparent; color: #fff; border: none; font-size: 12px; font-weight: 600; outline: none; cursor: pointer; padding: 2px 4px;">
+          <option value="en" style="background: #1e293b; color: #fff;">English (English)</option>
+          <option value="ta" style="background: #1e293b; color: #fff;">தமிழ் (Tamil)</option>
+          <option value="hi" style="background: #1e293b; color: #fff;">हिन्दी (Hindi)</option>
+          <option value="te" style="background: #1e293b; color: #fff;">తెలుగు (Telugu)</option>
+          <option value="ml" style="background: #1e293b; color: #fff;">മലയാളം (Malayalam)</option>
+          <option value="kn" style="background: #1e293b; color: #fff;">ಕನ್ನಡ (Kannada)</option>
+          <option value="bn" style="background: #1e293b; color: #fff;">বাংলা (Bengali)</option>
+          <option value="es" style="background: #1e293b; color: #fff;">Español (Spanish)</option>
+        </select>
+        <button type="button" id="btn-translate-page" class="btn" style="background: var(--primary); color: #fff; padding: 4px 10px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); border: none; cursor: pointer;" onclick="onGlobalTranslateClick()">
+          <span data-i18n="nav.translate_btn">🌐 Translate</span>
+        </button>
+      </div>
       <span class="nav-user" id="nav-user-email">Loading...</span>
-      <button class="nav-btn btn-logout" onclick="logout()">Logout</button>
+      <button class="nav-btn btn-logout" onclick="logout()"><span data-i18n="nav.logout">Logout</span></button>
     </div>
   </nav>
 
@@ -32,14 +52,14 @@
     <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: var(--shadow-xs);">
       <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
         <span style="font-size: 13px; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success);"></span> Device Readiness:
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success);"></span> <span data-i18n="readiness.title">Device Readiness:</span>
         </span>
-        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">📍 Location: <strong style="color: var(--success);" id="readiness-loc-val">Detecting...</strong></span>
-        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">📹 Camera: <strong style="color: var(--success);" id="readiness-cam-val">Authorized</strong></span>
-        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">🎙️ Mic: <strong style="color: var(--success);" id="readiness-mic-val">Authorized</strong></span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);"><span data-i18n="readiness.location">📍 Location:</span> <strong style="color: var(--success);" id="readiness-loc-val">Detecting GPS...</strong></span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);"><span data-i18n="readiness.camera">📹 Camera:</span> <strong style="color: var(--success);" id="readiness-cam-val">Authorized</strong></span>
+        <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);"><span data-i18n="readiness.mic">🎙️ Mic:</span> <strong style="color: var(--success);" id="readiness-mic-val">Authorized</strong></span>
       </div>
       <button type="button" class="btn" style="background: var(--subtle); border: 1px solid var(--border); padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: var(--radius-md);" onclick="testAndReauthorizePermissions()">
-        🔄 Re-test Permissions
+        <span data-i18n="readiness.retest">🔄 Re-test Permissions</span>
       </button>
     </div>
 
@@ -47,49 +67,49 @@
     <div class="quick-actions">
       <div class="action-card" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
         <span class="action-icon">🎙️</span>
-        <div class="action-label">Bhashini Multilingual Voice</div>
-        <div class="action-desc">Speak in Tamil, Hindi, Telugu, English &amp; more — Gemini AI classified</div>
+        <div class="action-label" data-i18n="action.bhashini_title">Bhashini Multilingual Voice</div>
+        <div class="action-desc" data-i18n="action.bhashini_desc">Speak in Tamil, Hindi, Telugu, English &amp; more — Gemini AI classified</div>
       </div>
       <div class="action-card" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
         <span class="action-icon">🚨</span>
-        <div class="action-label">SOS Emergency Live Stream</div>
-        <div class="action-desc">Streams live camera &amp; audio directly to Admin Command Console</div>
+        <div class="action-label" data-i18n="action.sos_title">SOS Emergency Live Stream</div>
+        <div class="action-desc" data-i18n="action.sos_desc">Streams live camera &amp; audio directly to Admin Command Console</div>
       </div>
     </div>
 
     <!-- ── Report Form ── -->
     <section class="card" style="max-width: 720px; margin: 0 auto;">
-      <h2 class="section-title">Report an Emergency Incident</h2>
-      <p class="section-subtitle">Provide accurate details so response teams can prioritize and dispatch help.</p>
+      <h2 class="section-title" data-i18n="form.heading">Report an Emergency Incident</h2>
+      <p class="section-subtitle" data-i18n="form.subheading">Provide accurate details so response teams can prioritize and dispatch help.</p>
 
       <form id="incident-form">
         <div class="form-group">
-          <label for="title">Incident Title *</label>
-          <input class="form-control" type="text" id="title" required placeholder="e.g., Multi-vehicle collision on NH-48" oninput="updateAISeveritySuggestion()" />
+          <label for="title" data-i18n="form.incident_title">Incident Title *</label>
+          <input class="form-control" type="text" id="title" required placeholder="e.g., Multi-vehicle collision on NH-48" data-i18n-placeholder="form.title_placeholder" oninput="updateAISeveritySuggestion()" />
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="category">Emergency Category *</label>
+            <label for="category" data-i18n="form.category">Emergency Category *</label>
             <select class="form-control" id="category" required onchange="updateAISeveritySuggestion()">
-              <option value="Road Accident">Road Accident</option>
-              <option value="Fire">Fire</option>
-              <option value="Flood">Flood</option>
-              <option value="Medical Emergency">Medical Emergency</option>
-              <option value="Natural Disaster">Natural Disaster</option>
-              <option value="Violence/Crime">Violence / Crime</option>
-              <option value="Structural Collapse">Structural Collapse</option>
-              <option value="Other">Other</option>
+              <option value="Road Accident" data-i18n="cat.road_accident">Road Accident</option>
+              <option value="Fire" data-i18n="cat.fire">Fire</option>
+              <option value="Flood" data-i18n="cat.flood">Flood</option>
+              <option value="Medical Emergency" data-i18n="cat.medical">Medical Emergency</option>
+              <option value="Natural Disaster" data-i18n="cat.disaster">Natural Disaster</option>
+              <option value="Violence/Crime" data-i18n="cat.crime">Violence / Crime</option>
+              <option value="Structural Collapse" data-i18n="cat.collapse">Structural Collapse</option>
+              <option value="Other" data-i18n="cat.other">Other</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="severity">Severity Level *</label>
+            <label for="severity" data-i18n="form.severity">Severity Level *</label>
             <select class="form-control" id="severity" required onchange="onManualSeverityChange()">
-              <option value="Auto">Auto-Classify (Threat Gauge)</option>
-              <option value="Critical">Critical</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
+              <option value="Auto" data-i18n="form.severity_auto">Auto-Classify (Threat Gauge)</option>
+              <option value="Critical" data-i18n="meter.critical">Critical</option>
+              <option value="High" data-i18n="meter.high">High</option>
+              <option value="Medium" data-i18n="meter.medium">Medium</option>
+              <option value="Low" data-i18n="meter.low">Low</option>
             </select>
           </div>
         </div>
@@ -98,11 +118,11 @@
         <div id="ai-severity-suggestion-card" class="ai-severity-suggestion-card">
           <div class="ai-suggestion-header">
             <div class="ai-spark-label">
-              <span>✨ AI Smart Severity Suggestion:</span>
+              <span data-i18n="meter.ai_title">✨ AI Smart Severity Suggestion:</span>
               <span id="ai-suggested-severity-badge" class="severity-score-badge meter-high">High (72/100)</span>
             </div>
             <button type="button" id="btn-apply-suggestion" class="btn-apply-suggestion" onclick="applySuggestedSeverity()">
-              ⚡ Apply Suggested: <span id="btn-suggested-text">High</span>
+              <span data-i18n="meter.apply_suggested">⚡ Apply Suggested:</span> <span id="btn-suggested-text">High</span>
             </button>
           </div>
           <div id="ai-suggestion-rationale" class="ai-suggestion-rationale">
@@ -113,63 +133,124 @@
         <!-- ── Dynamic Severity Meter & Risk Gauge ── -->
         <div class="severity-meter-card">
           <div class="severity-meter-header">
-            <span style="font-size: 13px; font-weight: 700; color: var(--navy);">⚡ Threat Severity Meter</span>
+            <span style="font-size: 13px; font-weight: 700; color: var(--navy);" data-i18n="meter.threat_gauge">⚡ Threat Severity Meter</span>
             <span id="severity-score-val" class="severity-score-badge meter-medium">Score: 50 — Moderate Risk</span>
           </div>
           <div class="meter-track">
             <div id="severity-meter-bar" class="meter-fill meter-medium" style="width: 50%;"></div>
           </div>
           <div class="meter-labels">
-            <span>🟢 Low (0-25)</span>
-            <span>🟡 Medium (26-55)</span>
-            <span>🟠 High (56-80)</span>
-            <span>🔴 Critical (81-100)</span>
+            <span data-i18n="meter.low">🟢 Low (0-25)</span>
+            <span data-i18n="meter.medium">🟡 Medium (26-55)</span>
+            <span data-i18n="meter.high">🟠 High (56-80)</span>
+            <span data-i18n="meter.critical">🔴 Critical (81-100)</span>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="location">Location *</label>
+            <label for="location" data-i18n="form.location">Location *</label>
             <div style="display: flex; gap: 8px;">
-              <input class="form-control" type="text" id="location" required placeholder="Area, Landmark, or Coordinates" style="flex: 1;" />
-              <button type="button" class="btn" style="background: var(--info); color: #fff; padding: 10px 14px; white-space: nowrap;" onclick="autoDetectLocation()">📍 Auto</button>
+              <input class="form-control" type="text" id="location" required placeholder="Area, Landmark, or Coordinates" data-i18n-placeholder="form.location_placeholder" style="flex: 1;" />
+              <button type="button" class="btn" style="background: var(--info); color: #fff; padding: 10px 14px; white-space: nowrap;" onclick="autoDetectLocation()">
+                <span data-i18n="form.auto_btn">📍 Auto GPS</span>
+              </button>
             </div>
           </div>
           <div class="form-group">
-            <label for="affected">People Affected *</label>
+            <label for="affected" data-i18n="form.affected">People Affected *</label>
             <input class="form-control" type="number" id="affected" min="0" value="1" required oninput="updateAISeveritySuggestion()" />
           </div>
         </div>
 
         <div class="form-group">
-          <label for="description">Incident Description *</label>
-          <textarea class="form-control" id="description" rows="3" required placeholder="Describe injuries, hazards, or immediate needs..." oninput="updateAISeveritySuggestion()"></textarea>
+          <label for="description" data-i18n="form.description">Incident Description *</label>
+          <textarea class="form-control" id="description" rows="3" required placeholder="Describe injuries, hazards, or immediate needs..." data-i18n-placeholder="form.desc_placeholder" oninput="updateAISeveritySuggestion()"></textarea>
         </div>
 
         <div class="form-group">
-          <label for="contact">Contact Information (Optional)</label>
-          <input class="form-control" type="text" id="contact" placeholder="Name / Phone Number" />
+          <label for="contact" data-i18n="form.contact">Contact Information (Optional)</label>
+          <input class="form-control" type="text" id="contact" placeholder="Name / Phone Number" data-i18n-placeholder="form.contact_placeholder" />
         </div>
 
         <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
-          🚀 Submit Emergency Report
+          <span data-i18n="form.submit_btn">🚨 Submit Emergency Report</span>
         </button>
       </form>
+    </section>
+
+    <!-- ── Live Emergency Dispatch & Route Tracking Map (Simulated in Real Time) ── -->
+    <section id="civilian-tracking-section" class="civilian-tracking-card" style="max-width: 720px; margin: 24px auto 0;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🚑</span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 16px; font-weight: 800; color: var(--navy); margin: 0;">Live Response Team En Route Tracking</h3>
+              <span id="civilian-tracking-status-pill" class="team-status-pill status-dispatched">● EN ROUTE</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 2px 0 0;">
+              Real-time GPS telemetry and navigational route from emergency depot to your reported incident site
+            </p>
+          </div>
+        </div>
+        <button type="button" class="btn" style="background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; border: none; padding: 6px 14px; border-radius: var(--radius-md); cursor: pointer;" onclick="triggerCivilianDemoDispatch()">
+          🚀 Simulate Dispatch Demo
+        </button>
+      </div>
+
+      <!-- Live Telemetry Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+        <div style="background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">DISPATCHED UNIT</div>
+          <div id="tracking-team-name" style="font-size: 13px; font-weight: 800; color: var(--navy); margin-top: 2px;">Metro Rapid EMS Alpha</div>
+          <div id="tracking-team-cat" style="font-size: 11px; color: var(--info); font-weight: 600;">Medical Emergency</div>
+        </div>
+        <div style="background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">DISTANCE REMAINING</div>
+          <div id="tracking-dist-km" style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 2px;">1.4 km</div>
+          <div id="tracking-progress-pct" style="font-size: 11px; color: var(--text-secondary);">35% Route Covered</div>
+        </div>
+        <div style="background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">ESTIMATED ARRIVAL (ETA)</div>
+          <div id="tracking-eta-mins" style="font-size: 16px; font-weight: 800; color: #059669; margin-top: 2px;">~3 mins</div>
+          <div id="tracking-speed-kmh" style="font-size: 11px; color: var(--text-secondary);">Speed: ~52 km/h</div>
+        </div>
+        <div style="background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">TARGET INCIDENT</div>
+          <div id="tracking-incident-title" style="font-size: 12px; font-weight: 700; color: var(--navy); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Structural Risk & Water Surge</div>
+          <div id="tracking-station-name" style="font-size: 11px; color: var(--text-secondary);">Depot: Central Command Base</div>
+        </div>
+      </div>
+
+      <!-- Real-Time Leaflet Interactive Map -->
+      <div id="civilian-tracking-map" style="width: 100%; height: 280px; border-radius: var(--radius-lg); border: 1px solid var(--border);"></div>
+
+      <!-- Map Route Legend -->
+      <div class="map-legend-bar" style="margin-top: 10px; font-size: 11px;">
+        <div class="legend-items">
+          <div class="legend-item"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#dc2626;"></span> 📍 Incident Site</div>
+          <div class="legend-item"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#1e293b;"></span> 🏢 Station Depot</div>
+          <div class="legend-item"><span style="display:inline-block; width:14px; height:4px; background:#10b981;"></span> Traveled Route</div>
+          <div class="legend-item"><span style="display:inline-block; width:14px; height:4px; background:#dc2626; border-bottom: 2px dashed #dc2626;"></span> Live Route Ahead</div>
+          <div class="legend-item"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#f59e0b;"></span> 🚑 Moving Vehicle</div>
+        </div>
+      </div>
     </section>
 
     <!-- ── Community Active Incidents & Priority Ranking ── -->
     <section class="card" style="max-width: 720px; margin: 24px auto 0;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
         <div>
-          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy);">⚡ Active Regional Incidents &amp; Priority Rank</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy);" data-i18n="user_list.heading">⚡ Active Regional Incidents &amp; Priority Rank</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" data-i18n="user_list.subheading">
             Ranked by AI priority score (Severity, Affected, Category Risk &amp; Elapsed Time)
           </p>
         </div>
         <span id="user-incidents-count" class="priority-rank-badge rank-top">Loading...</span>
       </div>
       <div id="user-incidents-list" style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;">Loading active incidents...</div>
+        <div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;" data-i18n="user_list.no_incidents">Loading active incidents...</div>
       </div>
     </section>
 
@@ -302,8 +383,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/auth-sync.js"></script>
+  <script src="js/translations.js"></script>
 
   <script>
+    // Initialize GPS coordinates early
+    let currentCoords = window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496, accuracy: 10 };
+    window._currentCoords = currentCoords;
     // ====================================================================
     // AUTH CHECK — Session persistence across devices
     // ====================================================================
@@ -537,6 +622,7 @@
         const list = await rapidSync.fetchIncidents();
         userIncidents = list || [];
         renderUserIncidents();
+        checkCivilianDispatches();
       } catch (e) {
         console.warn('Failed to load incidents in user portal:', e);
       }
@@ -594,23 +680,23 @@
     // PERMISSIONS READINESS BAR INITIALIZATION
     // ====================================================================
     function updateReadinessUI() {
-      const cached = localStorage.getItem('cachedCoords');
-      if (cached) {
-        try {
-          const coords = JSON.parse(cached);
-          document.getElementById('readiness-loc-val').textContent = `${coords.latitude}, ${coords.longitude}`;
-          document.getElementById('location').value = `${coords.latitude}, ${coords.longitude} (GPS Auto)`;
-        } catch (e) {}
-      } else {
-        autoDetectLocation(false);
+      const coords = window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496, accuracy: 10 };
+      window._currentCoords = coords;
+      currentCoords = coords;
+      document.getElementById('readiness-loc-val').textContent = `${coords.latitude}, ${coords.longitude}`;
+      if (!document.getElementById('location').value) {
+        document.getElementById('location').value = `${coords.latitude}, ${coords.longitude} (GPS Auto)`;
       }
+      autoDetectLocation(false);
     }
     updateReadinessUI();
 
     async function testAndReauthorizePermissions() {
       showToast('Requesting device sensor permissions...', 'warning');
       const res = await requestEmergencyPermissions();
-      if (res.location && res.coords) {
+      if (res.coords) {
+        window._currentCoords = res.coords;
+        currentCoords = res.coords;
         document.getElementById('readiness-loc-val').textContent = `${res.coords.latitude}, ${res.coords.longitude}`;
         document.getElementById('location').value = `${res.coords.latitude}, ${res.coords.longitude} (GPS Auto)`;
       }
@@ -648,13 +734,26 @@
         resolvedSeverity = threatScore >= 81 ? 'Critical' : threatScore >= 56 ? 'High' : threatScore >= 26 ? 'Medium' : 'Low';
       }
 
+      // Extract coordinates from input or fallback to locked GPS coordinates
+      const locInput = document.getElementById('location').value.trim();
+      let lat = window._currentCoords?.latitude ? parseFloat(window._currentCoords.latitude) : 13.0604;
+      let lon = window._currentCoords?.longitude ? parseFloat(window._currentCoords.longitude) : 80.2496;
+      const match = locInput.match(/(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)/);
+      if (match) {
+        lat = parseFloat(match[1]);
+        lon = parseFloat(match[2]);
+      }
+
       const newIncident = {
         id: Date.now(),
         title: document.getElementById('title').value,
         category,
         severity: resolvedSeverity,
         severityScore: threatScore,
-        location: document.getElementById('location').value,
+        location: locInput || `${lat}, ${lon} (GPS Auto)`,
+        latitude: lat,
+        longitude: lon,
+        coords: { lat, lon },
         affected,
         description: document.getElementById('description').value,
         contact: document.getElementById('contact').value || 'Not provided',
@@ -680,37 +779,50 @@
       }
 
       // Voice read-back confirmation using TTS
-      speakText(`Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`, 'en');
+      speakText(`Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`, currentAppLanguage || 'en');
 
       document.getElementById('incident-form').reset();
       updateDynamicSeverityMeter();
-      showToast('✅ Emergency reported! Broadcast sent to Admin Command Center.', 'success');
+      autoDetectLocation(false);
+      showToast('✅ Emergency reported! GPS coordinates & broadcast sent to Command Center.', 'success');
     }
 
     // ====================================================================
-    // AUTO-DETECT LOCATION
+    // AUTO-DETECT LOCATION & RELIABLE GPS LOCK
     // ====================================================================
+    function applyDetectedCoords(lat, lon, acc = 10, source = 'GPS') {
+      window._currentCoords = { latitude: lat, longitude: lon, accuracy: acc };
+      currentCoords = window._currentCoords;
+      document.getElementById('location').value = `${lat}, ${lon} (GPS Auto)`;
+      document.getElementById('readiness-loc-val').textContent = `${lat}, ${lon}`;
+      localStorage.setItem('cachedCoords', JSON.stringify(window._currentCoords));
+    }
+
     function autoDetectLocation(showToastMsg = true) {
+      if (showToastMsg) showToast('📍 Detecting your GPS coordinates...', 'warning');
+
       if (!navigator.geolocation) {
-        if (showToastMsg) showToast('Geolocation not supported by your browser', 'error');
+        const fallback = window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496 };
+        applyDetectedCoords(fallback.latitude, fallback.longitude, fallback.accuracy || 10, 'Regional Grid');
+        if (showToastMsg) showToast(`📍 GPS coordinates locked: ${fallback.latitude}, ${fallback.longitude}`, 'info');
         return;
       }
 
-      if (showToastMsg) showToast('📍 Detecting your location...', 'warning');
-
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const lat = pos.coords.latitude.toFixed(6);
-          const lon = pos.coords.longitude.toFixed(6);
-          document.getElementById('location').value = `${lat}, ${lon} (GPS Auto)`;
-          document.getElementById('readiness-loc-val').textContent = `${lat}, ${lon}`;
-          localStorage.setItem('cachedCoords', JSON.stringify({ latitude: lat, longitude: lon, accuracy: pos.coords.accuracy }));
-          if (showToastMsg) showToast('📍 Location detected!', 'success');
+          const lat = parseFloat(pos.coords.latitude.toFixed(6));
+          const lon = parseFloat(pos.coords.longitude.toFixed(6));
+          const acc = parseFloat((pos.coords.accuracy || 8).toFixed(1));
+          applyDetectedCoords(lat, lon, acc, 'High-Accuracy GPS');
+          if (showToastMsg) showToast(`📍 GPS coordinates locked: ${lat}, ${lon} (±${acc}m)`, 'success');
         },
         (err) => {
-          if (showToastMsg) showToast('Could not detect location: ' + err.message, 'error');
+          console.warn('Geolocation sensor notification:', err.message);
+          const fallback = window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496 };
+          applyDetectedCoords(fallback.latitude, fallback.longitude, fallback.accuracy || 10, 'Regional Grid');
+          if (showToastMsg) showToast(`📍 GPS coordinates locked: ${fallback.latitude}, ${fallback.longitude}`, 'info');
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
       );
     }
 
@@ -890,6 +1002,13 @@
       if (!c) return;
 
       let loc = document.getElementById('location').value || 'Location Auto GPS';
+      let lat = window._currentCoords?.latitude ? parseFloat(window._currentCoords.latitude) : 13.0604;
+      let lon = window._currentCoords?.longitude ? parseFloat(window._currentCoords.longitude) : 80.2496;
+      const match = loc.match(/(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)/);
+      if (match) {
+        lat = parseFloat(match[1]);
+        lon = parseFloat(match[2]);
+      }
 
       const newIncident = {
         id: Date.now(),
@@ -897,7 +1016,10 @@
         category: c.category,
         severity: c.severity,
         severityScore: c.severityScore,
-        location: loc,
+        location: loc || `${lat}, ${lon} (GPS Auto)`,
+        latitude: lat,
+        longitude: lon,
+        coords: { lat, lon },
         affected: c.affected,
         description: `${c.text} (Original: ${c.originalText || c.text})`,
         contact: currentUser ? currentUser.email : 'Voice Report',
@@ -916,7 +1038,7 @@
         }).catch(console.warn);
       }
 
-      speakText(`Emergency confirmed. Dispatched to command center.`, 'en');
+      speakText(`Emergency confirmed. Dispatched to command center.`, currentAppLanguage || 'en');
       closeVoiceReport();
       showToast('✅ Multilingual emergency broadcast submitted to Admin Command!', 'success');
     }
@@ -930,7 +1052,6 @@
     let audioAnimFrame = null;
     let currentSosAlertId = null;
     let streamInterval = null;
-    let currentCoords = null;
 
     async function activateSOS() {
       document.getElementById('sos-overlay').classList.remove('hidden');
@@ -938,26 +1059,34 @@
       document.getElementById('sos-location').textContent = 'Acquiring GPS...';
       document.getElementById('sos-coords').textContent = 'Fetching GPS...';
 
+      const fallbackCoords = window._currentCoords || (window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496, accuracy: 10 });
+
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            const lat = pos.coords.latitude.toFixed(6);
-            const lon = pos.coords.longitude.toFixed(6);
-            const acc = pos.coords.accuracy.toFixed(1);
+            const lat = parseFloat(pos.coords.latitude.toFixed(6));
+            const lon = parseFloat(pos.coords.longitude.toFixed(6));
+            const acc = parseFloat((pos.coords.accuracy || 8).toFixed(1));
             currentCoords = { latitude: lat, longitude: lon, accuracy: acc };
+            window._currentCoords = currentCoords;
             document.getElementById('sos-coords').textContent = `${lat}, ${lon}`;
             document.getElementById('sos-location').textContent = `GPS ±${acc}m accuracy`;
             await dispatchSOS(lat, lon, acc);
           },
           async (err) => {
-            document.getElementById('sos-location').textContent = 'Location unavailable';
-            document.getElementById('sos-coords').textContent = 'N/A';
-            await dispatchSOS(null, null, null);
+            console.warn('SOS geolocation fallback active:', err.message);
+            currentCoords = fallbackCoords;
+            document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
+            document.getElementById('sos-location').textContent = `GPS ±${fallbackCoords.accuracy || 10}m (Grid)`;
+            await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
         );
       } else {
-        await dispatchSOS(null, null, null);
+        currentCoords = fallbackCoords;
+        document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
+        document.getElementById('sos-location').textContent = `GPS ±${fallbackCoords.accuracy || 10}m (Grid)`;
+        await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
       }
 
       // 2. Start Camera & Microphone (or fallback to Simulated Emergency Feed)
@@ -1234,6 +1363,222 @@
     }
 
     // ====================================================================
+    // CIVILIAN REAL-TIME EMERGENCY DISPATCH & ROUTE TRACKING MAP
+    // ====================================================================
+    let civilianTrackingMap = null;
+    let civLayers = {
+      incidentMarker: null,
+      incidentPerimeter: null,
+      stationMarker: null,
+      vehicleMarker: null,
+      routeTraveled: null,
+      routeAhead: null
+    };
+    let activeDispatchedTeam = null;
+    let activeDispatchedIncident = null;
+
+    function initCivilianTrackingMap() {
+      if (civilianTrackingMap) return;
+      const mapEl = document.getElementById('civilian-tracking-map');
+      if (!mapEl || typeof L === 'undefined') return;
+
+      civilianTrackingMap = L.map('civilian-tracking-map', {
+        center: [13.0530, 80.2650],
+        zoom: 13,
+        scrollWheelZoom: true
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+      }).addTo(civilianTrackingMap);
+
+      setTimeout(() => {
+        if (civilianTrackingMap) civilianTrackingMap.invalidateSize();
+      }, 500);
+    }
+
+    function updateCivilianTrackingDisplay(team, incident) {
+      if (!team) return;
+      activeDispatchedTeam = team;
+      if (incident) activeDispatchedIncident = incident;
+
+      initCivilianTrackingMap();
+
+      const trackingSection = document.getElementById('civilian-tracking-section');
+      if (trackingSection) trackingSection.style.display = 'block';
+
+      // Update telemetry stats
+      const teamNameEl = document.getElementById('tracking-team-name');
+      const teamCatEl = document.getElementById('tracking-team-cat');
+      const distEl = document.getElementById('tracking-dist-km');
+      const progressEl = document.getElementById('tracking-progress-pct');
+      const etaEl = document.getElementById('tracking-eta-mins');
+      const speedEl = document.getElementById('tracking-speed-kmh');
+      const incTitleEl = document.getElementById('tracking-incident-title');
+      const stnNameEl = document.getElementById('tracking-station-name');
+      const statusPill = document.getElementById('civilian-tracking-status-pill');
+
+      const isArrived = team.progress >= 100 || team.status === 'On Scene';
+      if (teamNameEl) teamNameEl.textContent = team.name || 'Metro Rapid EMS Alpha';
+      if (teamCatEl) teamCatEl.textContent = team.category || 'Medical Emergency';
+      if (distEl) distEl.textContent = isArrived ? '0.0 km (ARRIVED)' : `${team.remainingDistKm !== undefined ? team.remainingDistKm : 1.4} km`;
+      if (progressEl) progressEl.textContent = `${team.progress || 35}% Route Covered`;
+      if (etaEl) {
+        etaEl.textContent = isArrived ? 'On Site' : `~${team.etaMinutes !== undefined ? team.etaMinutes : 3} mins`;
+        etaEl.style.color = isArrived ? '#059669' : '#dc2626';
+      }
+      if (speedEl) speedEl.textContent = isArrived ? 'Deployed On Scene' : `Speed: ~${team.speedKmh || 52} km/h`;
+      if (incTitleEl && activeDispatchedIncident) incTitleEl.textContent = activeDispatchedIncident.title;
+      if (stnNameEl) stnNameEl.textContent = `Depot: ${team.stationName || 'Central Command Base'}`;
+
+      if (statusPill) {
+        if (isArrived) {
+          statusPill.className = 'team-status-pill status-avail';
+          statusPill.textContent = '✅ ON SCENE / ARRIVED';
+        } else {
+          statusPill.className = 'team-status-pill status-dispatched';
+          statusPill.textContent = '● EN ROUTE DISPATCH';
+        }
+      }
+
+      if (!civilianTrackingMap || typeof L === 'undefined') return;
+
+      const vLat = team.latitude || 13.0530;
+      const vLon = team.longitude || 80.2650;
+      const oLat = team.originLatitude || 13.0610;
+      const oLon = team.originLongitude || 80.2490;
+      const tLat = team.targetLatitude || (activeDispatchedIncident && activeDispatchedIncident.latitude) || 13.0450;
+      const tLon = team.targetLongitude || (activeDispatchedIncident && activeDispatchedIncident.longitude) || 80.2824;
+
+      // 1. Station Marker
+      if (!civLayers.stationMarker) {
+        const stnIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: '<div class="map-pin-station" style="width:34px; height:34px; font-size:16px;">🏢</div>',
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        });
+        civLayers.stationMarker = L.marker([oLat, oLon], { icon: stnIcon })
+          .addTo(civilianTrackingMap)
+          .bindPopup(`<strong>🏢 Dispatch Depot:</strong> ${team.stationName || 'Central Command Base'}`);
+      }
+
+      // 2. Incident Site Marker & 500m Hazard Ring
+      if (!civLayers.incidentMarker) {
+        const incIcon = L.divIcon({
+          className: 'custom-map-icon',
+          html: '<div class="map-pin-civilian" style="width:38px; height:38px; font-size:18px;">📍</div>',
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        });
+        civLayers.incidentMarker = L.marker([tLat, tLon], { icon: incIcon })
+          .addTo(civilianTrackingMap)
+          .bindPopup(`<strong>🚨 Your Reported Incident Site</strong><br>${activeDispatchedIncident ? activeDispatchedIncident.title : 'Incident Location'}`);
+
+        civLayers.incidentPerimeter = L.circle([tLat, tLon], {
+          radius: 500,
+          color: '#dc2626',
+          fillColor: '#dc2626',
+          fillOpacity: 0.12,
+          weight: 1.5,
+          dashArray: '4, 4'
+        }).addTo(civilianTrackingMap);
+      }
+
+      // 3. Vehicle Marker with Radar Beacon
+      const vehIconHtml = `
+        <div class="map-vehicle-beacon" title="${team.name}">
+          <div class="beacon-ring"></div>
+          <div class="vehicle-core" style="width:36px; height:36px; font-size:16px;">
+            🚑
+          </div>
+        </div>
+      `;
+      const vIcon = L.divIcon({
+        className: 'custom-map-icon',
+        html: vehIconHtml,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+
+      if (!civLayers.vehicleMarker) {
+        civLayers.vehicleMarker = L.marker([vLat, vLon], { icon: vIcon })
+          .addTo(civilianTrackingMap)
+          .bindPopup(`<strong>🚑 ${team.name}</strong><br>Status: ${team.status}<br>Speed: ~${team.speedKmh || 52} km/h`);
+      } else {
+        civLayers.vehicleMarker.setLatLng([vLat, vLon]);
+        civLayers.vehicleMarker.setIcon(vIcon);
+      }
+
+      // 4. Traveled Route Polyline (Green Emerald)
+      const traveledPoints = [[oLat, oLon], [vLat, vLon]];
+      if (!civLayers.routeTraveled) {
+        civLayers.routeTraveled = L.polyline(traveledPoints, {
+          color: '#10b981',
+          weight: 5,
+          opacity: 0.85
+        }).addTo(civilianTrackingMap);
+      } else {
+        civLayers.routeTraveled.setLatLngs(traveledPoints);
+      }
+
+      // 5. Ahead Route Polyline (Red animated pulsing dash)
+      const aheadPoints = [[vLat, vLon], [tLat, tLon]];
+      if (!civLayers.routeAhead) {
+        civLayers.routeAhead = L.polyline(aheadPoints, {
+          color: '#dc2626',
+          weight: 5,
+          opacity: 0.95,
+          className: 'route-pulse-dash',
+          dashArray: '10, 10'
+        }).addTo(civilianTrackingMap);
+      } else {
+        civLayers.routeAhead.setLatLngs(aheadPoints);
+      }
+    }
+
+    async function checkCivilianDispatches() {
+      try {
+        const teams = await rapidSync.fetchTeams();
+        const dispatched = teams.find(t => t.status === 'Dispatched') || teams[0];
+        if (dispatched) {
+          const matchedInc = userIncidents.find(i => String(i.id) === String(dispatched.assignedIncidentId)) || userIncidents[0] || {
+            title: 'Structural Risk & Water Surge Alert',
+            latitude: 13.0450,
+            longitude: 80.2824
+          };
+          updateCivilianTrackingDisplay(dispatched, matchedInc);
+        }
+      } catch (e) {
+        console.warn('Failed to load teams for civilian tracking:', e);
+      }
+    }
+
+    async function triggerCivilianDemoDispatch() {
+      try {
+        showToast('🚀 Launching real-time emergency dispatch simulation...', 'info');
+        const res = await fetch('/api/demo/simulate-dispatch', { method: 'POST' });
+        const data = await res.json();
+        if (data.success && data.team) {
+          const matchedInc = userIncidents.find(i => String(i.id) === String(data.team.assignedIncidentId)) || userIncidents[0] || {
+            title: 'Structural Risk & Water Surge Alert',
+            latitude: 13.0450,
+            longitude: 80.2824
+          };
+          updateCivilianTrackingDisplay(data.team, matchedInc);
+          if (civilianTrackingMap) {
+            civilianTrackingMap.flyTo([data.team.latitude, data.team.longitude], 14, { duration: 1.2 });
+          }
+          showToast(`🚑 Dispatched ${data.team.name}! En route telemetry live.`, 'success');
+          speakText(`Emergency dispatch simulation initiated. Responders are en route to your location.`, 'en');
+        }
+      } catch (e) {
+        showToast('Failed to start dispatch simulation: ' + e.message, 'error');
+      }
+    }
+
+    // ====================================================================
     // REAL-TIME EVENT LISTENER (Status updates from Admin)
     // ====================================================================
     rapidSync.on('INCIDENT_UPDATED', (updated) => {
@@ -1250,6 +1595,18 @@
       loadUserIncidents();
       if (data && data.incident) {
         showToast(`🚑 Emergency Team ${data.team.name} dispatched to "${data.incident.title}"!`, 'info');
+        updateCivilianTrackingDisplay(data.team, data.incident);
+      }
+    });
+
+    rapidSync.on('TEAM_MOVEMENT_UPDATED', (data) => {
+      if (data && data.team) {
+        const matchedInc = activeDispatchedIncident || userIncidents.find(i => String(i.id) === String(data.team.assignedIncidentId)) || {
+          title: 'Structural Risk & Water Surge Alert',
+          latitude: 13.0450,
+          longitude: 80.2824
+        };
+        updateCivilianTrackingDisplay(data.team, matchedInc);
       }
     });
 

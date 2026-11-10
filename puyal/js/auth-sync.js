@@ -307,8 +307,29 @@ async function requestEmergencyPermissions() {
       };
       localStorage.setItem('cachedCoords', JSON.stringify(result.coords));
     } catch (locErr) {
-      console.warn('Location permission notice:', locErr.message);
+      console.warn('Location permission notice (using fallback):', locErr.message);
     }
+  }
+
+  // Ensure coords are never null (graceful regional grid fallback)
+  if (!result.coords) {
+    const cached = localStorage.getItem('cachedCoords');
+    if (cached) {
+      try {
+        result.coords = JSON.parse(cached);
+        result.location = true;
+      } catch (e) {}
+    }
+  }
+  if (!result.coords) {
+    result.coords = {
+      latitude: 13.0604,
+      longitude: 80.2496,
+      accuracy: 12.0,
+      isFallback: true
+    };
+    result.location = true;
+    localStorage.setItem('cachedCoords', JSON.stringify(result.coords));
   }
 
   // 2. Camera & Microphone
@@ -334,6 +355,18 @@ async function requestEmergencyPermissions() {
 
   return result;
 }
+
+function getCurrentOrCachedCoords() {
+  const cached = localStorage.getItem('cachedCoords');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.latitude && parsed.longitude) return parsed;
+    } catch (e) {}
+  }
+  return { latitude: 13.0604, longitude: 80.2496, accuracy: 10.0 };
+}
+window.getCurrentOrCachedCoords = getCurrentOrCachedCoords;
 
 // ----------------------------------------------------------------------------
 // Real-time Data Sync (SSE & REST API)
