@@ -9,6 +9,9 @@
   <!-- Open-Source Leaflet GIS & Mapping Engine -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="alternate icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
   <style>
     .emergency-alert-banner {
@@ -893,7 +896,15 @@
     }
 
     function logout() {
-      universalLogout();
+      if (typeof window.universalLogout === 'function') {
+        window.universalLogout();
+      } else if (typeof window.logout === 'function') {
+        window.logout();
+      } else {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('userRole');
+        window.location.href = 'index.html';
+      }
     }
 
     // ====================================================================

@@ -3,9 +3,9 @@
 // Integrates Firebase Auth (Password + Passwordless Email Link) + Server Fallback
 // ============================================================================
 
-// Use existing window.auth or initialize safely
-var auth = window.auth || ((typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null);
-var db = window.db || ((typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null);
+// Safely attach to window without top-level var redeclaration conflicts
+window.auth = window.auth || ((typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null);
+window.db = window.db || ((typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null);
 
 // ----------------------------------------------------------------------------
 // Action Code Settings for Passwordless Email Link

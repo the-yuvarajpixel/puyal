@@ -1653,6 +1653,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get(['/favicon.ico', '/favicon.svg', '/logo.svg'], (req, res) => {
+  res.sendFile(path.join(puyalDir, 'favicon.svg'), {
+    headers: { 'Content-Type': 'image/svg+xml' }
+  });
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(puyalDir, 'index.html'));
 });
