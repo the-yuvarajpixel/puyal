@@ -7,9 +7,9 @@
 // enforce access through Firebase Auth and Firestore Security Rules.
 
 const firebaseApiKey = window.FIREBASE_API_KEY;
-
-window.firebaseConfig = {
-  apiKey: firebaseApiKey || '',
+<script>
+  window.FIREBASE_API_KEY = "YOUR_FIREBASE_WEB_API_KEY";
+</script>,
   authDomain: "login-form-a7498.firebaseapp.com",
   projectId: "login-form-a7498",
   storageBucket: "login-form-a7498.firebasestorage.app",
