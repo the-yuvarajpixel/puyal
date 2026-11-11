@@ -1,9 +1,15 @@
 // ============================================================================
 // Firebase Configuration — RapidResponse Command
 // ============================================================================
+// Supply the Firebase web API key at deployment time by defining
+// window.FIREBASE_API_KEY before loading this file. Firebase web API keys are
+// public identifiers, not secrets; restrict them in Google Cloud Console and
+// enforce access through Firebase Auth and Firestore Security Rules.
+
+const firebaseApiKey = window.FIREBASE_API_KEY;
 
 window.firebaseConfig = {
-  apiKey: "AIzaSyBHsr1bOYcBb1VuVGj-I0e3UBaYYT7uMKI",
+  apiKey: firebaseApiKey || '',
   authDomain: "login-form-a7498.firebaseapp.com",
   projectId: "login-form-a7498",
   storageBucket: "login-form-a7498.firebasestorage.app",
@@ -13,7 +19,9 @@ window.firebaseConfig = {
 
 // Safe initialization of Firebase Auth and Firestore
 try {
-  if (typeof firebase !== 'undefined') {
+  if (!firebaseApiKey) {
+    console.error('Firebase API key is missing. Define window.FIREBASE_API_KEY before loading firebase-config.js.');
+  } else if (typeof firebase !== 'undefined') {
     if (!firebase.apps || firebase.apps.length === 0) {
       firebase.initializeApp(window.firebaseConfig);
     }
