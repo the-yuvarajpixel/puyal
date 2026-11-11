@@ -1,9 +1,8 @@
 // ============================================================================
 // Firebase Configuration — RapidResponse Command
 // ============================================================================
-<script>
-  window.FIREBASE_API_KEY = "YOUR_FIREBASE_WEB_API_KEY";
-</script>,
+const firebaseConfig = {
+  apiKey: "AIzaSyBHsr1bOYcBb1VuVGj-I0e3UBaYYT7uMKI",
   authDomain: "login-form-a7498.firebaseapp.com",
   projectId: "login-form-a7498",
   storageBucket: "login-form-a7498.firebasestorage.app",
