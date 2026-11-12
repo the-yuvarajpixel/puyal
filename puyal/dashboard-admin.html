@@ -2106,6 +2106,8 @@
     // OPEN-SOURCE TACTICAL LEAFLET & OPENSTREETMAP GIS ENGINE
     // ====================================================================
     let tacticalMap = null;
+    let googleTacticalMap = null;
+    let usingGoogleMaps = false;
     let mapLayers = {
       disasters: null,
       teams: null,
@@ -2117,33 +2119,51 @@
     let currentMapFilter = 'all';
     let showPerimeterCircles = true;
 
-    function initTacticalMap() {
-      if (tacticalMap) return;
+    async function initTacticalMap() {
+      if (tacticalMap || googleTacticalMap) return;
       const mapEl = document.getElementById('tactical-map');
-      if (!mapEl || typeof L === 'undefined') return;
+      if (!mapEl) return;
 
-      tacticalMap = L.map('tactical-map', {
-        center: [13.0604, 80.2496],
-        zoom: 12,
-        scrollWheelZoom: true
-      });
+      // Try Google Maps Platform (Advanced Markers & Routes API)
+      if (window.TacticalGoogleMap) {
+        googleTacticalMap = new window.TacticalGoogleMap('tactical-map', {
+          center: { lat: 13.0604, lng: 80.2496 },
+          zoom: 12
+        });
+        const gmpSuccess = await googleTacticalMap.init();
+        if (gmpSuccess) {
+          usingGoogleMaps = true;
+          const attrEl = document.getElementById('map-engine-attribution');
+          if (attrEl) attrEl.innerHTML = 'Google Maps Platform &bull; Advanced Markers &bull; Live Telemetry';
+          updateTacticalMap();
+          return;
+        }
+      }
 
-      // Free, Open-Source OpenStreetMap Standard Tile Layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
-      }).addTo(tacticalMap);
+      // Seamless fallback to Leaflet GIS
+      if (typeof L !== 'undefined') {
+        tacticalMap = L.map('tactical-map', {
+          center: [13.0604, 80.2496],
+          zoom: 12,
+          scrollWheelZoom: true
+        });
 
-      mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
-      mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
-      mapLayers.teams = L.layerGroup().addTo(tacticalMap);
-      mapLayers.stations = L.layerGroup().addTo(tacticalMap);
-      mapLayers.sos = L.layerGroup().addTo(tacticalMap);
-      mapLayers.routes = L.layerGroup().addTo(tacticalMap);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+        }).addTo(tacticalMap);
 
-      setTimeout(() => {
-        if (tacticalMap) tacticalMap.invalidateSize();
-      }, 500);
+        mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
+        mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
+        mapLayers.teams = L.layerGroup().addTo(tacticalMap);
+        mapLayers.stations = L.layerGroup().addTo(tacticalMap);
+        mapLayers.sos = L.layerGroup().addTo(tacticalMap);
+        mapLayers.routes = L.layerGroup().addTo(tacticalMap);
+
+        setTimeout(() => {
+          if (tacticalMap) tacticalMap.invalidateSize();
+        }, 500);
+      }
     }
 
     function extractItemCoords(item) {
@@ -2206,6 +2226,17 @@
     }
 
     function updateTacticalMap() {
+      // If Google Maps Platform is active, render via AdvancedMarkerElement
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.clearLayers();
+        googleTacticalMap.showPerimeterCircles = showPerimeterCircles;
+        incidents.forEach(inc => googleTacticalMap.addDisasterPin(inc));
+        governmentStations.forEach(stn => googleTacticalMap.addStationPin(stn));
+        responseTeams.forEach(team => googleTacticalMap.addTeamPin(team));
+        sosAlerts.filter(s => s.active).forEach(s => googleTacticalMap.addSosBeacon(s));
+        return;
+      }
+
       if (!tacticalMap || typeof L === 'undefined') return;
 
       mapLayers.disasters.clearLayers();
@@ -2542,6 +2573,10 @@
     }
 
     function recenterTacticalMap() {
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.flyTo(13.0604, 80.2496, 12);
+        return;
+      }
       if (!tacticalMap) return;
       tacticalMap.flyTo([13.0604, 80.2496], 12, { duration: 1.2 });
     }
@@ -2554,10 +2589,14 @@
 
     function focusIncidentOnMap(incidentId) {
       const inc = incidents.find(i => String(i.id) === String(incidentId));
-      if (!inc || !tacticalMap) return;
+      if (!inc) return;
 
       const coords = extractItemCoords(inc);
-      tacticalMap.flyTo([coords.lat, coords.lon], 14, { duration: 1.2 });
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.flyTo(coords.lat, coords.lon, 14);
+      } else if (tacticalMap) {
+        tacticalMap.flyTo([coords.lat, coords.lon], 14, { duration: 1.2 });
+      }
 
       // Highlight perimeter circle
       if (!showPerimeterCircles) {
@@ -2604,6 +2643,9 @@
     });
   </script>
 
+  <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
+  <script src="js/google-maps-manager.js"></script>
+  <script src="js/gemini-assistant.js"></script>
 </body>
 </html>
 

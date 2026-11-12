@@ -26,6 +26,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ Test Admin Command Account",
     "role.translate_btn": "Translate with Bhashini",
     "role.bhashini_listen": "🔊 Listen (Bhashini AI TTS)",
+    "role.bhashini_tutorial": "🎧 Play Audio Tutorial",
     "role.bhashini_badge": "Bhashini AI Multilingual Service",
     "role.bhashini_sub": "MeitY Digital India Indic Translation Engine",
 
@@ -164,6 +165,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ மாதிரி நிர்வாகக் கட்டுப்பாட்டு கணக்கு",
     "role.translate_btn": "பாஷினி மூலம் மொழிபெயர்",
     "role.bhashini_listen": "🔊 பாஷினி AI குரல் வழி கேட்கவும்",
+    "role.bhashini_tutorial": "🎧 ஒலி பயிற்சி வழிகாட்டி",
     "role.bhashini_badge": "பாஷினி AI பலமொழி அணுகல்",
     "role.bhashini_sub": "மின்னணு மற்றும் தகவல் தொழில்நுட்ப அமைச்சகம் (MeitY)",
 
@@ -302,6 +304,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ प्रशासन कमांड खाता",
     "role.translate_btn": "भाषिणी द्वारा अनुवाद करें",
     "role.bhashini_listen": "🔊 भाषिणी आवाज में सुनें",
+    "role.bhashini_tutorial": "🎧 ऑडियो ट्यूटोरियल चलाएं",
     "role.bhashini_badge": "भाषिणी AI बहुभाषी सेवा",
     "role.bhashini_sub": "इलेक्ट्रॉनिक्स और आईटी मंत्रालय (MeitY)",
 
@@ -440,6 +443,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ అడ్మిన్ కమాండ్ ఖాతా",
     "role.translate_btn": "భాషిణితో అనువదించండి",
     "role.bhashini_listen": "🔊 భాషిణి వాయిస్ వినండి",
+    "role.bhashini_tutorial": "🎧 ఆడియో ట్యుటోరియల్ వినండి",
     "role.bhashini_badge": "భాషిణి AI బహుభాషా సేవ",
     "role.bhashini_sub": "ఎలక్ట్రానిక్స్ & ఐటీ మంత్రిత్వ శాఖ (MeitY)",
     "readiness.title": "పరికరం సంసిద్ధత:",
@@ -501,6 +505,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ അഡ്മിൻ കമാൻഡ് അക്കൗണ്ട്",
     "role.translate_btn": "ഭാഷിണി വഴി വിവർത്തനം ചെയ്യുക",
     "role.bhashini_listen": "🔊 ഭാഷിണി വോയ്‌സ് കേൾക്കുക",
+    "role.bhashini_tutorial": "🎧 ഓഡിയോ ട്യൂട്ടോറിയൽ കേൾക്കുക",
     "role.bhashini_badge": "ഭാഷിണി AI ബഹുഭാഷാ സേവനം",
     "role.bhashini_sub": "ഇലക്‌ട്രോണിക്‌സ് & ഐടി മന്ത്രാലയം (MeitY)",
     "readiness.title": "ഉപകരണ സന്നദ്ധത:",
@@ -562,6 +567,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ ನಿರ್ವಾಹಕ ಕಮಾಂಡ್ ಖಾತೆ",
     "role.translate_btn": "ಭಾಷಿಣಿಯೊಂದಿಗೆ ಅನುವಾದಿಸಿ",
     "role.bhashini_listen": "🔊 ಭಾಷಿಣಿ ಧ್ವನಿಯಲ್ಲಿ ಆಲಿಸಿ",
+    "role.bhashini_tutorial": "🎧 ಆಡಿಯೋ ಟ್ಯುಟೋರಿಯಲ್ ಆಲಿಸಿ",
     "role.bhashini_badge": "ಭಾಷಿಣಿ AI ಬಹುಭಾಷಾ ಸೇವೆ",
     "role.bhashini_sub": "ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್ ಮತ್ತು ಐಟಿ ಸಚಿವಾಲಯ (MeitY)",
     "readiness.title": "ಸಾಧನ ಸನ್ನದ್ಧತೆ:",
@@ -623,6 +629,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ প্রশাসনিক কমান্ড অ্যাকাউন্ট",
     "role.translate_btn": "ভাষিণীর সাথে অনুবাদ করুন",
     "role.bhashini_listen": "🔊 ভাষিণী কণ্ঠে শুনুন",
+    "role.bhashini_tutorial": "🎧 অডিও টিউটোরিয়াল শুনুন",
     "role.bhashini_badge": "ভাষিণী AI বহুভাষিক পরিষেবা",
     "role.bhashini_sub": "ইলেকট্রনিক্স এবং আইটি মন্ত্রণালয় (MeitY)",
     "readiness.title": "ডিভাইস প্রস্তুতি:",
@@ -684,6 +691,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ Cuenta de Comando Admin",
     "role.translate_btn": "Traducir con Bhashini",
     "role.bhashini_listen": "🔊 Escuchar en Bhashini AI",
+    "role.bhashini_tutorial": "🎧 Reproducir Tutorial de Audio",
     "role.bhashini_badge": "Servicio Multilingüe Bhashini AI",
     "role.bhashini_sub": "Motor Indic de Traducción MeitY Digital India",
     "readiness.title": "Preparación del dispositivo:",
@@ -796,6 +804,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ प्रशासन कमांड खाते",
     "role.translate_btn": "भाषिणीने अनुवाद करा",
     "role.bhashini_listen": "🔊 भाषिणी आवाजात ऐका",
+    "role.bhashini_tutorial": "🎧 ऑडिओ ट्युटोरिअल ऐका",
     "role.bhashini_badge": "भाषिणी AI बहुभाषिक सेवा",
     "role.bhashini_sub": "इलेक्ट्रॉनिक्स आणि माहिती तंत्रज्ञान मंत्रालय (MeitY)",
     "form.heading": "आपत्कालीन घटनेची नोंद करा",
@@ -824,6 +833,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ એડમિન કમાન્ડ એકાઉન્ટ",
     "role.translate_btn": "ભાષિણી સાથે અનુવાદ કરો",
     "role.bhashini_listen": "🔊 ભાષિણી અવાજ સાંભળો",
+    "role.bhashini_tutorial": "🎧 ઑડિયો ટ્યુટોરીયલ સાંભળો",
     "role.bhashini_badge": "ભાષિણી AI બહુભાષી સેવા",
     "role.bhashini_sub": "ઇલેક્ટ્રોનિક્સ અને આઇટી મંત્રાલય (MeitY)",
     "form.heading": "ઇમરજન્સી ઘટનાની જાણ કરો",
@@ -852,6 +862,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ ਐਡਮਿਨ ਕਮਾਂਡ ਖਾਤਾ",
     "role.translate_btn": "ਭਾਸ਼ਿਣੀ ਨਾਲ ਅਨੁਵਾਦ ਕਰੋ",
     "role.bhashini_listen": "🔊 ਭਾਸ਼ਿਣੀ ਆਵਾਜ਼ ਸੁਣੋ",
+    "role.bhashini_tutorial": "🎧 ਆਡੀਓ ਟਿਊਟੋਰੀਅਲ ਚਲਾਓ",
     "role.bhashini_badge": "ਭਾਸ਼ਿਣੀ AI ਬਹੁ-ਭਾਸ਼ਾਈ ਸੇਵਾ",
     "role.bhashini_sub": "ਇਲੈਕਟ੍ਰਾਨਿਕਸ ਅਤੇ ਆਈਟੀ ਮੰਤਰਾਲਾ (MeitY)",
     "form.heading": "ਐਮਰਜੈਂਸੀ ਘਟਨਾ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
@@ -880,6 +891,7 @@ const RAPID_TRANSLATIONS = {
     "role.demo_admin": "🛡️ ପ୍ରଶାସନ କମାଣ୍ଡ ଆକାଉଣ୍ଟ",
     "role.translate_btn": "ଭାଷିଣୀ ସହିତ ଅନୁବାଦ କରନ୍ତୁ",
     "role.bhashini_listen": "🔊 ଭାଷିଣୀ ସ୍ୱର ଶୁଣନ୍ତୁ",
+    "role.bhashini_tutorial": "🎧 ଅଡିଓ ଟ୍ୟୁଟୋରିଆଲ୍ ଚଲାନ୍ତୁ",
     "role.bhashini_badge": "ଭାଷିଣୀ AI ବହୁଭାଷୀ ସେବା",
     "role.bhashini_sub": "ଇଲେକ୍ଟ୍ରୋନିକ୍ସ ଏବଂ ଆଇଟି ମନ୍ତ୍ରଣାଳୟ (MeitY)",
     "form.heading": "ଜରୁରୀକାଳୀନ ଘଟଣା ରିପୋର୍ଟ କରନ୍ତୁ",
@@ -1003,12 +1015,109 @@ function onGlobalTranslateClick() {
   }
 }
 
+/**
+ * Browser-based language detection function.
+ * Automatically inspects navigator.languages and navigator.language to detect
+ * the user's preferred language, matching against the supported Bhashini languages.
+ *
+ * @param {Array<string>} [customSupportedList] - Optional custom list of supported language codes
+ * @returns {string|null} The matched supported language code, or null if no match found
+ */
+function detectBrowserLanguage(customSupportedList) {
+  try {
+    const supported = customSupportedList || Object.keys(RAPID_TRANSLATIONS);
+    const candidateLangs = [];
+
+    // 1. Collect candidate languages in browser priority order
+    if (Array.isArray(navigator.languages) && navigator.languages.length > 0) {
+      candidateLangs.push(...navigator.languages);
+    }
+    if (navigator.language) {
+      candidateLangs.push(navigator.language);
+    }
+    if (navigator.userLanguage) {
+      candidateLangs.push(navigator.userLanguage);
+    }
+    if (navigator.browserLanguage) {
+      candidateLangs.push(navigator.browserLanguage);
+    }
+
+    // 2. Iterate and match candidates
+    for (const raw of candidateLangs) {
+      if (!raw || typeof raw !== 'string') continue;
+      const clean = raw.trim().toLowerCase();
+      const primary = clean.split(/[-_]/)[0];
+
+      // Exact match on supported list (e.g. 'ta', 'hi', 'te', 'en', 'es')
+      if (supported.includes(primary)) {
+        return primary;
+      }
+
+      // Handle common ISO 639-2/3 and regional code variants
+      // Odia: 'or', 'ory', 'od'
+      if ((primary === 'od' || primary === 'ory') && supported.includes('or')) {
+        return 'or';
+      }
+      // Punjabi: 'pa', 'pan'
+      if (primary === 'pan' && supported.includes('pa')) {
+        return 'pa';
+      }
+      // Bengali: 'bn', 'ben'
+      if (primary === 'ben' && supported.includes('bn')) {
+        return 'bn';
+      }
+      // Gujarati: 'gu', 'guj'
+      if (primary === 'guj' && supported.includes('gu')) {
+        return 'gu';
+      }
+      // Marathi: 'mr', 'mar'
+      if (primary === 'mar' && supported.includes('mr')) {
+        return 'mr';
+      }
+      // Tamil: 'tam'
+      if (primary === 'tam' && supported.includes('ta')) {
+        return 'ta';
+      }
+      // Hindi: 'hin'
+      if (primary === 'hin' && supported.includes('hi')) {
+        return 'hi';
+      }
+      // Telugu: 'tel'
+      if (primary === 'tel' && supported.includes('te')) {
+        return 'te';
+      }
+      // Malayalam: 'mal'
+      if (primary === 'mal' && supported.includes('ml')) {
+        return 'ml';
+      }
+      // Kannada: 'kan'
+      if (primary === 'kan' && supported.includes('kn')) {
+        return 'kn';
+      }
+      // Spanish: 'spa'
+      if (primary === 'spa' && supported.includes('es')) {
+        return 'es';
+      }
+      // English: 'eng'
+      if (primary === 'eng' && supported.includes('en')) {
+        return 'en';
+      }
+    }
+  } catch (err) {
+    console.warn('Browser language detection error:', err);
+  }
+  return null;
+}
+
 // Auto-translate on page load once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const paramLang = urlParams.get('lang');
-  const savedLang = paramLang || localStorage.getItem('rapid_language') || localStorage.getItem('bhashini_language') || 'en';
-  translatePage(savedLang);
+  const savedLang = localStorage.getItem('rapid_language') || localStorage.getItem('bhashini_language');
+  const detectedLang = detectBrowserLanguage();
+
+  const chosenLang = paramLang || savedLang || detectedLang || 'en';
+  translatePage(chosenLang);
 });
 
 // Expose globally
@@ -1016,4 +1125,6 @@ window.RAPID_TRANSLATIONS = RAPID_TRANSLATIONS;
 window.RAPID_LANG_NAMES = RAPID_LANG_NAMES;
 window.translatePage = translatePage;
 window.onGlobalTranslateClick = onGlobalTranslateClick;
+window.detectBrowserLanguage = detectBrowserLanguage;
 window.t = t;
+

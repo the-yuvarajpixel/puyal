@@ -2020,6 +2020,280 @@ function simulateDispatchedTeamsMovement() {
 // Tick vehicle movement every 2.5 seconds
 setInterval(simulateDispatchedTeamsMovement, 2500);
 
+// ----------------------------------------------------------------------------
+// Google Maps Platform Configuration Endpoint
+// ----------------------------------------------------------------------------
+app.get('/api/maps/config', (req, res) => {
+  res.json({
+    apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+    mapId: 'DEMO_MAP_ID',
+    configured: Boolean(process.env.GOOGLE_MAPS_API_KEY)
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Gemini Chatbot Endpoint (Multi-turn conversations & models)
+// Supported models: gemini-3.8-flash, gemini-3.1-flash-lite, gemini-4-carbon, gemini-4-argon
+// ----------------------------------------------------------------------------
+app.post('/api/gemini/chat', async (req, res) => {
+  const { message, history = [], model = 'gemini-3.8-flash', role = 'civilian' } = req.body;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  // System instruction based on user role
+  const systemInstruction = role === 'admin'
+    ? `You are RapidResponse Command AI, an advanced emergency operations dispatcher and disaster tactical strategist.
+You assist emergency commanders, NDRF battalions, and 108 dispatchers.
+Provide concise, authoritative, and actionable guidance on:
+- Triage priority scoring and casualty minimization
+- Coordinated multi-unit dispatch (Ambulances, Fire Tenders, NDRF Boats, Hazmat)
+- Perimeter isolation (2km operational zones), evacuation corridors, and shelter routing
+- Resource conservation to prevent over-deployment
+Active statistics: ${store.incidents ? store.incidents.length : 0} incidents, ${store.teams ? store.teams.length : 0} tactical teams, ${store.government_stations ? store.government_stations.length : 0} command depots.
+Keep your response clear, structured with bullet points where helpful, and focused on emergency tactics.`
+    : `You are RapidResponse Civilian Safety Guide, an empathetic, clear, and calm emergency advisor powered by Gemini AI and Bhashini.
+You guide citizens facing immediate life-threatening situations (Floods, Fires, Earthquakes, Accidents, Medical Emergencies).
+Provide immediate life-saving steps:
+1. Immediate Safety Action (what to do RIGHT NOW in 1 sentence)
+2. Crucial First Aid or Survival Protocol (step-by-step)
+3. What to avoid
+4. Emergency Contact Numbers (108 Ambulance, 101 Fire, 112 National Emergency)
+Keep instructions simple, reassuring, and numbered so someone in panic can read and act instantly.`;
+
+  // Validate model selection
+  const allowedModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-carbon', 'gemini-4-argon'];
+  const targetModel = allowedModels.includes(model) ? model : 'gemini-3.8-flash';
+
+  if (ai && process.env.GEMINI_API_KEY) {
+    try {
+      // Build conversation contents including history
+      const contents = [];
+      if (Array.isArray(history)) {
+        for (const item of history) {
+          if (item && item.role && item.text) {
+            contents.push({
+              role: item.role === 'assistant' || item.role === 'model' ? 'model' : 'user',
+              parts: [{ text: String(item.text) }]
+            });
+          }
+        }
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: targetModel,
+        contents: contents,
+        config: {
+          systemInstruction: systemInstruction,
+          temperature: 0.3
+        }
+      });
+
+      const replyText = response && response.text ? response.text.trim() : 'Emergency guidance recorded. Stay safe.';
+      return res.json({
+        success: true,
+        reply: replyText,
+        model: targetModel,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn(`Gemini Chat error with model ${targetModel}:`, err.message);
+    }
+  }
+
+  // Graceful rule-based emergency fallback
+  const fallbackReplies = {
+    fire: "🚨 FIRE SAFETY PROTOCOL:\n1. Stay low beneath the smoke line — cover nose with a wet cloth.\n2. Feel doors before opening; if warm, do not open.\n3. Exit the building immediately using stairs, NEVER the elevator.\n4. Call 101 / 112 once outside in open air.",
+    flood: "🌊 FLOOD SAFETY PROTOCOL:\n1. Move to highest ground immediately. Avoid basements.\n2. NEVER walk or drive through flowing water (even 15cm can knock you down).\n3. Turn off main circuit breaker if safe to do so.\n4. Signal your location with a whistle or flashlight.",
+    accident: "🚑 TRAUMA & ACCIDENT PROTOCOL:\n1. Ensure scene safety before approaching.\n2. Do NOT move casualties with neck/back injury unless in immediate danger.\n3. Apply firm, continuous pressure with clean cloth to bleeding wounds.\n4. Call 108 Emergency Ambulance immediately.",
+    medical: "❤️ MEDICAL EMERGENCY PROTOCOL:\n1. Check responsiveness and breathing.\n2. If unresponsive and not breathing, begin chest compressions (100-120/min).\n3. Keep airway open by tilting head back slightly.\n4. Paramedics dispatched from nearest emergency depot."
+  };
+
+  const lowerMsg = message.toLowerCase();
+  let defaultReply = "Your emergency message has been received by RapidResponse Command. Responders are notified. Stay calm, remain in a secure location, and keep your communication line open.";
+  if (lowerMsg.includes('fire') || lowerMsg.includes('smoke')) defaultReply = fallbackReplies.fire;
+  else if (lowerMsg.includes('flood') || lowerMsg.includes('water')) defaultReply = fallbackReplies.flood;
+  else if (lowerMsg.includes('accident') || lowerMsg.includes('crash')) defaultReply = fallbackReplies.accident;
+  else if (lowerMsg.includes('medical') || lowerMsg.includes('heart') || lowerMsg.includes('bleeding')) defaultReply = fallbackReplies.medical;
+
+  return res.json({
+    success: true,
+    reply: defaultReply,
+    model: targetModel,
+    isFallback: true,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Audio Transcription Endpoint (Gemini 3.5 Transcribe)
+// Accepts audioBase64 string and optional mimeType
+// ----------------------------------------------------------------------------
+app.post('/api/gemini/transcribe', async (req, res) => {
+  const { audioBase64, mimeType = 'audio/webm' } = req.body;
+
+  if (!audioBase64 || typeof audioBase64 !== 'string') {
+    return res.status(400).json({ error: 'audioBase64 string is required' });
+  }
+
+  // Clean base64 data prefix if present
+  const base64Data = audioBase64.replace(/^data:[^;]+;base64,/, '');
+
+  if (ai && process.env.GEMINI_API_KEY) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-transcribe',
+        contents: [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data
+            }
+          },
+          {
+            text: "You are an emergency voice transcriber for RapidResponse Command. Transcribe the spoken audio verbatim in the speaker's language. If the audio is not in English, provide the exact transcript followed by an English translation on a new line. Only output the transcription text without commentary."
+          }
+        ]
+      });
+
+      const transcription = response && response.text ? response.text.trim() : '';
+      if (transcription) {
+        return res.json({
+          success: true,
+          model: 'gemini-3.5-transcribe',
+          text: transcription
+        });
+      }
+    } catch (err) {
+      console.warn('Gemini 3.5 Transcribe error, falling back to gemini-3.8-flash audio interpretation:', err.message);
+      // Secondary attempt with gemini-3.8-flash multimodal
+      try {
+        const fallbackResp = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data
+              }
+            },
+            {
+              text: "Transcribe the spoken audio accurately into text. Provide the spoken emergency words clearly."
+            }
+          ]
+        });
+        if (fallbackResp && fallbackResp.text) {
+          return res.json({
+            success: true,
+            model: 'gemini-3.8-flash',
+            text: fallbackResp.text.trim()
+          });
+        }
+      } catch (e2) {
+        console.warn('Secondary audio transcription notice:', e2.message);
+      }
+    }
+  }
+
+  // Fallback mock transcript if audio is provided without key
+  return res.json({
+    success: true,
+    model: 'gemini-3.5-transcribe',
+    text: "Emergency assistance requested at our location. Please dispatch medical and rescue support immediately.",
+    isSimulated: true
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Real-time Voice Conversations Endpoint (Gemini 3.8 Live API)
+// ----------------------------------------------------------------------------
+app.post('/api/gemini/live-voice', async (req, res) => {
+  const { speechText, audioBase64, mimeType = 'audio/webm', lang = 'en' } = req.body;
+
+  let prompt = speechText || '';
+
+  // If audio provided, transcribe first using gemini-3.5-transcribe or inline
+  if (!prompt && audioBase64 && ai && process.env.GEMINI_API_KEY) {
+    try {
+      const cleanData = audioBase64.replace(/^data:[^;]+;base64,/, '');
+      const transResp = await ai.models.generateContent({
+        model: 'gemini-3.5-transcribe',
+        contents: [
+          { inlineData: { mimeType, data: cleanData } },
+          { text: "Transcribe verbatim the spoken words." }
+        ]
+      });
+      if (transResp && transResp.text) prompt = transResp.text.trim();
+    } catch (e) {
+      prompt = "Emergency report assistance";
+    }
+  }
+
+  if (!prompt) prompt = "Emergency alert at my current location";
+
+  if (ai && process.env.GEMINI_API_KEY) {
+    try {
+      const liveSystemPrompt = `You are the Gemini 3.8 Live Emergency Voice Responder.
+You are talking in real-time to a civilian or responder in a live disaster situation.
+Provide concise, spoken-friendly, life-saving advice in 2-3 sentences.
+Speak calmly and clearly. Language requested: ${lang}.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-live',
+        contents: prompt,
+        config: {
+          systemInstruction: liveSystemPrompt
+        }
+      });
+
+      const reply = response && response.text ? response.text.trim() : 'Help is on the way. Keep clear of danger.';
+      return res.json({
+        success: true,
+        model: 'gemini-3.8-live',
+        userQuery: prompt,
+        speechReply: reply,
+        status: 'live_active'
+      });
+    } catch (liveErr) {
+      console.warn('Gemini 3.8 Live API notice, using flash voice engine:', liveErr.message);
+      // Fallback to gemini-3.8-flash
+      try {
+        const flashResp = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            systemInstruction: "You are the RapidResponse Voice Guide. Give 2 sentences of life-saving guidance for spoken playback."
+          }
+        });
+        return res.json({
+          success: true,
+          model: 'gemini-3.8-flash',
+          userQuery: prompt,
+          speechReply: flashResp.text.trim(),
+          status: 'live_fallback'
+        });
+      } catch (e3) {
+        // Continue to static fallback
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    model: 'gemini-3.8-live',
+    userQuery: prompt,
+    speechReply: "Understood. Emergency command has your beacon and location. Move to safe high ground and remain calm while rescue teams converge on your coordinates.",
+    isFallback: true,
+    status: 'simulated'
+  });
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`RapidResponse Command server running at http://${HOST}:${PORT}`);
 });
+
