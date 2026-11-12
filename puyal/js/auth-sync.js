@@ -469,6 +469,25 @@ class RapidSync {
     return await res.json();
   }
 
+  async translateWithBhashini(textOrTexts, targetLanguage = 'ta', sourceLanguage = 'en') {
+    const payload = {
+      targetLanguage,
+      sourceLanguage
+    };
+    if (typeof textOrTexts === 'object') {
+      payload.texts = textOrTexts;
+    } else {
+      payload.text = textOrTexts;
+    }
+
+    const res = await fetch('/api/bhashini/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  }
+
   async fetchGovStations() {
     const res = await fetch('/api/government/stations');
     return await res.json();
@@ -626,7 +645,10 @@ function speakText(text, lang = 'en') {
     'ml': 'ml-IN',
     'bn': 'bn-IN',
     'mr': 'mr-IN',
-    'gu': 'gu-IN'
+    'gu': 'gu-IN',
+    'pa': 'pa-IN',
+    'or': 'or-IN',
+    'es': 'es-ES'
   };
 
   const targetLang = langMap[lang] || lang || 'en-US';

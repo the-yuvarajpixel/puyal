@@ -15,6 +15,20 @@ const RAPID_TRANSLATIONS = {
     "nav.translate_btn": "🌐 Translate",
     "nav.demo_badge": "Demo Account Active",
 
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "RapidResponse Command",
+    "role.subtitle": "Emergency Response & Disaster Management Platform",
+    "role.user_title": "Report Emergency",
+    "role.user_desc": "Report an emergency, use voice or SOS for instant help",
+    "role.admin_title": "Admin Control",
+    "role.admin_desc": "Manage incidents, view live SOS feeds, coordinate response",
+    "role.demo_civilian": "⚡ Test Civilian Demo Account",
+    "role.demo_admin": "🛡️ Test Admin Command Account",
+    "role.translate_btn": "Translate with Bhashini",
+    "role.bhashini_listen": "🔊 Listen (Bhashini AI TTS)",
+    "role.bhashini_badge": "Bhashini AI Multilingual Service",
+    "role.bhashini_sub": "MeitY Digital India Indic Translation Engine",
+
     // Readiness Bar
     "readiness.title": "Device Readiness:",
     "readiness.location": "Location:",
@@ -138,6 +152,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● நேரலை இணைப்பு செயலில்",
     "nav.translate_btn": "🌐 மொழிபெயர்",
     "nav.demo_badge": "டெமோ கணக்கு செயலில்",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "ரேபிட்ரெஸ்பான்ஸ் கமாண்ட்",
+    "role.subtitle": "அவசரகால மீட்பு மற்றும் பேரிடர் மேலாண்மை தளம்",
+    "role.user_title": "அவசரநிலையைப் புகாரளிக்கவும்",
+    "role.user_desc": "குரல் அல்லது SOS மூலம் உடனடி உதவி பெற அவசரநிலையைப் புகாரளிக்கவும்",
+    "role.admin_title": "நிர்வாகக் கட்டுப்பாடு",
+    "role.admin_desc": "சம்பவங்களை நிர்வகிக்கவும், நேரலை SOS மற்றும் மீட்புக் குழுக்களை ஒருங்கிணைக்கவும்",
+    "role.demo_civilian": "⚡ மாதிரி குடிமக்கள் கணக்கு",
+    "role.demo_admin": "🛡️ மாதிரி நிர்வாகக் கட்டுப்பாட்டு கணக்கு",
+    "role.translate_btn": "பாஷினி மூலம் மொழிபெயர்",
+    "role.bhashini_listen": "🔊 பாஷினி AI குரல் வழி கேட்கவும்",
+    "role.bhashini_badge": "பாஷினி AI பலமொழி அணுகல்",
+    "role.bhashini_sub": "மின்னணு மற்றும் தகவல் தொழில்நுட்ப அமைச்சகம் (MeitY)",
 
     // Readiness Bar
     "readiness.title": "சாதன தயார்நிலை:",
@@ -263,6 +291,20 @@ const RAPID_TRANSLATIONS = {
     "nav.translate_btn": "🌐 अनुवाद करें",
     "nav.demo_badge": "डेमो खाता सक्रिय",
 
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "रैपिडरेस्पॉन्स कमांड",
+    "role.subtitle": "आपातकालीन प्रतिक्रिया एवं आपदा प्रबंधन मंच",
+    "role.user_title": "आपातकाल की रिपोर्ट करें",
+    "role.user_desc": "आवाज या एसओएस द्वारा तत्काल सहायता प्राप्त करने के लिए आपातकाल की रिपोर्ट करें",
+    "role.admin_title": "प्रशासन नियंत्रण",
+    "role.admin_desc": "घटनाओं का प्रबंधन करें, लाइव एसओएस देखें और बचाव दल का समन्वय करें",
+    "role.demo_civilian": "⚡ नागरिक डेमो खाता",
+    "role.demo_admin": "🛡️ प्रशासन कमांड खाता",
+    "role.translate_btn": "भाषिणी द्वारा अनुवाद करें",
+    "role.bhashini_listen": "🔊 भाषिणी आवाज में सुनें",
+    "role.bhashini_badge": "भाषिणी AI बहुभाषी सेवा",
+    "role.bhashini_sub": "इलेक्ट्रॉनिक्स और आईटी मंत्रालय (MeitY)",
+
     // Readiness Bar
     "readiness.title": "डिवाइस तत्परता:",
     "readiness.location": "स्थान:",
@@ -386,6 +428,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● లైవ్ స్ట్రీమ్ క్రియాశీలం",
     "nav.translate_btn": "🌐 అనువదించు",
     "nav.demo_badge": "డెమో ఖాతా క్రియాశీలం",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "ర్యాపిడ్ రెస్పాన్స్ కమాండ్",
+    "role.subtitle": "అత్యవసర స్పందన మరియు విపత్తు నిర్వహణ వేదిక",
+    "role.user_title": "అత్యవసర పరిస్థితిని నివేదించండి",
+    "role.user_desc": "తక్షణ సహాయం కోసం వాయిస్ లేదా SOS ద్వారా అత్యవసర పరిస్థితిని నివేదించండి",
+    "role.admin_title": "అడ్మిన్ నియంత్రణ",
+    "role.admin_desc": "సంఘటనలను నిర్వహించండి, ప్రత్యక్ష SOS ఫీడ్‌లను వీక్షించండి మరియు ప్రతిస్పందనను సమన్వయం చేయండి",
+    "role.demo_civilian": "⚡ పౌర డెమో ఖాతా",
+    "role.demo_admin": "🛡️ అడ్మిన్ కమాండ్ ఖాతా",
+    "role.translate_btn": "భాషిణితో అనువదించండి",
+    "role.bhashini_listen": "🔊 భాషిణి వాయిస్ వినండి",
+    "role.bhashini_badge": "భాషిణి AI బహుభాషా సేవ",
+    "role.bhashini_sub": "ఎలక్ట్రానిక్స్ & ఐటీ మంత్రిత్వ శాఖ (MeitY)",
     "readiness.title": "పరికరం సంసిద్ధత:",
     "readiness.location": "స్థానం:",
     "readiness.camera": "కెమెరా:",
@@ -433,6 +489,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● ലൈവ് സ്ട്രീം സജീവം",
     "nav.translate_btn": "🌐 വിവർത്തനം",
     "nav.demo_badge": "ഡെമോ അക്കൗണ്ട് സജീവം",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "റാപ്പിഡ് റെസ്പോൺസ് കമാൻഡ്",
+    "role.subtitle": "അടിയന്തര പ്രതികരണ ദുരന്ത നിവാരണ പ്ലാറ്റ്ഫോം",
+    "role.user_title": "അടിയന്തര സാഹചര്യം അറിയിക്കുക",
+    "role.user_desc": "ശബ്ദം അല്ലെങ്കിൽ SOS വഴി തൽക്ഷണ സഹായത്തിനായി അറിയിക്കുക",
+    "role.admin_title": "അഡ്മിൻ കൺട്രോൾ",
+    "role.admin_desc": "സംഭവങ്ങൾ നിയന്ത്രിക്കുക, ലൈവ് SOS നിരീക്ഷിക്കുക, സേനയെ ഏകോപിപ്പിക്കുക",
+    "role.demo_civilian": "⚡ പൗര ഡെമോ അക്കൗണ്ട്",
+    "role.demo_admin": "🛡️ അഡ്മിൻ കമാൻഡ് അക്കൗണ്ട്",
+    "role.translate_btn": "ഭാഷിണി വഴി വിവർത്തനം ചെയ്യുക",
+    "role.bhashini_listen": "🔊 ഭാഷിണി വോയ്‌സ് കേൾക്കുക",
+    "role.bhashini_badge": "ഭാഷിണി AI ബഹുഭാഷാ സേവനം",
+    "role.bhashini_sub": "ഇലക്‌ട്രോണിക്‌സ് & ഐടി മന്ത്രാലയം (MeitY)",
     "readiness.title": "ഉപകരണ സന്നദ്ധത:",
     "readiness.location": "സ്ഥാനം:",
     "readiness.camera": "ക്യാമറ:",
@@ -480,6 +550,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● ಲೈವ್ ಸ್ಟ್ರೀಮ್ ಸಕ್ರಿಯ",
     "nav.translate_btn": "🌐 ಅನುವಾದಿಸಿ",
     "nav.demo_badge": "ಡೆಮೊ ಖಾತೆ ಸಕ್ರಿಯ",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "ರ್‍ಯಾಪಿಡ್ ರೆಸ್ಪಾನ್ಸ್ ಕಮಾಂಡ್",
+    "role.subtitle": "ತುರ್ತು ಪ್ರತಿಕ್ರಿಯೆ ಮತ್ತು ವಿಪತ್ತು ನಿರ್ವಹಣಾ ವೇದಿಕೆ",
+    "role.user_title": "ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ವರದಿ ಮಾಡಿ",
+    "role.user_desc": "ತ್ವರಿತ ಸಹಾಯಕ್ಕಾಗಿ ಧ್ವನಿ ಅಥವಾ SOS ಮೂಲಕ ವರದಿ ಮಾಡಿ",
+    "role.admin_title": "ನಿರ್ವಾಹಕ ನಿಯಂತ್ರಣ",
+    "role.admin_desc": "ಘಟನೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ, ಲೈವ್ SOS ವೀಕ್ಷಿಸಿ ಮತ್ತು ತಂಡಗಳನ್ನು ಸಂಯೋಜಿಸಿ",
+    "role.demo_civilian": "⚡ ನಾಗರಿಕ ಡೆಮೊ ಖಾತೆ",
+    "role.demo_admin": "🛡️ ನಿರ್ವಾಹಕ ಕಮಾಂಡ್ ಖಾತೆ",
+    "role.translate_btn": "ಭಾಷಿಣಿಯೊಂದಿಗೆ ಅನುವಾದಿಸಿ",
+    "role.bhashini_listen": "🔊 ಭಾಷಿಣಿ ಧ್ವನಿಯಲ್ಲಿ ಆಲಿಸಿ",
+    "role.bhashini_badge": "ಭಾಷಿಣಿ AI ಬಹುಭಾಷಾ ಸೇವೆ",
+    "role.bhashini_sub": "ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್ ಮತ್ತು ಐಟಿ ಸಚಿವಾಲಯ (MeitY)",
     "readiness.title": "ಸಾಧನ ಸನ್ನದ್ಧತೆ:",
     "readiness.location": "ಸ್ಥಳ:",
     "readiness.camera": "ಕ್ಯಾಮರಾ:",
@@ -527,6 +611,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● লাইভ স্ট্রিম সক্রিয়",
     "nav.translate_btn": "🌐 অনুবাদ",
     "nav.demo_badge": "ডেমো অ্যাকাউন্ট সক্রিয়",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "র‍্যাপিডরেসপন্স কমান্ড",
+    "role.subtitle": "জরুরি প্রতিক্রিয়া এবং দুর্যোগ ব্যবস্থাপনা প্ল্যাটফর্ম",
+    "role.user_title": "জরুরি অবস্থা রিপোর্ট করুন",
+    "role.user_desc": "ভয়েস বা এসওএস এর মাধ্যমে তাৎক্ষণিক সাহায্যের জন্য রিপোর্ট করুন",
+    "role.admin_title": "প্রশাসন নিয়ন্ত্রণ",
+    "role.admin_desc": "ঘটনা পরিচালনা করুন, লাইভ এসওএস দেখুন এবং উদ্ধার দল সমন্বয় করুন",
+    "role.demo_civilian": "⚡ নাগরিক ডেমো অ্যাকাউন্ট",
+    "role.demo_admin": "🛡️ প্রশাসনিক কমান্ড অ্যাকাউন্ট",
+    "role.translate_btn": "ভাষিণীর সাথে অনুবাদ করুন",
+    "role.bhashini_listen": "🔊 ভাষিণী কণ্ঠে শুনুন",
+    "role.bhashini_badge": "ভাষিণী AI বহুভাষিক পরিষেবা",
+    "role.bhashini_sub": "ইলেকট্রনিক্স এবং আইটি মন্ত্রণালয় (MeitY)",
     "readiness.title": "ডিভাইস প্রস্তুতি:",
     "readiness.location": "অবস্থান:",
     "readiness.camera": "ক্যামেরা:",
@@ -574,6 +672,20 @@ const RAPID_TRANSLATIONS = {
     "nav.live_sync": "● Transmisión en vivo activa",
     "nav.translate_btn": "🌐 Traducir",
     "nav.demo_badge": "Cuenta de Demostración Activa",
+
+    // Role Selection Landing Page (Bhashini AI)
+    "role.brand": "Comando RapidResponse",
+    "role.subtitle": "Plataforma de Respuesta a Emergencias y Gestión de Desastres",
+    "role.user_title": "Reportar Emergencia",
+    "role.user_desc": "Reporte emergencias con voz o SOS para asistencia inmediata",
+    "role.admin_title": "Control Administrativo",
+    "role.admin_desc": "Gestione incidentes, transmisiones SOS y coordine equipos de rescate",
+    "role.demo_civilian": "⚡ Cuenta Demo Civil",
+    "role.demo_admin": "🛡️ Cuenta de Comando Admin",
+    "role.translate_btn": "Traducir con Bhashini",
+    "role.bhashini_listen": "🔊 Escuchar en Bhashini AI",
+    "role.bhashini_badge": "Servicio Multilingüe Bhashini AI",
+    "role.bhashini_sub": "Motor Indic de Traducción MeitY Digital India",
     "readiness.title": "Preparación del dispositivo:",
     "readiness.location": "Ubicación:",
     "readiness.camera": "Cámara:",
@@ -663,6 +775,118 @@ const RAPID_TRANSLATIONS = {
     "admin.feed.close": "Cerrar Transmisión",
     "admin.feed.waiting": "Esperando transmisión de emergencia civil en vivo...",
     "admin.feed.simulated_tag": "📹 TRANSMISIÓN TÁCTICA SIMULADA ACTIVA"
+  },
+
+  mr: {
+    // Marathi (Bhashini AI)
+    "nav.brand_user": "RapidResponse कमांड",
+    "nav.brand_admin": "RapidResponse — कमान केंद्र",
+    "nav.user_portal": "नागरी आपत्कालीन पोर्टल",
+    "nav.logout": "लॉग आउट",
+    "nav.live_sync": "● थेट प्रवाह सक्रिय",
+    "nav.translate_btn": "🌐 भाषांतर",
+    "nav.demo_badge": "डेमो खाते सक्रिय",
+    "role.brand": "रॅपिड रिस्पॉन्स कमांड",
+    "role.subtitle": "आपत्कालीन प्रतिसाद आणि आपत्ती व्यवस्थापन व्यासपीठ",
+    "role.user_title": "आपत्कालीन परिस्थितीची नोंद करा",
+    "role.user_desc": "तात्काळ मदतीसाठी आवाज किंवा SOS द्वारे आपत्कालीन परिस्थिती नोंदवा",
+    "role.admin_title": "प्रशासन नियंत्रण",
+    "role.admin_desc": "घटना व्यवस्थापित करा, थेट SOS पहा आणि मदत पथकांचे समन्वय करा",
+    "role.demo_civilian": "⚡ नागरी डेमो खाते",
+    "role.demo_admin": "🛡️ प्रशासन कमांड खाते",
+    "role.translate_btn": "भाषिणीने अनुवाद करा",
+    "role.bhashini_listen": "🔊 भाषिणी आवाजात ऐका",
+    "role.bhashini_badge": "भाषिणी AI बहुभाषिक सेवा",
+    "role.bhashini_sub": "इलेक्ट्रॉनिक्स आणि माहिती तंत्रज्ञान मंत्रालय (MeitY)",
+    "form.heading": "आपत्कालीन घटनेची नोंद करा",
+    "form.incident_title": "घटनेचे शीर्षक *",
+    "form.category": "आपत्कालीन श्रेणी *",
+    "form.severity": "तीव्रता स्तर *",
+    "form.submit_btn": "🚨 आपत्कालीन अहवाल सबमिट करा"
+  },
+
+  gu: {
+    // Gujarati (Bhashini AI)
+    "nav.brand_user": "RapidResponse કમાન્ડ",
+    "nav.brand_admin": "RapidResponse — કમાન્ડ સેન્ટર",
+    "nav.user_portal": "નાગરિક ઇમરજન્સી પોર્ટલ",
+    "nav.logout": "લૉગ આઉટ",
+    "nav.live_sync": "● લાઇવ સ્ટ્રીમ સક્રિય",
+    "nav.translate_btn": "🌐 અનુવાદ",
+    "nav.demo_badge": "ડેમો એકાઉન્ટ સક્રિય",
+    "role.brand": "રેપિડ રિસ્પોન્સ કમાન્ડ",
+    "role.subtitle": "ઇમરજન્સી રિસ્પોન્સ અને આપત્તિ વ્યવસ્થાપન પ્લેટફોર્મ",
+    "role.user_title": "ઇમરજન્સીની જાણ કરો",
+    "role.user_desc": "તત્કાલ સહાય માટે વૉઇસ અથવા SOS દ્વારા ઇમરજન્સીની જાણ કરો",
+    "role.admin_title": "વહીવટી નિયંત્રણ",
+    "role.admin_desc": "ઘટનાઓનું સંચાલન કરો, લાઈવ SOS જુઓ અને બચાવ દળોનું સંકલન કરો",
+    "role.demo_civilian": "⚡ નાગરિક ડેમો એકાઉન્ટ",
+    "role.demo_admin": "🛡️ એડમિન કમાન્ડ એકાઉન્ટ",
+    "role.translate_btn": "ભાષિણી સાથે અનુવાદ કરો",
+    "role.bhashini_listen": "🔊 ભાષિણી અવાજ સાંભળો",
+    "role.bhashini_badge": "ભાષિણી AI બહુભાષી સેવા",
+    "role.bhashini_sub": "ઇલેક્ટ્રોનિક્સ અને આઇટી મંત્રાલય (MeitY)",
+    "form.heading": "ઇમરજન્સી ઘટનાની જાણ કરો",
+    "form.incident_title": "ઘટનાનું શીર્ષક *",
+    "form.category": "ઇમરજન્સી શ્રેણી *",
+    "form.severity": "તીવ્રતા સ્તર *",
+    "form.submit_btn": "🚨 ઇમરજન્સી રિપોર્ટ સબમિટ કરો"
+  },
+
+  pa: {
+    // Punjabi (Bhashini AI)
+    "nav.brand_user": "RapidResponse ਕਮਾਂਡ",
+    "nav.brand_admin": "RapidResponse — ਕਮਾਂਡ ਸੈਂਟਰ",
+    "nav.user_portal": "ਨਾਗਰਿਕ ਐਮਰਜੈਂਸੀ ਪੋਰਟਲ",
+    "nav.logout": "ਲਾਗ ਆਉਟ",
+    "nav.live_sync": "● ਲਾਈਵ ਸਟ੍ਰੀਮ ਸਰਗਰਮ",
+    "nav.translate_btn": "🌐 ਅਨੁਵਾਦ",
+    "nav.demo_badge": "ਡੈਮੋ ਖਾਤਾ ਸਰਗਰਮ",
+    "role.brand": "ਰੈਪਿਡ ਰਿਸਪਾਂਸ ਕਮਾਂਡ",
+    "role.subtitle": "ਐਮਰਜੈਂਸੀ ਰਿਸਪਾਂਸ ਅਤੇ ਆਫ਼ਤ ਪ੍ਰਬੰਧਨ ਪਲੇਟਫਾਰਮ",
+    "role.user_title": "ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
+    "role.user_desc": "ਤੁਰੰਤ ਮਦਦ ਲਈ ਆਵਾਜ਼ ਜਾਂ SOS ਰਾਹੀਂ ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
+    "role.admin_title": "ਐਡਮਿਨ ਕੰਟਰੋਲ",
+    "role.admin_desc": "ਘਟਨਾਵਾਂ ਦਾ ਪ੍ਰਬੰਧਨ ਕਰੋ, ਲਾਈਵ SOS ਦੇਖੋ ਅਤੇ ਬਚਾਅ ਟੀਮਾਂ ਦਾ ਤਾਲਮੇਲ ਕਰੋ",
+    "role.demo_civilian": "⚡ ਨਾਗਰਿਕ ਡੈਮੋ ਖਾਤਾ",
+    "role.demo_admin": "🛡️ ਐਡਮਿਨ ਕਮਾਂਡ ਖਾਤਾ",
+    "role.translate_btn": "ਭਾਸ਼ਿਣੀ ਨਾਲ ਅਨੁਵਾਦ ਕਰੋ",
+    "role.bhashini_listen": "🔊 ਭਾਸ਼ਿਣੀ ਆਵਾਜ਼ ਸੁਣੋ",
+    "role.bhashini_badge": "ਭਾਸ਼ਿਣੀ AI ਬਹੁ-ਭਾਸ਼ਾਈ ਸੇਵਾ",
+    "role.bhashini_sub": "ਇਲੈਕਟ੍ਰਾਨਿਕਸ ਅਤੇ ਆਈਟੀ ਮੰਤਰਾਲਾ (MeitY)",
+    "form.heading": "ਐਮਰਜੈਂਸੀ ਘਟਨਾ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
+    "form.incident_title": "ਘਟਨਾ ਦਾ ਸਿਰਲੇਖ *",
+    "form.category": "ਐਮਰਜੈਂਸੀ ਸ਼੍ਰੇਣੀ *",
+    "form.severity": "ਗੰਭੀਰਤਾ ਪੱਧਰ *",
+    "form.submit_btn": "🚨 ਐਮਰਜੈਂਸੀ ਰਿਪੋਰਟ ਦਰਜ ਕਰੋ"
+  },
+
+  or: {
+    // Odia (Bhashini AI)
+    "nav.brand_user": "RapidResponse କମାଣ୍ଡ",
+    "nav.brand_admin": "RapidResponse — କମାଣ୍ଡ ସେଣ୍ଟର",
+    "nav.user_portal": "ନାଗରିକ ଜରୁରୀକାଳୀନ ପୋର୍ଟାଲ",
+    "nav.logout": "ଲଗ୍ ଆଉଟ୍",
+    "nav.live_sync": "● ଲାଇଭ୍ ଷ୍ଟ୍ରିମ୍ ସକ୍ରିୟ",
+    "nav.translate_btn": "🌐 ଅନୁବାଦ",
+    "nav.demo_badge": "ଡେମୋ ଆକାଉଣ୍ଟ ସକ୍ରିୟ",
+    "role.brand": "ରାପିଡ୍ ରେସପନ୍ସ କମାଣ୍ଡ",
+    "role.subtitle": "ଜରୁରୀକାଳୀନ ପ୍ରତିକ୍ରିୟା ଏବଂ ବିପର୍ଯ୍ୟୟ ପରିଚାଳନା ପ୍ଲାଟଫର୍ମ",
+    "role.user_title": "ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ କରନ୍ତୁ",
+    "role.user_desc": "ତୁରନ୍ତ ସାହାଯ୍ୟ ପାଇଁ କଣ୍ଠସ୍ୱର କିମ୍ବା SOS ମାଧ୍ୟମରେ ରିପୋର୍ଟ କରନ୍ତୁ",
+    "role.admin_title": "ପ୍ରଶାସନ ନିୟନ୍ତ୍ରଣ",
+    "role.admin_desc": "ଘଟଣାଗୁଡ଼ିକର ପରିଚାଳନା କରନ୍ତୁ, ଲାଇଭ୍ SOS ଦେଖନ୍ତୁ ଏବଂ ସମନ୍ୱୟ ରକ୍ଷା କରନ୍ତୁ",
+    "role.demo_civilian": "⚡ ନାଗରିକ ଡେମୋ ଆକାଉଣ୍ଟ",
+    "role.demo_admin": "🛡️ ପ୍ରଶାସନ କମାଣ୍ଡ ଆକାଉଣ୍ଟ",
+    "role.translate_btn": "ଭାଷିଣୀ ସହିତ ଅନୁବାଦ କରନ୍ତୁ",
+    "role.bhashini_listen": "🔊 ଭାଷିଣୀ ସ୍ୱର ଶୁଣନ୍ତୁ",
+    "role.bhashini_badge": "ଭାଷିଣୀ AI ବହୁଭାଷୀ ସେବା",
+    "role.bhashini_sub": "ଇଲେକ୍ଟ୍ରୋନିକ୍ସ ଏବଂ ଆଇଟି ମନ୍ତ୍ରଣାଳୟ (MeitY)",
+    "form.heading": "ଜରୁରୀକାଳୀନ ଘଟଣା ରିପୋର୍ଟ କରନ୍ତୁ",
+    "form.incident_title": "ଘଟଣାର ଶୀର୍ଷକ *",
+    "form.category": "ଜରୁରୀକାଳୀନ ବର୍ଗ *",
+    "form.severity": "ତୀବ୍ରତା ସ୍ତର *",
+    "form.submit_btn": "🚨 ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ ଦାଖଲ କରନ୍ତୁ"
   }
 };
 
@@ -675,6 +899,10 @@ const RAPID_LANG_NAMES = {
   ml: "മലയാളം (Malayalam)",
   kn: "ಕನ್ನಡ (Kannada)",
   bn: "বাংলা (Bengali)",
+  mr: "मराठी (Marathi)",
+  gu: "ગુજરાતી (Gujarati)",
+  pa: "ਪੰਜਾਬੀ (Punjabi)",
+  or: "ଓଡ଼ିଆ (Odia)",
   es: "Español (Spanish)"
 };
 
@@ -700,12 +928,19 @@ function translatePage(lang) {
 
   currentAppLanguage = lang;
   localStorage.setItem('rapid_language', lang);
+  localStorage.setItem('bhashini_language', lang);
   document.documentElement.lang = lang;
 
-  // Sync any dropdown on the page
+  // Sync navbar dropdown if present
   const selectEl = document.getElementById('global-lang-select');
   if (selectEl && selectEl.value !== lang) {
     selectEl.value = lang;
+  }
+
+  // Sync role selection dropdown if present
+  const roleSelectEl = document.getElementById('role-bhashini-select');
+  if (roleSelectEl && roleSelectEl.value !== lang) {
+    roleSelectEl.value = lang;
   }
 
   // Translate elements with data-i18n
@@ -738,6 +973,16 @@ function translatePage(lang) {
     }
   });
 
+  // Sync query parameters on role links so login pages inherit chosen language
+  const civLink = document.getElementById('link-civilian-role');
+  if (civLink) civLink.href = 'login-user.html?lang=' + encodeURIComponent(lang);
+  const adminLink = document.getElementById('link-admin-role');
+  if (adminLink) adminLink.href = 'login-admin.html?lang=' + encodeURIComponent(lang);
+  const civDemo = document.getElementById('link-civilian-demo');
+  if (civDemo) civDemo.href = 'login-user.html?lang=' + encodeURIComponent(lang);
+  const adminDemo = document.getElementById('link-admin-demo');
+  if (adminDemo) adminDemo.href = 'login-admin.html?lang=' + encodeURIComponent(lang);
+
   // Dispatch custom event for dynamic components to update
   window.dispatchEvent(new CustomEvent('languageChanged', { detail: { lang } }));
 
@@ -748,18 +993,27 @@ function translatePage(lang) {
  * Global trigger called by translation button
  */
 function onGlobalTranslateClick() {
-  const selectEl = document.getElementById('global-lang-select');
+  const selectEl = document.getElementById('global-lang-select') || document.getElementById('role-bhashini-select');
   const targetLang = selectEl ? selectEl.value : 'ta';
   translatePage(targetLang);
 
   const langName = RAPID_LANG_NAMES[targetLang] || targetLang;
   if (typeof showToast === 'function') {
-    showToast(`🌐 Page translated to ${langName}!`, 'success');
+    showToast(`🌐 Bhashini AI: Page translated to ${langName}!`, 'success');
   }
 }
 
 // Auto-translate on page load once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  const savedLang = localStorage.getItem('rapid_language') || 'en';
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramLang = urlParams.get('lang');
+  const savedLang = paramLang || localStorage.getItem('rapid_language') || localStorage.getItem('bhashini_language') || 'en';
   translatePage(savedLang);
 });
+
+// Expose globally
+window.RAPID_TRANSLATIONS = RAPID_TRANSLATIONS;
+window.RAPID_LANG_NAMES = RAPID_LANG_NAMES;
+window.translatePage = translatePage;
+window.onGlobalTranslateClick = onGlobalTranslateClick;
+window.t = t;
