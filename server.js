@@ -1622,6 +1622,48 @@ function broadcastSosWs(sosId, payloadObj) {
   }
 }
 
+function broadcastSosWsBinary(sosId, binaryBuf) {
+  for (const client of sosWsClients) {
+    if (
+      client.readyState === 1 &&
+      client.role === 'viewer' &&
+      (!client.sosId || client.sosId === 'all' || String(client.sosId) === String(sosId))
+    ) {
+      try {
+        if (client.bufferedAmount < 192 * 1024) {
+          client.send(binaryBuf, { binary: true });
+        }
+      } catch (e) {}
+    }
+  }
+}
+
+function buildStreamSnapshot(streamData) {
+  if (!streamData) return null;
+  const now = Date.now();
+  let lastFrame = streamData.lastFrame || null;
+  if (
+    streamData.lastFrameBuffer &&
+    (!lastFrame || (streamData.lastFrameBufferSeq || 0) > (streamData.lastFrameBase64Seq || 0))
+  ) {
+    lastFrame = 'data:image/jpeg;base64,' + streamData.lastFrameBuffer.toString('base64');
+    streamData.lastFrame = lastFrame;
+    streamData.lastFrameBase64Seq = streamData.lastFrameBufferSeq || streamData.seq || 0;
+  }
+  return {
+    sosId: streamData.sosId,
+    email: streamData.email || 'Civilian',
+    lastFrame,
+    audioLevel: streamData.audioLevel || 30,
+    hasRealAudio: Boolean(streamData.hasRealAudio),
+    sampleRate: streamData.sampleRate || 16000,
+    coords: streamData.coords || null,
+    recentAudioChunks: (streamData.recentAudioChunks || []).filter(c => now - c.ts < 2500),
+    seq: streamData.seq || 0,
+    updatedAt: streamData.updatedAt || now
+  };
+}
+
 function pushAudioChunkToStream(streamObj, audioPcmBase64, sampleRate = 16000, seq = 0) {
   if (!audioPcmBase64) return;
   const now = Date.now();
@@ -1746,13 +1788,9 @@ app.get('/api/sos/:id/live-feed', (req, res) => {
   const streamData = liveMediaStreams.get(sosId);
 
   if (streamData) {
-    const now = Date.now();
     return res.json({
       success: true,
-      stream: {
-        ...streamData,
-        recentAudioChunks: (streamData.recentAudioChunks || []).filter(c => now - c.ts < 2500)
-      }
+      stream: buildStreamSnapshot(streamData)
     });
   }
 
@@ -2677,12 +2715,10 @@ wss.on('connection', (ws, req) => {
   if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
     const existing = liveMediaStreams.get(String(ws.sosId));
     if (existing) {
-      const now = Date.now();
       try {
         ws.send(JSON.stringify({
           type: 'SOS_FRAME_UPDATE',
-          ...existing,
-          recentAudioChunks: (existing.recentAudioChunks || []).filter(c => now - c.ts < 2500)
+          ...buildStreamSnapshot(existing)
         }));
       } catch (e) {}
     }
@@ -2698,8 +2734,56 @@ wss.on('connection', (ws, req) => {
     } catch (e) {}
   }
 
-  ws.on('message', (rawMsg) => {
+  ws.on('message', (rawMsg, isBinary) => {
     try {
+      // Fast zero-copy binary relay path for 30 FPS JPEG video (0x01) & 32ms Int16 PCM audio (0x02)
+      if (isBinary) {
+        const targetSosId = ws.sosId && ws.sosId !== 'all' ? String(ws.sosId) : null;
+        if (!targetSosId) return;
+        const binBuf = Buffer.isBuffer(rawMsg) ? rawMsg : Buffer.from(rawMsg);
+        if (binBuf.length <= 8) return;
+
+        const pktType = binBuf.readUInt8(0);
+        const seq = binBuf.readUInt32LE(1);
+        const audioLevel = binBuf.readUInt8(5);
+
+        if (pktType === 0x01) {
+          broadcastSosWsBinary(targetSosId, binBuf);
+          const flags = binBuf.readUInt8(6);
+          const hasRealAudio = (flags & 0x01) === 0x01;
+          const existing = liveMediaStreams.get(targetSosId) || {};
+          liveMediaStreams.set(targetSosId, {
+            sosId: targetSosId,
+            email: existing.email || 'Civilian',
+            lastFrame: existing.lastFrame || null,
+            lastFrameBuffer: Buffer.from(binBuf.subarray(8)),
+            lastFrameBufferSeq: seq,
+            lastFrameBase64Seq: existing.lastFrameBase64Seq || 0,
+            audioLevel: audioLevel || existing.audioLevel || 30,
+            hasRealAudio: Boolean(hasRealAudio || existing.hasRealAudio),
+            sampleRate: existing.sampleRate || 16000,
+            coords: existing.coords || null,
+            recentAudioChunks: existing.recentAudioChunks || [],
+            seq,
+            updatedAt: Date.now()
+          });
+        } else if (pktType === 0x02) {
+          broadcastSosWsBinary(targetSosId, binBuf);
+          const sampleRate = binBuf.readUInt16LE(6) || 16000;
+          const existing = liveMediaStreams.get(targetSosId) || { sosId: targetSosId };
+          existing.audioLevel = audioLevel || existing.audioLevel || 35;
+          existing.hasRealAudio = true;
+          existing.sampleRate = sampleRate;
+          existing.updatedAt = Date.now();
+          // Cache recent PCM snapshot only every 4th chunk (or when empty) to keep 31Hz relay zero-alloc
+          if (!existing.recentAudioChunks || existing.recentAudioChunks.length === 0 || seq % 4 === 1) {
+            pushAudioChunkToStream(existing, binBuf.subarray(8).toString('base64'), sampleRate, seq);
+          }
+          liveMediaStreams.set(targetSosId, existing);
+        }
+        return;
+      }
+
       const msg = JSON.parse(rawMsg.toString());
       if (!msg || !msg.type) return;
 
@@ -2720,12 +2804,10 @@ wss.on('connection', (ws, req) => {
         if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
           const existing = liveMediaStreams.get(ws.sosId);
           if (existing) {
-            const now = Date.now();
             try {
               ws.send(JSON.stringify({
                 type: 'SOS_FRAME_UPDATE',
-                ...existing,
-                recentAudioChunks: (existing.recentAudioChunks || []).filter(c => now - c.ts < 2500)
+                ...buildStreamSnapshot(existing)
               }));
             } catch (e) {}
           }

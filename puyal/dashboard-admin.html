@@ -1298,6 +1298,15 @@
     let adminStreamPacketCount = 0;
     let adminFrameTimestamps = [];
     let adminWaveHistory = new Array(28).fill(8);
+    let activeFrameObjectUrl = null;
+    let lastAdminVizTs = 0;
+    let lastAdminBadgeTs = 0;
+
+    function revokeActiveFrameUrl(urlToRevoke) {
+      if (urlToRevoke && typeof urlToRevoke === 'string' && urlToRevoke.startsWith('blob:')) {
+        try { URL.revokeObjectURL(urlToRevoke); } catch (e) {}
+      }
+    }
 
     function applyIncomingSosCoords(sosId, coords) {
       if (!coords || coords.latitude === undefined || coords.longitude === undefined) return;
@@ -1371,7 +1380,11 @@
       if (!adminAudioCtx || adminAudioCtx.state !== 'running' || pendingAdminPcmQueue.length === 0) return;
       const queued = pendingAdminPcmQueue.splice(0, pendingAdminPcmQueue.length);
       queued.forEach(item => {
-        playDecodedPcmChunk(item.base64Pcm, item.sampleRate);
+        if (item.int16) {
+          playDecodedInt16Samples(item.int16, item.sampleRate);
+        } else if (item.base64Pcm) {
+          playDecodedPcmChunk(item.base64Pcm, item.sampleRate);
+        }
       });
     }
 
@@ -1427,18 +1440,19 @@
       showToast(adminAudioMonitorActive ? 'Live civilian microphone audio enabled.' : 'Live audio monitor muted.', adminAudioMonitorActive ? 'success' : 'info');
     }
 
-    function playDecodedPcmChunk(base64Pcm, sampleRate = 16000) {
-      if (!base64Pcm || !adminAudioCtx || !adminCompressorNode || adminAudioCtx.state !== 'running') return;
-      try {
-        const binary = atob(base64Pcm);
-        const len = binary.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const int16 = new Int16Array(bytes.buffer);
-        if (int16.length === 0) return;
+    function base64ToInt16(base64Pcm) {
+      const binary = atob(base64Pcm);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Int16Array(bytes.buffer);
+    }
 
+    function playDecodedInt16Samples(int16, sampleRate = 16000) {
+      if (!int16 || int16.length === 0 || !adminAudioCtx || !adminCompressorNode || adminAudioCtx.state !== 'running') return;
+      try {
         const audioBuf = adminAudioCtx.createBuffer(1, int16.length, sampleRate);
         const channelData = audioBuf.getChannelData(0);
         for (let i = 0; i < int16.length; i++) {
@@ -1446,9 +1460,9 @@
         }
 
         const now = adminAudioCtx.currentTime;
-        // Maintain ultra-tight 25ms-220ms jitter buffer for instant voice monitor
-        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.22) {
-          adminNextAudioTime = now + 0.025;
+        // Maintain ultra-tight 8ms-85ms jitter buffer for near-instant real-time voice monitor
+        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.085) {
+          adminNextAudioTime = now + 0.008;
         }
 
         const source = adminAudioCtx.createBufferSource();
@@ -1457,12 +1471,22 @@
         source.start(adminNextAudioTime);
         adminNextAudioTime += audioBuf.duration;
       } catch (e) {
+        console.warn('PCM audio playback warning:', e);
+      }
+    }
+
+    function playDecodedPcmChunk(base64Pcm, sampleRate = 16000) {
+      if (!base64Pcm) return;
+      try {
+        const int16 = base64ToInt16(base64Pcm);
+        playDecodedInt16Samples(int16, sampleRate);
+      } catch (e) {
         console.warn('PCM audio chunk decode warning:', e);
       }
     }
 
-    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
-      if (!base64Pcm || !activeStreamSosId) return;
+    function enqueueInt16AudioChunk(int16, sampleRate = 16000, seq = 0) {
+      if (!int16 || int16.length === 0 || !activeStreamSosId) return;
       if (lastAdminAudioSosId !== activeStreamSosId) {
         lastAdminAudioSosId = activeStreamSosId;
         lastAdminAudioSeq = 0;
@@ -1473,13 +1497,28 @@
       initAdminAudioPlayback();
       if (!adminAudioCtx || !adminCompressorNode) return;
       if (adminAudioCtx.state !== 'running') {
-        pendingAdminPcmQueue.push({ base64Pcm, sampleRate });
-        if (pendingAdminPcmQueue.length > 4) pendingAdminPcmQueue.shift();
+        pendingAdminPcmQueue.push({ int16: new Int16Array(int16), sampleRate });
+        if (pendingAdminPcmQueue.length > 6) pendingAdminPcmQueue.shift();
         updateAudioMonitorButtonUI();
         return;
       }
 
-      playDecodedPcmChunk(base64Pcm, sampleRate);
+      playDecodedInt16Samples(int16, sampleRate);
+    }
+
+    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
+      if (!base64Pcm || !activeStreamSosId) return;
+      try {
+        const int16 = base64ToInt16(base64Pcm);
+        enqueueInt16AudioChunk(int16, sampleRate, seq);
+      } catch (e) {}
+    }
+
+    function throttledUpdateAudioVisualizer(level, hasRealAudio) {
+      const now = Date.now();
+      if (now - lastAdminVizTs < 45) return;
+      lastAdminVizTs = now;
+      updateAudioVisualizer(level, hasRealAudio);
     }
 
     function updateAudioVisualizer(level, hasRealAudio) {
@@ -1535,6 +1574,7 @@
       try {
         const wsUrl = rapidSync.getSosWebSocketUrl('viewer', sosId);
         const ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
         adminStreamWs = ws;
 
         ws.onopen = () => {
@@ -1554,6 +1594,38 @@
 
         ws.onmessage = (evt) => {
           if (String(activeStreamSosId) !== String(sosId)) return;
+
+          // Zero-copy fast binary path: 0x01 JPEG Video Frame / 0x02 Int16 PCM Audio
+          if (evt.data instanceof ArrayBuffer) {
+            const buf = evt.data;
+            if (buf.byteLength <= 8) return;
+            const view = new DataView(buf);
+            const pktType = view.getUint8(0);
+            const seq = view.getUint32(1, true);
+            const audioLevel = view.getUint8(5);
+
+            if (pktType === 0x01) {
+              const flags = view.getUint8(6);
+              const hasRealAudio = (flags & 0x01) === 0x01;
+              const jpegBlob = new Blob([new Uint8Array(buf, 8)], { type: 'image/jpeg' });
+              const objUrl = URL.createObjectURL(jpegBlob);
+              updateActiveStreamUI({
+                sosId,
+                lastFrame: objUrl,
+                isBlobUrl: true,
+                audioLevel,
+                hasRealAudio,
+                seq
+              });
+            } else if (pktType === 0x02) {
+              const sampleRate = view.getUint16(6, true) || 16000;
+              const int16 = new Int16Array(buf, 8, Math.floor((buf.byteLength - 8) / 2));
+              enqueueInt16AudioChunk(int16, sampleRate, seq);
+              throttledUpdateAudioVisualizer(audioLevel, true);
+            }
+            return;
+          }
+
           try {
             const msg = JSON.parse(evt.data);
             if (msg.type === 'PONG' && msg.clientTs) {
@@ -1569,7 +1641,7 @@
                 enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000, msg.seq || 0);
               }
             } else if (msg.type === 'SOS_AUDIO_CHUNK') {
-              updateAudioVisualizer(msg.audioLevel, true);
+              throttledUpdateAudioVisualizer(msg.audioLevel, true);
               if (msg.audioPcmBase64) {
                 enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000, msg.seq || 0);
               }
@@ -1637,6 +1709,12 @@
       pendingAdminPcmQueue = [];
       adminAudioMonitorActive = true;
       adminWaveHistory = new Array(28).fill(8);
+      lastAdminVizTs = 0;
+      lastAdminBadgeTs = 0;
+      if (activeFrameObjectUrl) {
+        revokeActiveFrameUrl(activeFrameObjectUrl);
+        activeFrameObjectUrl = null;
+      }
 
       document.getElementById('live-stream-modal').classList.remove('hidden');
       document.getElementById('stream-user-email').textContent = email || 'Civilian Device';
@@ -1712,28 +1790,36 @@
     function updateActiveStreamUI(data) {
       const img = document.getElementById('admin-live-stream-img');
       const indicator = document.getElementById('stream-waiting-indicator');
+      const now = Date.now();
 
       if (data.lastFrame) {
+        const prevUrl = activeFrameObjectUrl;
+        activeFrameObjectUrl = data.isBlobUrl ? data.lastFrame : null;
         img.src = data.lastFrame;
         img.style.display = 'block';
         indicator.style.display = 'none';
+        if (prevUrl && prevUrl !== activeFrameObjectUrl) {
+          setTimeout(() => revokeActiveFrameUrl(prevUrl), 150);
+        }
 
-        const now = Date.now();
         adminFrameTimestamps.push(now);
         adminFrameTimestamps = adminFrameTimestamps.filter(t => now - t <= 1000);
         const currentFps = adminFrameTimestamps.length;
 
         adminStreamPacketCount++;
-        const pktBadge = document.getElementById('stream-packet-badge');
-        if (pktBadge) {
-          const rttStr = adminWsLatencyMs !== null ? ` · ${adminWsLatencyMs}ms` : '';
-          pktBadge.textContent = `${currentFps} FPS${rttStr} · Pkt #${data.seq || adminStreamPacketCount}`;
-          pktBadge.style.color = '#86efac';
-          pktBadge.style.borderColor = '#86efac';
+        if (!lastAdminBadgeTs || now - lastAdminBadgeTs >= 120) {
+          lastAdminBadgeTs = now;
+          const pktBadge = document.getElementById('stream-packet-badge');
+          if (pktBadge) {
+            const rttStr = adminWsLatencyMs !== null ? ` · ${adminWsLatencyMs}ms` : '';
+            pktBadge.textContent = `${currentFps} FPS${rttStr} · Pkt #${data.seq || adminStreamPacketCount}`;
+            pktBadge.style.color = '#86efac';
+            pktBadge.style.borderColor = '#86efac';
+          }
         }
       }
 
-      updateAudioVisualizer(data.audioLevel, Boolean(data.hasRealAudio));
+      throttledUpdateAudioVisualizer(data.audioLevel, Boolean(data.hasRealAudio));
 
       if (data.coords && data.coords.latitude && data.coords.longitude) {
         applyIncomingSosCoords(data.sosId || activeStreamSosId, data.coords);
@@ -1746,8 +1832,15 @@
       adminFrameTimestamps = [];
       adminWsLatencyMs = null;
       lastAdminAudioSeq = 0;
+      lastAdminVizTs = 0;
+      lastAdminBadgeTs = 0;
       clearTimeout(adminWsReconnectTimer);
       clearInterval(adminWsPingInterval);
+
+      if (activeFrameObjectUrl) {
+        revokeActiveFrameUrl(activeFrameObjectUrl);
+        activeFrameObjectUrl = null;
+      }
 
       if (adminStreamWs) {
         try { adminStreamWs.close(); } catch (e) {}

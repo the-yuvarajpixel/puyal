@@ -6,7 +6,7 @@
       "password": "RapidResponse@1",
       "role": "admin",
       "displayName": "Command Admin",
-      "createdAt": "2026-11-14T06:04:37.436Z"
+      "createdAt": "2026-11-14T06:23:57.290Z"
     },
     {
       "uid": "demo_user_1",
@@ -17,8 +17,74 @@
       "createdAt": "2026-11-10T07:16:31.240Z"
     }
   ],
-  "incidents": [],
-  "sos_alerts": [],
+  "incidents": [
+    {
+      "id": 1794637452168,
+      "title": "🚨 LIVE SOS ALERT — fast.stream@test.local",
+      "category": "SOS Emergency",
+      "severity": "Critical",
+      "severityScore": 98,
+      "latitude": 13.0604,
+      "longitude": 80.2496,
+      "coords": {
+        "lat": 13.0604,
+        "lon": 80.2496
+      },
+      "location": "13.06040, 80.24960 (GPS ±5m)",
+      "affected": 1,
+      "description": "SOS triggered by fast.stream@test.local. Live camera and audio feed initiated. Dispatched to command center.",
+      "contact": "fast.stream@test.local",
+      "status": "Reported",
+      "timestamp": "11/14/2026, 6:24:12 AM",
+      "reportedBy": "fast.stream@test.local",
+      "reportedRole": "civilian",
+      "source": "sos",
+      "createdAt": "2026-11-14T06:24:12.168Z"
+    },
+    {
+      "id": 1794637211211,
+      "title": "🚨 LIVE SOS ALERT — civilian.demo@rapidresponse.org",
+      "category": "SOS Emergency",
+      "severity": "Critical",
+      "severityScore": 98,
+      "latitude": 13.0604,
+      "longitude": 80.2496,
+      "coords": {
+        "lat": 13.0604,
+        "lon": 80.2496
+      },
+      "location": "13.06040, 80.24960 (GPS ±12m)",
+      "affected": 1,
+      "description": "SOS triggered by civilian.demo@rapidresponse.org. Live camera and audio feed initiated. Dispatched to command center.",
+      "contact": "civilian.demo@rapidresponse.org",
+      "status": "Reported",
+      "timestamp": "11/14/2026, 6:20:11 AM",
+      "reportedBy": "civilian.demo@rapidresponse.org",
+      "reportedRole": "civilian",
+      "source": "sos",
+      "createdAt": "2026-11-14T06:20:11.212Z"
+    }
+  ],
+  "sos_alerts": [
+    {
+      "id": "sos_1794637211188",
+      "userId": "demo_user_1",
+      "email": "civilian.demo@rapidresponse.org",
+      "reportedRole": "civilian",
+      "latitude": 13.0604,
+      "longitude": 80.2496,
+      "accuracy": 12,
+      "active": false,
+      "media": {
+        "hasVideo": true,
+        "hasAudio": true
+      },
+      "timestamp": "2026-11-14T06:20:11.188Z",
+      "displayTime": "6:20:11 AM",
+      "locationUpdatedAt": "2026-11-14T06:20:13.666Z",
+      "resolvedAt": "2026-11-14T06:20:13.670Z"
+    }
+  ],
   "emailTokens": [
     {
       "token": "link_1794295014734_zcysbhj",

@@ -457,6 +457,7 @@
     let currentFpsActual = 0;
     let broadcasterFrameTimestamps = [];
     let httpFrameInFlight = false;
+    let blobEncodeInFlight = false;
     let sosFacingMode = 'environment';
     let sosCaptureCanvas = null;
     let sosCaptureCtx = null;
@@ -1293,7 +1294,7 @@
       const wsOpen = sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN;
       const rtt = sosWsLatencyMs !== null ? ` · ${sosWsLatencyMs}ms` : '';
       const viewerStr = sosCommandViewers > 0 ? ` · 👁️ HQ Watching (${sosCommandViewers})` : '';
-      const fpsStr = currentFpsActual > 0 ? `${currentFpsActual} FPS` : '20 FPS';
+      const fpsStr = currentFpsActual > 0 ? `${currentFpsActual} FPS` : '30 FPS';
       if (wsOpen) {
         statusEl.textContent = hasPhysicalAudio
           ? `● WS ${fpsStr} + Mic${rtt}${viewerStr}`
@@ -1313,6 +1314,19 @@
         binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
       }
       return btoa(binary);
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve) => {
+        try {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result || null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        } catch (e) {
+          resolve(null);
+        }
+      });
     }
 
     function downsampleTo16kInt16(float32Input, inputSampleRate) {
@@ -1348,6 +1362,7 @@
       try {
         const wsUrl = rapidSync.getSosWebSocketUrl('broadcaster', currentSosAlertId);
         const ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
         sosBroadcasterWs = ws;
 
         ws.onopen = () => {
@@ -1456,15 +1471,20 @@
         highpassFilter.connect(vocalCompressor);
         vocalCompressor.connect(audioAnalyser);
 
-        // Low-latency 64ms 16kHz PCM ring buffer (1024 Int16 samples per packet)
-        const bufferSize = 2048;
+        // Ultra-low-latency 32ms 16kHz PCM ring buffer (512 Int16 samples = 1024 bytes per binary packet)
+        const bufferSize = 512;
         audioProcessorNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
         audioMuteGain = audioContext.createGain();
         audioMuteGain.gain.value = 0;
 
-        const TARGET_CHUNK_SAMPLES = 1024; // 64ms @ 16kHz
+        const TARGET_CHUNK_SAMPLES = 512; // 32ms @ 16kHz
         const ringBuf = new Int16Array(TARGET_CHUNK_SAMPLES * 4);
         let ringWrite = 0;
+
+        // Reusable pre-allocated binary WS audio packet: [0x02, seq(4LE), level(1), sampleRate(2LE), Int16 PCM...]
+        const audioPktBuf = new Uint8Array(8 + TARGET_CHUNK_SAMPLES * 2);
+        const audioPktView = new DataView(audioPktBuf.buffer);
+        const audioPktInt16View = new Int16Array(audioPktBuf.buffer, 8, TARGET_CHUNK_SAMPLES);
 
         audioProcessorNode.onaudioprocess = (event) => {
           if (!sosActiveFlag || userMicMuted) return;
@@ -1480,30 +1500,25 @@
           for (let i = 0; i < int16.length; i++) {
             ringBuf[ringWrite++] = int16[i];
             if (ringWrite >= TARGET_CHUNK_SAMPLES) {
-              const chunkArr = ringBuf.slice(0, TARGET_CHUNK_SAMPLES);
+              audioPktInt16View.set(ringBuf.subarray(0, TARGET_CHUNK_SAMPLES));
               const remaining = ringWrite - TARGET_CHUNK_SAMPLES;
               if (remaining > 0) {
                 ringBuf.copyWithin(0, TARGET_CHUNK_SAMPLES, ringWrite);
               }
               ringWrite = remaining;
-
-              const audioPcmBase64 = int16ToBase64(chunkArr);
               audioSeq++;
 
               if (currentSosAlertId) {
                 if (sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN) {
-                  if (sosBroadcasterWs.bufferedAmount < 256 * 1024) {
-                    sosBroadcasterWs.send(JSON.stringify({
-                      type: 'AUDIO_CHUNK',
-                      sosId: currentSosAlertId,
-                      audioPcmBase64,
-                      sampleRate: 16000,
-                      audioLevel: liveAudioLevel,
-                      seq: audioSeq,
-                      ts: Date.now()
-                    }));
+                  if (sosBroadcasterWs.bufferedAmount < 192 * 1024) {
+                    audioPktBuf[0] = 0x02;
+                    audioPktView.setUint32(1, audioSeq, true);
+                    audioPktBuf[5] = Math.min(100, Math.max(0, Math.round(liveAudioLevel)));
+                    audioPktView.setUint16(6, 16000, true);
+                    sosBroadcasterWs.send(audioPktBuf.buffer);
                   }
                 } else {
+                  const audioPcmBase64 = int16ToBase64(audioPktInt16View);
                   rapidSync.streamSOSAudio(currentSosAlertId, audioPcmBase64, 16000, liveAudioLevel, audioSeq);
                 }
               }
@@ -1517,9 +1532,9 @@
 
         hasPhysicalAudio = true;
         const audioModeLabel = document.getElementById('sos-audio-mode-label');
-        if (audioModeLabel) audioModeLabel.textContent = '🎙️ LIVE 16kHz PCM · 64ms LOW-LATENCY';
+        if (audioModeLabel) audioModeLabel.textContent = '🎙️ LIVE 16kHz PCM · 32ms ULTRA-FAST';
         const freqLabel = document.getElementById('sos-audio-freq-label');
-        if (freqLabel) freqLabel.textContent = '16kHz PCM · High-Pass + Limiter Active';
+        if (freqLabel) freqLabel.textContent = '16kHz PCM · 32ms Binary Stream';
 
         visualizeAudio();
       } catch (e) {
@@ -1598,9 +1613,22 @@
       document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
       document.getElementById('sos-location').textContent = `● Live GPS ±${fallbackCoords.accuracy || 10}m`;
 
-      // 1. Dispatch SOS IMMEDIATELY + start continuous watchPosition GPS tracking + WebSocket
+      // 1. Acquire Camera/Mic IN PARALLEL with SOS dispatch for fastest possible stream startup
+      const hasMediaDevices = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      const camPromise = hasMediaDevices
+        ? navigator.mediaDevices.getUserMedia({
+            video: { facingMode: sosFacingMode, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30, max: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          }).catch(err => ({ __camErr: err }))
+        : Promise.resolve({ __camErr: new Error('MediaDevices unavailable') });
+
       await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
-      if (!sosActiveFlag) return;
+      if (!sosActiveFlag) {
+        camPromise.then(res => {
+          if (res && !res.__camErr && res.getTracks) res.getTracks().forEach(t => t.stop());
+        });
+        return;
+      }
       connectSosBroadcasterWs();
       geoWatchStartedBySos = liveGeoWatchId === null;
       startLiveGeoWatch();
@@ -1625,55 +1653,52 @@
         );
       }
 
-      // 2. Capture Physical Camera + Microphone (with audio-only fallback before full simulation)
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      // 2. Bind Physical Camera + Microphone once parallel getUserMedia finishes (or fallback)
+      const mediaResult = await camPromise;
+      if (!sosActiveFlag) {
+        if (mediaResult && !mediaResult.__camErr && mediaResult.getTracks) {
+          mediaResult.getTracks().forEach(t => t.stop());
+        }
+        return;
+      }
+
+      if (mediaResult && !mediaResult.__camErr) {
+        sosStream = mediaResult;
+        hasPhysicalVideo = mediaResult.getVideoTracks().length > 0;
+        const video = document.getElementById('sos-video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = mediaResult;
+        video.style.display = 'block';
+        video.play().catch(() => {});
+        document.getElementById('sos-canvas').style.display = 'none';
+        document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera (30 FPS)';
+
+        if (mediaResult.getAudioTracks().length > 0) {
+          setupAudioStreamer(mediaResult);
+        }
+
+        isSimulatedFeed = false;
+        startLiveFrameRelay();
+      } else if (hasMediaDevices) {
+        console.warn('Camera+Mic unavailable, trying Microphone-only stream:', mediaResult?.__camErr?.message);
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: sosFacingMode, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } },
+          const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
           if (!sosActiveFlag) {
-            stream.getTracks().forEach(t => t.stop());
+            audioOnlyStream.getTracks().forEach(t => t.stop());
             return;
           }
-          sosStream = stream;
-          hasPhysicalVideo = stream.getVideoTracks().length > 0;
-          const video = document.getElementById('sos-video');
-          video.muted = true;
-          video.playsInline = true;
-          video.srcObject = stream;
-          video.style.display = 'block';
-          video.play().catch(() => {});
-          document.getElementById('sos-canvas').style.display = 'none';
-          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera (20 FPS)';
-
-          if (stream.getAudioTracks().length > 0) {
-            setupAudioStreamer(stream);
-          }
-
-          isSimulatedFeed = false;
-          startLiveFrameRelay();
-        } catch (err) {
+          sosStream = audioOnlyStream;
+          hasPhysicalVideo = false;
+          setupAudioStreamer(audioOnlyStream);
+          activateSimulatedEmergencyFeed(true);
+          showToast('🎙️ Live microphone audio connected! Using tactical video canvas.', 'info');
+        } catch (audioErr) {
           if (!sosActiveFlag) return;
-          console.warn('Camera+Mic unavailable, trying Microphone-only stream:', err.message);
-          try {
-            const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-            });
-            if (!sosActiveFlag) {
-              audioOnlyStream.getTracks().forEach(t => t.stop());
-              return;
-            }
-            sosStream = audioOnlyStream;
-            hasPhysicalVideo = false;
-            setupAudioStreamer(audioOnlyStream);
-            activateSimulatedEmergencyFeed(true);
-            showToast('🎙️ Live microphone audio connected! Using tactical video canvas.', 'info');
-          } catch (audioErr) {
-            if (!sosActiveFlag) return;
-            console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', audioErr);
-            activateSimulatedEmergencyFeed(false);
-          }
+          console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', audioErr);
+          activateSimulatedEmergencyFeed(false);
         }
       } else {
         activateSimulatedEmergencyFeed(false);
@@ -1693,7 +1718,7 @@
       const nextFacing = sosFacingMode === 'environment' ? 'user' : 'environment';
       try {
         const newCamStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: nextFacing }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } },
+          video: { facingMode: { ideal: nextFacing }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30, max: 30 } },
           audio: false
         });
         const newVideoTrack = newCamStream.getVideoTracks()[0];
@@ -1719,7 +1744,7 @@
         video.style.display = 'block';
         video.play().catch(() => {});
         document.getElementById('sos-canvas').style.display = 'none';
-        document.getElementById('sos-camera-label').textContent = `📹 Live Camera (${nextFacing === 'user' ? 'Front' : 'Rear'} · 20 FPS)`;
+        document.getElementById('sos-camera-label').textContent = `📹 Live Camera (${nextFacing === 'user' ? 'Front' : 'Rear'} · 30 FPS)`;
         showToast(`Switched to ${nextFacing === 'user' ? 'front' : 'rear'} camera.`, 'success');
       } catch (err) {
         showToast('Alternate camera unavailable on this device.', 'warning');
@@ -1735,14 +1760,14 @@
 
       video.style.display = 'none';
       canvas.style.display = 'block';
-      if (label) label.textContent = '📹 Simulated Tactical Camera (15 FPS)';
+      if (label) label.textContent = '📹 Simulated Tactical Camera (30 FPS)';
       if (audioModeLabel && !keepLiveMic && !hasPhysicalAudio) {
         audioModeLabel.textContent = 'TELEMETRY AUDIO SIGNAL';
       }
 
       startLiveFrameRelay();
       if (!keepLiveMic) {
-        showToast('⚡ Camera hardware unavailable: Simulated emergency tactical feed active at 15 FPS.', 'warning');
+        showToast('⚡ Camera hardware unavailable: Simulated emergency tactical feed active at 30 FPS.', 'warning');
       }
     }
 
@@ -1752,7 +1777,7 @@
           isSimulatedFeed = false;
           document.getElementById('sos-video').style.display = 'block';
           document.getElementById('sos-canvas').style.display = 'none';
-          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed (15 FPS)';
+          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed (30 FPS)';
           showToast('Switched to physical camera feed.', 'success');
         } else {
           showToast('Physical camera not available on this device. Retaining simulated tactical feed.', 'warning');
@@ -1766,8 +1791,8 @@
       const canvas = document.getElementById('sos-canvas');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      const w = canvas.width || 480;
-      const h = canvas.height || 360;
+      const w = canvas.width || 400;
+      const h = canvas.height || 300;
 
       // Dark tactical slate background with night-vision grid
       ctx.fillStyle = '#090d16';
@@ -1818,7 +1843,7 @@
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 12px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(bannerText || '🔴 LIVE CIVILIAN SOS — 20 FPS REAL-TIME FEED', 18, 27);
+      ctx.fillText(bannerText || '🔴 LIVE CIVILIAN SOS — 30 FPS REAL-TIME FEED', 18, 27);
 
       // Telemetry HUD overlay
       ctx.fillStyle = '#4ade80';
@@ -1829,7 +1854,7 @@
       const lat = currentCoords ? currentCoords.latitude.toFixed(4) : '13.0604';
       const lon = currentCoords ? currentCoords.longitude.toFixed(4) : '80.2496';
       ctx.fillText(`GPS: ${lat}, ${lon} (±${currentCoords?.accuracy || 8}m)`, 14, h - 30);
-      ctx.fillText(`SEQ: #${simulatedPacketSeq} · ${w}x${h} @ 20 FPS · AUDIO: ${hasPhysicalAudio ? 'LIVE MIC' : 'TELEMETRY'}`, 14, h - 14);
+      ctx.fillText(`SEQ: #${simulatedPacketSeq} · ${w}x${h} @ 30 FPS · AUDIO: ${hasPhysicalAudio ? 'LIVE MIC' : 'TELEMETRY'}`, 14, h - 14);
 
       // Equalizer bars
       ctx.fillStyle = hasPhysicalAudio ? '#22c55e' : '#ef4444';
@@ -1842,39 +1867,40 @@
 
     function startLiveFrameRelay() {
       if (streamInterval) clearInterval(streamInterval);
+      blobEncodeInFlight = false;
       const canvas = document.getElementById('sos-canvas');
       const video = document.getElementById('sos-video');
 
       if (!sosCaptureCanvas) {
         sosCaptureCanvas = document.createElement('canvas');
-        sosCaptureCanvas.width = 480;
-        sosCaptureCanvas.height = 360;
-        sosCaptureCtx = sosCaptureCanvas.getContext('2d');
+        sosCaptureCanvas.width = 400;
+        sosCaptureCanvas.height = 300;
+        sosCaptureCtx = sosCaptureCanvas.getContext('2d', { alpha: false, desynchronized: true });
       }
 
-      // 50ms interval => smooth 20 FPS adaptive WebSocket video streaming
+      // 33ms interval => fast 30 FPS off-thread JPEG blob binary WebSocket video streaming
       streamInterval = setInterval(() => {
-        if (!sosActiveFlag || !currentSosAlertId) return;
+        if (!sosActiveFlag || !currentSosAlertId || blobEncodeInFlight) return;
 
         try {
           const wsOpen = sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN;
           const buffered = wsOpen ? sosBroadcasterWs.bufferedAmount : 0;
 
-          // Skip JPEG encoding completely if WebSocket send buffer is saturated (> 256KB)
-          if (wsOpen && buffered >= 262144) return;
+          // Skip JPEG encoding completely if WebSocket send buffer is saturated (> 192KB)
+          if (wsOpen && buffered >= 196608) return;
 
           // Adaptive JPEG quality based on socket buffer pressure
-          const jpegQuality = buffered > 163840 ? 0.38 : buffered > 65536 ? 0.48 : 0.62;
+          const jpegQuality = buffered > 98304 ? 0.38 : buffered > 32768 ? 0.50 : 0.62;
 
-          let frameBase64 = null;
+          let targetCanvas = null;
           let vol = liveAudioLevel || 25;
 
           if (isSimulatedFeed || !sosStream || !hasPhysicalVideo) {
-            canvas.width = 480;
-            canvas.height = 360;
+            canvas.width = 400;
+            canvas.height = 300;
             drawProceduralEmergencyFrame();
             simulatedPacketSeq++;
-            frameBase64 = canvas.toDataURL('image/jpeg', jpegQuality);
+            targetCanvas = canvas;
 
             if (!hasPhysicalAudio) {
               vol = userMicMuted ? 0 : Math.round(30 + Math.sin(Date.now() / 200) * 26 + Math.random() * 10);
@@ -1885,62 +1911,77 @@
               drawSimulatedUserWaveform(vol);
             }
           } else if (video && video.videoWidth > 0 && video.videoHeight > 0 && sosCaptureCtx) {
-            sosCaptureCtx.drawImage(video, 0, 0, 480, 360);
-            frameBase64 = sosCaptureCanvas.toDataURL('image/jpeg', jpegQuality);
+            sosCaptureCtx.drawImage(video, 0, 0, sosCaptureCanvas.width, sosCaptureCanvas.height);
+            targetCanvas = sosCaptureCanvas;
           } else {
             // Camera hardware still initializing its first decoded frame: stream HUD frame instead of dropping
-            canvas.width = 480;
-            canvas.height = 360;
+            canvas.width = 400;
+            canvas.height = 300;
             drawProceduralEmergencyFrame('🔴 LIVE SOS — INITIALIZING CAMERA FEED...');
             simulatedPacketSeq++;
-            frameBase64 = canvas.toDataURL('image/jpeg', jpegQuality);
+            targetCanvas = canvas;
           }
 
-          if (frameBase64) {
-            videoSeq++;
-            const now = Date.now();
-            broadcasterFrameTimestamps.push(now);
-            broadcasterFrameTimestamps = broadcasterFrameTimestamps.filter(t => now - t <= 1000);
-            currentFpsActual = broadcasterFrameTimestamps.length;
-            if (videoSeq % 10 === 1) updateBroadcasterStatusBadge();
+          if (!targetCanvas) return;
 
-            const userEmail = currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org';
+          const snapVol = Math.min(100, Math.max(0, Math.round(vol)));
+          const snapHasRealAudio = hasPhysicalAudio && !userMicMuted;
+          const snapSosId = currentSosAlertId;
 
-            if (wsOpen) {
-              sosBroadcasterWs.send(JSON.stringify({
-                type: 'VIDEO_FRAME',
-                sosId: currentSosAlertId,
-                frameBase64,
-                audioLevel: vol,
-                hasRealAudio: hasPhysicalAudio && !userMicMuted,
-                coords: currentCoords,
-                email: userEmail,
-                seq: videoSeq,
-                ts: now
-              }));
-              // Periodic HTTP snapshot every ~20 frames (~1s) for late-joining viewers / live-feed REST snapshot
-              if (videoSeq % 20 === 1 && !httpFrameInFlight) {
+          blobEncodeInFlight = true;
+          targetCanvas.toBlob(async (blob) => {
+            try {
+              if (!blob || !sosActiveFlag || !currentSosAlertId || currentSosAlertId !== snapSosId) return;
+
+              videoSeq++;
+              const now = Date.now();
+              broadcasterFrameTimestamps.push(now);
+              broadcasterFrameTimestamps = broadcasterFrameTimestamps.filter(t => now - t <= 1000);
+              currentFpsActual = broadcasterFrameTimestamps.length;
+              if (videoSeq % 15 === 1) updateBroadcasterStatusBadge();
+
+              const isWsReady = sosBroadcasterWs &&
+                sosBroadcasterWs.readyState === WebSocket.OPEN &&
+                sosBroadcasterWs.bufferedAmount < 196608;
+
+              if (isWsReady) {
+                const jpgAb = await blob.arrayBuffer();
+                if (!sosActiveFlag || !sosBroadcasterWs || sosBroadcasterWs.readyState !== WebSocket.OPEN) return;
+                const pkt = new Uint8Array(8 + jpgAb.byteLength);
+                const view = new DataView(pkt.buffer);
+                pkt[0] = 0x01;
+                view.setUint32(1, videoSeq, true);
+                pkt[5] = snapVol;
+                pkt[6] = snapHasRealAudio ? 0x01 : 0x00;
+                pkt[7] = 0x00;
+                pkt.set(new Uint8Array(jpgAb), 8);
+                sosBroadcasterWs.send(pkt.buffer);
+              } else if ((videoSeq === 1 || videoSeq % 5 === 1) && !httpFrameInFlight) {
                 httpFrameInFlight = true;
-                rapidSync.streamSOSFrame(currentSosAlertId, frameBase64, vol, currentCoords, userEmail, {
-                  hasRealAudio: hasPhysicalAudio && !userMicMuted,
-                  seq: videoSeq
-                }).finally(() => { httpFrameInFlight = false; });
+                try {
+                  const frameBase64 = await blobToDataUrl(blob);
+                  if (frameBase64 && sosActiveFlag && currentSosAlertId === snapSosId) {
+                    const userEmail = currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org';
+                    await rapidSync.streamSOSFrame(snapSosId, frameBase64, snapVol, currentCoords, userEmail, {
+                      hasRealAudio: snapHasRealAudio,
+                      seq: videoSeq
+                    });
+                  }
+                } finally {
+                  httpFrameInFlight = false;
+                }
               }
-            } else {
-              // HTTP fallback if WS disconnected (prevent overlapping requests on slow links)
-              if (videoSeq % 4 === 1 && !httpFrameInFlight) {
-                httpFrameInFlight = true;
-                rapidSync.streamSOSFrame(currentSosAlertId, frameBase64, vol, currentCoords, userEmail, {
-                  hasRealAudio: hasPhysicalAudio && !userMicMuted,
-                  seq: videoSeq
-                }).finally(() => { httpFrameInFlight = false; });
-              }
+            } catch (err) {
+              console.warn('Binary video encode step:', err);
+            } finally {
+              blobEncodeInFlight = false;
             }
-          }
+          }, 'image/jpeg', jpegQuality);
         } catch (e) {
+          blobEncodeInFlight = false;
           console.warn('Frame relay step:', e);
         }
-      }, 50);
+      }, 33);
     }
 
     async function dispatchSOS(lat, lon, accuracy) {
@@ -1986,7 +2027,7 @@
       if (bar) bar.style.width = level + '%';
       const freqLabel = document.getElementById('sos-audio-freq-label');
       if (freqLabel) {
-        freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `16kHz PCM · 64ms · Level ${level}%`;
+        freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `16kHz PCM · 32ms · Level ${level}%`;
       }
 
       // Draw live time-domain waveform inside civilian SOS audio card
@@ -2045,6 +2086,7 @@
       hasPhysicalVideo = false;
       hasPhysicalAudio = false;
       httpFrameInFlight = false;
+      blobEncodeInFlight = false;
       sosCommandViewers = 0;
       sosWsLatencyMs = null;
       clearTimeout(sosWsReconnectTimer);
