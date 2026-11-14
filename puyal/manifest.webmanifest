@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "RapidResponse Command",
-  "short_name": "RapidResp",
-  "description": "Emergency response and disaster management platform with offline SOS, voice reporting, and dispatch tracking.",
+  "name": "PUYAL",
+  "short_name": "PUYAL",
+  "description": "PUYAL — Emergency response and disaster management platform with offline SOS, voice reporting, and dispatch tracking.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

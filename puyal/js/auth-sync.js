@@ -1,6 +1,6 @@
 // ============================================================================
-// RapidResponse Command — Unified Auth & Cross-Device Sync Client
-// Integrates Firebase Auth (Password + Passwordless Email Link) + Server Fallback
+// PUYAL Command — Unified Auth & Cross-Device Sync Client
+// Integrates Firebase Auth (Password + Passwordless Email Link) + Offline Fallback
 // ============================================================================
 
 // Safely attach to window without top-level var redeclaration conflicts
@@ -216,18 +216,37 @@ async function universalLogin(email, password, role) {
     }
   }
 
-  // 2. Synchronize with Server Auth (ensures cross-device matching)
+  // 2. Synchronize with Server Auth (with offline civilian session fallback when no internet)
   if (!user) {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, role })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Authentication failed');
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (!isOffline) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, role })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const clientErr = new Error(data.error || 'Authentication failed');
+          clientErr._httpClientError = res.status < 500;
+          throw clientErr;
+        }
+        user = data.user;
+      } catch (err) {
+        if (err && err._httpClientError) throw err;
+        // Network unreachable offline: create local civilian session below
+      }
     }
-    user = data.user;
+    if (!user) {
+      user = {
+        uid: 'offline_civ_' + (email || 'guest').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20),
+        email: email || 'civilian.offline@rapidresponse.org',
+        role: 'user',
+        displayName: (email || 'Civilian').split('@')[0],
+        offlineSession: true
+      };
+    }
   }
 
   // Persist session locally
@@ -268,19 +287,36 @@ async function universalRegister(email, password, role, displayName) {
     }
   }
 
-  // 2. Sync with Server Auth
-  const res = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role, displayName })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Registration failed');
+  // 2. Sync with Server Auth (with offline civilian creation fallback)
+  if (typeof navigator === 'undefined' || navigator.onLine) {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role, displayName })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const clientErr = new Error(data.error || 'Registration failed');
+        clientErr._httpClientError = res.status < 500;
+        throw clientErr;
+      }
+      if (!user) {
+        user = data.user;
+      }
+    } catch (err) {
+      if (err && err._httpClientError) throw err;
+    }
   }
 
   if (!user) {
-    user = data.user;
+    user = {
+      uid: 'offline_civ_' + Date.now(),
+      email: email || 'civilian.offline@rapidresponse.org',
+      role: 'user',
+      displayName: displayName || (email ? email.split('@')[0] : 'Civilian'),
+      offlineSession: true
+    };
   }
 
   localStorage.setItem('currentUser', JSON.stringify(user));
@@ -940,8 +976,15 @@ class RapidSync {
   }
 
   async fetchSOSLiveFeed(sosId) {
-    const res = await fetch(`/api/sos/${sosId}/live-feed`);
-    return await res.json();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return { success: false, offline: true };
+    }
+    try {
+      const res = await fetch(`/api/sos/${sosId}/live-feed`);
+      return await res.json();
+    } catch (e) {
+      return { success: false, offline: true };
+    }
   }
 
   async updateSOSLocation(sosId, coords) {

@@ -615,7 +615,7 @@ app.post('/api/ai/process-voice', async (req, res) => {
   // 1. Try Gemini 3.8 Flash model
   if (ai && process.env.GEMINI_API_KEY) {
     try {
-      const systemPrompt = `You are an Emergency Response & Disaster Management AI powering RapidResponse Command and Bhashini AI.
+      const systemPrompt = `You are an Emergency Response & Disaster Management AI powering PUYAL Command and Bhashini AI.
 The user speaks or reports in: ${langName}.
 Analyze the emergency report:
 1. Translate to clear English if needed.
@@ -755,7 +755,7 @@ app.post('/api/bhashini/translate', async (req, res) => {
   if (ai && process.env.GEMINI_API_KEY) {
     try {
       const itemsToTranslate = texts || { single: text };
-      const prompt = `You are the Bhashini Multilingual AI translation engine powering India's National Emergency Response Platform (RapidResponse Command).
+      const prompt = `You are the Bhashini Multilingual AI translation engine powering India's National Emergency Response Platform (PUYAL Command).
 Translate the following emergency platform UI phrases from English to ${targetLangName} (${targetLangObj.native}).
 Ensure terminology is natural, authoritative, clear, and urgent.
 Input JSON:
@@ -782,7 +782,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
   // 2. High-speed Bhashini NMT vocabulary fallback
   const roleDicts = {
     ta: {
-      "role.brand": "ரேபிட்ரெஸ்பான்ஸ் கமாண்ட்",
+      "role.brand": "புயல் (PUYAL)",
       "role.subtitle": "அவசரகால மீட்பு மற்றும் பேரிடர் மேலாண்மை தளம்",
       "role.user_title": "அவசரநிலையைப் புகாரளிக்கவும்",
       "role.user_desc": "குரல் அல்லது SOS மூலம் உடனடி உதவி பெற அவசரநிலையைப் புகாரளிக்கவும்",
@@ -794,7 +794,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 பாஷினி AI குரல் வழி கேட்கவும்"
     },
     hi: {
-      "role.brand": "रैपिडरेस्पॉन्स कमांड",
+      "role.brand": "PUYAL कमांड",
       "role.subtitle": "आपातकालीन प्रतिक्रिया एवं आपदा प्रबंधन मंच",
       "role.user_title": "आपातकाल की रिपोर्ट करें",
       "role.user_desc": "आवाज या एसओएस द्वारा तत्काल सहायता प्राप्त करने के लिए आपातकाल की रिपोर्ट करें",
@@ -806,7 +806,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 भाषिणी आवाज में सुनें"
     },
     te: {
-      "role.brand": "ర్యాపిడ్ రెస్పాన్స్ కమాండ్",
+      "role.brand": "PUYAL కమాండ్",
       "role.subtitle": "అత్యవసర స్పందన మరియు విపత్తు నిర్వహణ వేదిక",
       "role.user_title": "అత్యవసర పరిస్థితిని నివేదించండి",
       "role.user_desc": "తక్షణ సహాయం కోసం వాయిస్ లేదా SOS ద్వారా అత్యవసర పరిస్థితిని నివేదించండి",
@@ -818,7 +818,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 భాషిణి వాయిస్ వినండి"
     },
     ml: {
-      "role.brand": "റാപ്പിഡ് റെസ്പോൺസ് കമാൻഡ്",
+      "role.brand": "PUYAL കമാൻഡ്",
       "role.subtitle": "അടിയന്തര പ്രതികരണ ദുരന്ത നിവാരണ പ്ലാറ്റ്ഫോം",
       "role.user_title": "അടിയന്തര സാഹചര്യം അറിയിക്കുക",
       "role.user_desc": "ശബ്ദം അല്ലെങ്കിൽ SOS വഴി തൽക്ഷണ സഹായത്തിനായി അറിയിക്കുക",
@@ -830,7 +830,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ഭാഷിണി വോയ്‌സ് കേൾക്കുക"
     },
     kn: {
-      "role.brand": "ರ್‍ಯಾಪಿಡ್ ರೆಸ್ಪಾನ್ಸ್ ಕಮಾಂಡ್",
+      "role.brand": "PUYAL ಕಮಾಂಡ್",
       "role.subtitle": "ತುರ್ತು ಪ್ರತಿಕ್ರಿಯೆ ಮತ್ತು ವಿಪತ್ತು ನಿರ್ವಹಣಾ ವೇದಿಕೆ",
       "role.user_title": "ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ವರದಿ ಮಾಡಿ",
       "role.user_desc": "ತ್ವರಿತ ಸಹಾಯಕ್ಕಾಗಿ ಧ್ವನಿ ಅಥವಾ SOS ಮೂಲಕ ವರದಿ ಮಾಡಿ",
@@ -842,7 +842,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ಭಾಷಿಣಿ ಧ್ವನಿಯಲ್ಲಿ ಆಲಿಸಿ"
     },
     bn: {
-      "role.brand": "র‍্যাপিডরেসপন্স কমান্ড",
+      "role.brand": "PUYAL কমান্ড",
       "role.subtitle": "জরুরি প্রতিক্রিয়া এবং দুর্যোগ ব্যবস্থাপনা প্ল্যাটফর্ম",
       "role.user_title": "জরুরি অবস্থা রিপোর্ট করুন",
       "role.user_desc": "ভয়েস বা এসওএস এর মাধ্যমে তাৎক্ষণিক সাহায্যের জন্য রিপোর্ট করুন",
@@ -854,7 +854,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ভাষিণী কণ্ঠে শুনুন"
     },
     mr: {
-      "role.brand": "रॅपिड रिस्पॉन्स कमांड",
+      "role.brand": "PUYAL कमांड",
       "role.subtitle": "आपत्कालीन प्रतिसाद आणि आपत्ती व्यवस्थापन व्यासपीठ",
       "role.user_title": "आपत्कालीन परिस्थितीची नोंद करा",
       "role.user_desc": "तात्काळ मदतीसाठी आवाज किंवा SOS द्वारे आपत्कालीन परिस्थिती नोंदवा",
@@ -866,7 +866,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 भाषिणी आवाजात ऐका"
     },
     gu: {
-      "role.brand": "રેપિડ રિસ્પોન્સ કમાન્ડ",
+      "role.brand": "PUYAL કમાન્ડ",
       "role.subtitle": "ઇમરજન્સી રિસ્પોન્સ અને આપત્તિ વ્યવસ્થાપન પ્લેટફોર્મ",
       "role.user_title": "ઇમરજન્સીની જાણ કરો",
       "role.user_desc": "તત્કાલ સહાય માટે વૉઇસ અથવા SOS દ્વારા ઇમરજન્સીની જાણ કરો",
@@ -878,7 +878,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ભાષિણી અવાજ સાંભળો"
     },
     pa: {
-      "role.brand": "ਰੈਪਿਡ ਰਿਸਪਾਂਸ ਕਮਾਂਡ",
+      "role.brand": "PUYAL ਕਮਾਂਡ",
       "role.subtitle": "ਐਮਰਜੈਂਸੀ ਰਿਸਪਾਂਸ ਅਤੇ ਆਫ਼ਤ ਪ੍ਰਬੰਧਨ ਪਲੇਟਫਾਰਮ",
       "role.user_title": "ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
       "role.user_desc": "ਤੁਰੰਤ ਮਦਦ ਲਈ ਆਵਾਜ਼ ਜਾਂ SOS ਰਾਹੀਂ ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
@@ -890,7 +890,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ਭਾਸ਼ਿਣੀ ਆਵਾਜ਼ ਸੁਣੋ"
     },
     or: {
-      "role.brand": "ରାପିଡ୍ ରେସପନ୍ସ କମାଣ୍ଡ",
+      "role.brand": "PUYAL କମାଣ୍ଡ",
       "role.subtitle": "ଜରୁରୀକାଳୀନ ପ୍ରତିକ୍ରିୟା ଏବଂ ବିପର୍ଯ୍ୟୟ ପରିଚାଳନା ପ୍ଲାଟଫର୍ମ",
       "role.user_title": "ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ କରନ୍ତୁ",
       "role.user_desc": "ତୁରନ୍ତ ସାହାଯ୍ୟ ପାଇଁ କଣ୍ଠସ୍ୱର କିମ୍ବା SOS ମାଧ୍ୟମରେ ରିପୋର୍ଟ କରନ୍ତୁ",
@@ -902,7 +902,7 @@ Return strictly valid JSON with identical keys and values accurately translated 
       "role.bhashini_listen": "🔊 ଭାଷିଣୀ ସ୍ୱର ଶୁଣନ୍ତୁ"
     },
     es: {
-      "role.brand": "Comando RapidResponse",
+      "role.brand": "PUYAL",
       "role.subtitle": "Plataforma de Respuesta a Emergencias y Gestión de Desastres",
       "role.user_title": "Reportar Emergencia",
       "role.user_desc": "Reporte emergencias con voz o SOS para asistencia inmediata",
@@ -2312,6 +2312,7 @@ app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
 });
 
 app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three')));
+app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules/leaflet/dist')));
 app.use(express.static(puyalDir, { extensions: ['html'] }));
 app.use('/puyal', express.static(puyalDir, { extensions: ['html'] }));
 
@@ -2464,7 +2465,7 @@ app.post('/api/gemini/chat', async (req, res) => {
 
   // System instruction based on user role
   const systemInstruction = role === 'admin'
-    ? `You are RapidResponse Command AI, an advanced emergency operations dispatcher and disaster tactical strategist.
+    ? `You are PUYAL Command AI, an advanced emergency operations dispatcher and disaster tactical strategist.
 You assist emergency commanders, NDRF battalions, and 108 dispatchers.
 Provide concise, authoritative, and actionable guidance on:
 - Triage priority scoring and casualty minimization
@@ -2473,7 +2474,7 @@ Provide concise, authoritative, and actionable guidance on:
 - Resource conservation to prevent over-deployment
 Active statistics: ${store.incidents ? store.incidents.length : 0} incidents, ${store.teams ? store.teams.length : 0} tactical teams, ${store.government_stations ? store.government_stations.length : 0} command depots.
 Keep your response clear, structured with bullet points where helpful, and focused on emergency tactics.`
-    : `You are RapidResponse Civilian Safety Guide, an empathetic, clear, and calm emergency advisor powered by Gemini AI and Bhashini.
+    : `You are PUYAL Civilian Safety Guide, an empathetic, clear, and calm emergency advisor powered by Gemini AI and Bhashini.
 You guide citizens facing immediate life-threatening situations (Floods, Fires, Earthquakes, Accidents, Medical Emergencies).
 Provide immediate life-saving steps:
 1. Immediate Safety Action (what to do RIGHT NOW in 1 sentence)
@@ -2535,7 +2536,7 @@ Keep instructions simple, reassuring, and numbered so someone in panic can read 
   };
 
   const lowerMsg = message.toLowerCase();
-  let defaultReply = "Your emergency message has been received by RapidResponse Command. Responders are notified. Stay calm, remain in a secure location, and keep your communication line open.";
+  let defaultReply = "Your emergency message has been received by PUYAL Command. Responders are notified. Stay calm, remain in a secure location, and keep your communication line open.";
   if (lowerMsg.includes('fire') || lowerMsg.includes('smoke')) defaultReply = fallbackReplies.fire;
   else if (lowerMsg.includes('flood') || lowerMsg.includes('water')) defaultReply = fallbackReplies.flood;
   else if (lowerMsg.includes('accident') || lowerMsg.includes('crash')) defaultReply = fallbackReplies.accident;
@@ -2576,7 +2577,7 @@ app.post('/api/gemini/transcribe', async (req, res) => {
             }
           },
           {
-            text: "You are an emergency voice transcriber for RapidResponse Command. Transcribe the spoken audio verbatim in the speaker's language. If the audio is not in English, provide the exact transcript followed by an English translation on a new line. Only output the transcription text without commentary."
+            text: "You are an emergency voice transcriber for PUYAL Command. Transcribe the spoken audio verbatim in the speaker's language. If the audio is not in English, provide the exact transcript followed by an English translation on a new line. Only output the transcription text without commentary."
           }
         ]
       });
@@ -2687,7 +2688,7 @@ Speak calmly and clearly. Language requested: ${lang}.`;
           model: 'gemini-3.8-flash',
           contents: prompt,
           config: {
-            systemInstruction: "You are the RapidResponse Voice Guide. Give 2 sentences of life-saving guidance for spoken playback."
+            systemInstruction: "You are the PUYAL Voice Guide. Give 2 sentences of life-saving guidance for spoken playback."
           }
         });
         return res.json({
@@ -2943,6 +2944,6 @@ wss.on('connection', (ws, req) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`RapidResponse Command server running at http://${HOST}:${PORT}`);
+  console.log(`PUYAL Command server running at http://${HOST}:${PORT}`);
 });
 

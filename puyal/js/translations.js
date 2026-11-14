@@ -1,5 +1,5 @@
 // ============================================================================
-// RapidResponse Multilingual Translation Engine & Dictionary
+// PUYAL Multilingual Translation Engine & Dictionary
 // Languages: English (en), Tamil (ta), Hindi (hi), Telugu (te),
 // Malayalam (ml), Kannada (kn), Bengali (bn), Spanish (es)
 // ============================================================================
@@ -7,8 +7,8 @@
 const RAPID_TRANSLATIONS = {
   en: {
     // Navigation
-    "nav.brand_user": "RapidResponse Command",
-    "nav.brand_admin": "RapidResponse — Admin Command Center",
+    "nav.brand_user": "PUYAL Command",
+    "nav.brand_admin": "PUYAL — Admin Command Center",
     "nav.user_portal": "Civilian Emergency Portal",
     "nav.logout": "Logout",
     "nav.live_sync": "● Live Stream Active",
@@ -16,7 +16,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "Demo Account Active",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "RapidResponse Command",
+    "role.brand": "PUYAL",
     "role.subtitle": "Emergency Response & Disaster Management Platform",
     "role.user_title": "Report Emergency",
     "role.user_desc": "Report an emergency, use voice or SOS for instant help",
@@ -146,8 +146,8 @@ const RAPID_TRANSLATIONS = {
 
   ta: {
     // Navigation
-    "nav.brand_user": "RapidResponse கட்டளை",
-    "nav.brand_admin": "RapidResponse — தலைமை கட்டளை மையம்",
+    "nav.brand_user": "PUYAL கட்டளை",
+    "nav.brand_admin": "PUYAL — தலைமை கட்டளை மையம்",
     "nav.user_portal": "பொதுமக்கள் அவசர தளம்",
     "nav.logout": "வெளியேறு",
     "nav.live_sync": "● நேரலை இணைப்பு செயலில்",
@@ -155,7 +155,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "டெமோ கணக்கு செயலில்",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "ரேபிட்ரெஸ்பான்ஸ் கமாண்ட்",
+    "role.brand": "புயல் (PUYAL)",
     "role.subtitle": "அவசரகால மீட்பு மற்றும் பேரிடர் மேலாண்மை தளம்",
     "role.user_title": "அவசரநிலையைப் புகாரளிக்கவும்",
     "role.user_desc": "குரல் அல்லது SOS மூலம் உடனடி உதவி பெற அவசரநிலையைப் புகாரளிக்கவும்",
@@ -285,8 +285,8 @@ const RAPID_TRANSLATIONS = {
 
   hi: {
     // Navigation
-    "nav.brand_user": "RapidResponse कमांड",
-    "nav.brand_admin": "RapidResponse — कमान केंद्र",
+    "nav.brand_user": "PUYAL कमांड",
+    "nav.brand_admin": "PUYAL — कमान केंद्र",
     "nav.user_portal": "नागरिक आपातकालीन पोर्टल",
     "nav.logout": "लॉग आउट",
     "nav.live_sync": "● लाइव स्ट्रीम सक्रिय",
@@ -294,7 +294,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "डेमो खाता सक्रिय",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "रैपिडरेस्पॉन्स कमांड",
+    "role.brand": "PUYAL कमांड",
     "role.subtitle": "आपातकालीन प्रतिक्रिया एवं आपदा प्रबंधन मंच",
     "role.user_title": "आपातकाल की रिपोर्ट करें",
     "role.user_desc": "आवाज या एसओएस द्वारा तत्काल सहायता प्राप्त करने के लिए आपातकाल की रिपोर्ट करें",
@@ -424,8 +424,8 @@ const RAPID_TRANSLATIONS = {
 
   te: {
     // Telugu
-    "nav.brand_user": "RapidResponse కమాండ్",
-    "nav.brand_admin": "RapidResponse — అడ్మిన్ కమాండ్ సెంటర్",
+    "nav.brand_user": "PUYAL కమాండ్",
+    "nav.brand_admin": "PUYAL — అడ్మిన్ కమాండ్ సెంటర్",
     "nav.user_portal": "పౌర అత్యవసర పోర్టల్",
     "nav.logout": "లాగౌట్",
     "nav.live_sync": "● లైవ్ స్ట్రీమ్ క్రియాశీలం",
@@ -433,7 +433,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "డెమో ఖాతా క్రియాశీలం",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "ర్యాపిడ్ రెస్పాన్స్ కమాండ్",
+    "role.brand": "PUYAL కమాండ్",
     "role.subtitle": "అత్యవసర స్పందన మరియు విపత్తు నిర్వహణ వేదిక",
     "role.user_title": "అత్యవసర పరిస్థితిని నివేదించండి",
     "role.user_desc": "తక్షణ సహాయం కోసం వాయిస్ లేదా SOS ద్వారా అత్యవసర పరిస్థితిని నివేదించండి",
@@ -486,8 +486,8 @@ const RAPID_TRANSLATIONS = {
 
   ml: {
     // Malayalam
-    "nav.brand_user": "RapidResponse കമാൻഡ്",
-    "nav.brand_admin": "RapidResponse — കമാൻഡ് സെന്റർ",
+    "nav.brand_user": "PUYAL കമാൻഡ്",
+    "nav.brand_admin": "PUYAL — കമാൻഡ് സെന്റർ",
     "nav.user_portal": "പൗര അടിയന്തര പോർട്ടൽ",
     "nav.logout": "ലോഗ് ഔട്ട്",
     "nav.live_sync": "● ലൈവ് സ്ട്രീം സജീവം",
@@ -495,7 +495,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "ഡെമോ അക്കൗണ്ട് സജീവം",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "റാപ്പിഡ് റെസ്പോൺസ് കമാൻഡ്",
+    "role.brand": "PUYAL കമാൻഡ്",
     "role.subtitle": "അടിയന്തര പ്രതികരണ ദുരന്ത നിവാരണ പ്ലാറ്റ്ഫോം",
     "role.user_title": "അടിയന്തര സാഹചര്യം അറിയിക്കുക",
     "role.user_desc": "ശബ്ദം അല്ലെങ്കിൽ SOS വഴി തൽക്ഷണ സഹായത്തിനായി അറിയിക്കുക",
@@ -548,8 +548,8 @@ const RAPID_TRANSLATIONS = {
 
   kn: {
     // Kannada
-    "nav.brand_user": "RapidResponse ಕಮಾಂಡ್",
-    "nav.brand_admin": "RapidResponse — ಕಮಾಂಡ್ ಸೆಂಟರ್",
+    "nav.brand_user": "PUYAL ಕಮಾಂಡ್",
+    "nav.brand_admin": "PUYAL — ಕಮಾಂಡ್ ಸೆಂಟರ್",
     "nav.user_portal": "ನಾಗರಿಕ ತುರ್ತು ಪೋರ್ಟಲ್",
     "nav.logout": "ಲಾಗ್‌ಔಟ್",
     "nav.live_sync": "● ಲೈವ್ ಸ್ಟ್ರೀಮ್ ಸಕ್ರಿಯ",
@@ -557,7 +557,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "ಡೆಮೊ ಖಾತೆ ಸಕ್ರಿಯ",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "ರ್‍ಯಾಪಿಡ್ ರೆಸ್ಪಾನ್ಸ್ ಕಮಾಂಡ್",
+    "role.brand": "PUYAL ಕಮಾಂಡ್",
     "role.subtitle": "ತುರ್ತು ಪ್ರತಿಕ್ರಿಯೆ ಮತ್ತು ವಿಪತ್ತು ನಿರ್ವಹಣಾ ವೇದಿಕೆ",
     "role.user_title": "ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ವರದಿ ಮಾಡಿ",
     "role.user_desc": "ತ್ವರಿತ ಸಹಾಯಕ್ಕಾಗಿ ಧ್ವನಿ ಅಥವಾ SOS ಮೂಲಕ ವರದಿ ಮಾಡಿ",
@@ -610,8 +610,8 @@ const RAPID_TRANSLATIONS = {
 
   bn: {
     // Bengali
-    "nav.brand_user": "RapidResponse কমান্ড",
-    "nav.brand_admin": "RapidResponse — কমান্ড সেন্টার",
+    "nav.brand_user": "PUYAL কমান্ড",
+    "nav.brand_admin": "PUYAL — কমান্ড সেন্টার",
     "nav.user_portal": "নাগরিক জরুরি পোর্টাল",
     "nav.logout": "লগআউট",
     "nav.live_sync": "● লাইভ স্ট্রিম সক্রিয়",
@@ -619,7 +619,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "ডেমো অ্যাকাউন্ট সক্রিয়",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "র‍্যাপিডরেসপন্স কমান্ড",
+    "role.brand": "PUYAL কমান্ড",
     "role.subtitle": "জরুরি প্রতিক্রিয়া এবং দুর্যোগ ব্যবস্থাপনা প্ল্যাটফর্ম",
     "role.user_title": "জরুরি অবস্থা রিপোর্ট করুন",
     "role.user_desc": "ভয়েস বা এসওএস এর মাধ্যমে তাৎক্ষণিক সাহায্যের জন্য রিপোর্ট করুন",
@@ -672,8 +672,8 @@ const RAPID_TRANSLATIONS = {
 
   es: {
     // Spanish
-    "nav.brand_user": "Comando RapidResponse",
-    "nav.brand_admin": "RapidResponse — Centro de Mando",
+    "nav.brand_user": "PUYAL Comando",
+    "nav.brand_admin": "PUYAL — Centro de Mando",
     "nav.user_portal": "Portal Civil de Emergencias",
     "nav.logout": "Cerrar sesión",
     "nav.live_sync": "● Transmisión en vivo activa",
@@ -681,7 +681,7 @@ const RAPID_TRANSLATIONS = {
     "nav.demo_badge": "Cuenta de Demostración Activa",
 
     // Role Selection Landing Page (Bhashini AI)
-    "role.brand": "Comando RapidResponse",
+    "role.brand": "PUYAL",
     "role.subtitle": "Plataforma de Respuesta a Emergencias y Gestión de Desastres",
     "role.user_title": "Reportar Emergencia",
     "role.user_desc": "Reporte emergencias con voz o SOS para asistencia inmediata",
@@ -787,14 +787,14 @@ const RAPID_TRANSLATIONS = {
 
   mr: {
     // Marathi (Bhashini AI)
-    "nav.brand_user": "RapidResponse कमांड",
-    "nav.brand_admin": "RapidResponse — कमान केंद्र",
+    "nav.brand_user": "PUYAL कमांड",
+    "nav.brand_admin": "PUYAL — कमान केंद्र",
     "nav.user_portal": "नागरी आपत्कालीन पोर्टल",
     "nav.logout": "लॉग आउट",
     "nav.live_sync": "● थेट प्रवाह सक्रिय",
     "nav.translate_btn": "🌐 भाषांतर",
     "nav.demo_badge": "डेमो खाते सक्रिय",
-    "role.brand": "रॅपिड रिस्पॉन्स कमांड",
+    "role.brand": "PUYAL कमांड",
     "role.subtitle": "आपत्कालीन प्रतिसाद आणि आपत्ती व्यवस्थापन व्यासपीठ",
     "role.user_title": "आपत्कालीन परिस्थितीची नोंद करा",
     "role.user_desc": "तात्काळ मदतीसाठी आवाज किंवा SOS द्वारे आपत्कालीन परिस्थिती नोंदवा",
@@ -816,14 +816,14 @@ const RAPID_TRANSLATIONS = {
 
   gu: {
     // Gujarati (Bhashini AI)
-    "nav.brand_user": "RapidResponse કમાન્ડ",
-    "nav.brand_admin": "RapidResponse — કમાન્ડ સેન્ટર",
+    "nav.brand_user": "PUYAL કમાન્ડ",
+    "nav.brand_admin": "PUYAL — કમાન્ડ સેન્ટર",
     "nav.user_portal": "નાગરિક ઇમરજન્સી પોર્ટલ",
     "nav.logout": "લૉગ આઉટ",
     "nav.live_sync": "● લાઇવ સ્ટ્રીમ સક્રિય",
     "nav.translate_btn": "🌐 અનુવાદ",
     "nav.demo_badge": "ડેમો એકાઉન્ટ સક્રિય",
-    "role.brand": "રેપિડ રિસ્પોન્સ કમાન્ડ",
+    "role.brand": "PUYAL કમાન્ડ",
     "role.subtitle": "ઇમરજન્સી રિસ્પોન્સ અને આપત્તિ વ્યવસ્થાપન પ્લેટફોર્મ",
     "role.user_title": "ઇમરજન્સીની જાણ કરો",
     "role.user_desc": "તત્કાલ સહાય માટે વૉઇસ અથવા SOS દ્વારા ઇમરજન્સીની જાણ કરો",
@@ -845,14 +845,14 @@ const RAPID_TRANSLATIONS = {
 
   pa: {
     // Punjabi (Bhashini AI)
-    "nav.brand_user": "RapidResponse ਕਮਾਂਡ",
-    "nav.brand_admin": "RapidResponse — ਕਮਾਂਡ ਸੈਂਟਰ",
+    "nav.brand_user": "PUYAL ਕਮਾਂਡ",
+    "nav.brand_admin": "PUYAL — ਕਮਾਂਡ ਸੈਂਟਰ",
     "nav.user_portal": "ਨਾਗਰਿਕ ਐਮਰਜੈਂਸੀ ਪੋਰਟਲ",
     "nav.logout": "ਲਾਗ ਆਉਟ",
     "nav.live_sync": "● ਲਾਈਵ ਸਟ੍ਰੀਮ ਸਰਗਰਮ",
     "nav.translate_btn": "🌐 ਅਨੁਵਾਦ",
     "nav.demo_badge": "ਡੈਮੋ ਖਾਤਾ ਸਰਗਰਮ",
-    "role.brand": "ਰੈਪਿਡ ਰਿਸਪਾਂਸ ਕਮਾਂਡ",
+    "role.brand": "PUYAL ਕਮਾਂਡ",
     "role.subtitle": "ਐਮਰਜੈਂਸੀ ਰਿਸਪਾਂਸ ਅਤੇ ਆਫ਼ਤ ਪ੍ਰਬੰਧਨ ਪਲੇਟਫਾਰਮ",
     "role.user_title": "ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
     "role.user_desc": "ਤੁਰੰਤ ਮਦਦ ਲਈ ਆਵਾਜ਼ ਜਾਂ SOS ਰਾਹੀਂ ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ",
@@ -874,14 +874,14 @@ const RAPID_TRANSLATIONS = {
 
   or: {
     // Odia (Bhashini AI)
-    "nav.brand_user": "RapidResponse କମାଣ୍ଡ",
-    "nav.brand_admin": "RapidResponse — କମାଣ୍ଡ ସେଣ୍ଟର",
+    "nav.brand_user": "PUYAL କମାଣ୍ଡ",
+    "nav.brand_admin": "PUYAL — କମାଣ୍ଡ ସେଣ୍ଟର",
     "nav.user_portal": "ନାଗରିକ ଜରୁରୀକାଳୀନ ପୋର୍ଟାଲ",
     "nav.logout": "ଲଗ୍ ଆଉଟ୍",
     "nav.live_sync": "● ଲାଇଭ୍ ଷ୍ଟ୍ରିମ୍ ସକ୍ରିୟ",
     "nav.translate_btn": "🌐 ଅନୁବାଦ",
     "nav.demo_badge": "ଡେମୋ ଆକାଉଣ୍ଟ ସକ୍ରିୟ",
-    "role.brand": "ରାପିଡ୍ ରେସପନ୍ସ କମାଣ୍ଡ",
+    "role.brand": "PUYAL କମାଣ୍ଡ",
     "role.subtitle": "ଜରୁରୀକାଳୀନ ପ୍ରତିକ୍ରିୟା ଏବଂ ବିପର୍ଯ୍ୟୟ ପରିଚାଳନା ପ୍ଲାଟଫର୍ମ",
     "role.user_title": "ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ କରନ୍ତୁ",
     "role.user_desc": "ତୁରନ୍ତ ସାହାଯ୍ୟ ପାଇଁ କଣ୍ଠସ୍ୱର କିମ୍ବା SOS ମାଧ୍ୟମରେ ରିପୋର୍ଟ କରନ୍ତୁ",

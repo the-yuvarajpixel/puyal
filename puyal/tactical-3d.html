@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse Command — 3D Tactical Sector Twin</title>
+  <title>PUYAL — 3D Tactical Sector Twin</title>
   <meta name="theme-color" content="#0f172a" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="RapidResp" />
+  <meta name="apple-mobile-web-app-title" content="PUYAL" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -208,7 +208,7 @@
   <!-- Minimal Corner Bar -->
   <header class="hud-top-bar">
     <a id="back-console-link" href="/dashboard-admin.html" class="hud-back-link">← Command Console</a>
-    <span class="hud-title">3D Tactical Sector Twin</span>
+    <span class="hud-title">PUYAL — 3D Tactical Sector Twin</span>
     <span id="hud-metrics" class="hud-metrics">Syncing sector...</span>
   </header>
 
@@ -265,6 +265,19 @@
     let perimetersOn = true;
     let orbitOn = false;
 
+    function readCachedArray(key, nestedKey) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+        if (nestedKey && parsed && Array.isArray(parsed[nestedKey])) return parsed[nestedKey];
+        return [];
+      } catch (e) {
+        return [];
+      }
+    }
+
     async function refreshOperationalData() {
       try {
         const [incRes, teamRes, stnRes, sosRes] = await Promise.all([
@@ -281,19 +294,38 @@
           sosRes.ok ? sosRes.json() : []
         ]);
 
-        const incidents = Array.isArray(incData) ? incData : (incData.incidents || []);
-        const teams = Array.isArray(teamData) ? teamData : (teamData.teams || []);
-        const stations = Array.isArray(stnData) ? stnData : (stnData.stations || []);
-        const sosAlerts = Array.isArray(sosData) ? sosData : (sosData.alerts || []);
+        const isOfflineFallback = Boolean(
+          (incData && incData.offlineFallback) ||
+          (teamData && teamData.offlineFallback) ||
+          !navigator.onLine
+        );
+
+        let incidents = Array.isArray(incData) ? incData : (incData.incidents || []);
+        let teams = Array.isArray(teamData) ? teamData : (teamData.teams || []);
+        let stations = Array.isArray(stnData) ? stnData : (stnData.stations || []);
+        let sosAlerts = Array.isArray(sosData) ? sosData : (sosData.alerts || []);
+
+        if (isOfflineFallback) {
+          if (!incidents.length) incidents = readCachedArray('rapid_cache_incidents');
+          if (!teams.length) teams = readCachedArray('rapid_cache_teams');
+          if (!stations.length) stations = readCachedArray('rapid_cache_gov_stations', 'stations');
+          if (!sosAlerts.length) sosAlerts = readCachedArray('rapid_cache_sos');
+        }
 
         sceneEngine.syncOperationalState({ incidents, teams, stations, sosAlerts });
 
         const dispatchedCount = teams.filter(t => t.status === 'Dispatched').length;
         const activeSosCount = sosAlerts.filter(s => s.active).length;
-        document.getElementById('hud-metrics').textContent =
-          `${incidents.length} Incidents • ${dispatchedCount}/${teams.length} En Route • ${activeSosCount} SOS`;
+        document.getElementById('hud-metrics').textContent = isOfflineFallback
+          ? `Offline Sector: ${incidents.length} Incidents • ${dispatchedCount}/${teams.length} En Route • ${activeSosCount} SOS`
+          : `${incidents.length} Incidents • ${dispatchedCount}/${teams.length} En Route • ${activeSosCount} SOS`;
       } catch (err) {
-        document.getElementById('hud-metrics').textContent = 'Telemetry Offline';
+        const incidents = readCachedArray('rapid_cache_incidents');
+        const teams = readCachedArray('rapid_cache_teams');
+        const stations = readCachedArray('rapid_cache_gov_stations', 'stations');
+        const sosAlerts = readCachedArray('rapid_cache_sos');
+        sceneEngine.syncOperationalState({ incidents, teams, stations, sosAlerts });
+        document.getElementById('hud-metrics').textContent = `Offline Cache (${incidents.length} Incidents • ${teams.length} Teams)`;
       }
     }
 

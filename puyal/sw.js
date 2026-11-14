@@ -1,12 +1,12 @@
 // ============================================================================
-// RapidResponse Command — Offline-First Emergency Service Worker
-// Caches all portal pages, scripts, icons, 3D assets, and API snapshots
+// PUYAL — Offline-First Emergency Service Worker
+// Caches all portal pages, scripts, icons, Leaflet GIS, 3D assets, & APIs
 // ============================================================================
 
-const CACHE_VERSION = 'v1';
-const STATIC_CACHE = `rapidresponse-static-${CACHE_VERSION}`;
-const API_CACHE = `rapidresponse-api-${CACHE_VERSION}`;
-const RUNTIME_CACHE = `rapidresponse-runtime-${CACHE_VERSION}`;
+const CACHE_VERSION = 'v4';
+const STATIC_CACHE = `puyal-static-${CACHE_VERSION}`;
+const API_CACHE = `puyal-api-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `puyal-runtime-${CACHE_VERSION}`;
 
 const CORE_ASSETS = [
   '/',
@@ -24,6 +24,8 @@ const CORE_ASSETS = [
   '/js/google-maps-manager.js',
   '/js/tactical-3d-scene.js',
   '/js/pwa-offline.js',
+  '/js/qrcode.min.js',
+  '/js/incident-qr.js',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/logo.svg',
@@ -31,6 +33,13 @@ const CORE_ASSETS = [
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
+  '/vendor/leaflet/leaflet.css',
+  '/vendor/leaflet/leaflet.js',
+  '/vendor/leaflet/images/marker-icon.png',
+  '/vendor/leaflet/images/marker-icon-2x.png',
+  '/vendor/leaflet/images/marker-shadow.png',
+  '/vendor/leaflet/images/layers.png',
+  '/vendor/leaflet/images/layers-2x.png',
   '/vendor/three/build/three.module.js',
   '/vendor/three/build/three.core.js',
   '/vendor/three/examples/jsm/controls/OrbitControls.js',
@@ -81,7 +90,14 @@ self.addEventListener('message', (event) => {
   }
 });
 
-async function fetchWithTimeout(request, timeoutMs = 2500) {
+function isKnownOffline() {
+  return typeof self.navigator !== 'undefined' && self.navigator.onLine === false;
+}
+
+async function fetchWithTimeout(request, timeoutMs = 2000) {
+  if (isKnownOffline()) {
+    throw new Error('Offline');
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -127,8 +143,25 @@ function buildOfflineApiFallback(pathname) {
   }
   return new Response(JSON.stringify(body), {
     status: 200,
-    headers: { 'Content-Type': 'application/json', 'X-RapidResponse-Offline': '1' }
+    headers: { 'Content-Type': 'application/json', 'X-PUYAL-Offline': '1' }
   });
+}
+
+function buildOfflineExternalStub(url, request) {
+  const dest = request.destination || '';
+  if (dest === 'script' || url.pathname.endsWith('.js')) {
+    return new Response('/* PUYAL offline external script stub */\n', {
+      status: 200,
+      headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+    });
+  }
+  if (dest === 'style' || url.pathname.includes('fonts.googleapis.com') || url.pathname.endsWith('.css')) {
+    return new Response('/* PUYAL offline stylesheet stub */\n', {
+      status: 200,
+      headers: { 'Content-Type': 'text/css; charset=utf-8' }
+    });
+  }
+  return new Response('', { status: 204 });
 }
 
 self.addEventListener('fetch', (event) => {
@@ -143,7 +176,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin cacheable API GET endpoints: NetworkFirst -> API_CACHE -> safe empty JSON
+  // Same-origin cacheable API GET endpoints: NetworkFirst (instant cache when offline)
   if (
     url.origin === self.location.origin &&
     CACHEABLE_API_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))
@@ -151,7 +184,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const apiCache = await caches.open(API_CACHE);
       try {
-        const networkRes = await fetchWithTimeout(request, 2500);
+        const networkRes = await fetchWithTimeout(request, 2200);
         if (networkRes && networkRes.ok) {
           apiCache.put(request, networkRes.clone()).catch(() => {});
         }
@@ -164,12 +197,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin pages, JS, CSS, SVG/PNG icons, vendor Three.js modules
+  // Same-origin pages, JS, CSS, SVG/PNG icons, Leaflet & Three.js vendor bundles
   if (url.origin === self.location.origin) {
     event.respondWith((async () => {
       const staticCache = await caches.open(STATIC_CACHE);
+      if (isKnownOffline()) {
+        const cachedOffline = await matchStaticWithFallback(request, url);
+        if (cachedOffline) return cachedOffline;
+      }
       try {
-        const networkRes = await fetchWithTimeout(request, 2200);
+        const networkRes = await fetchWithTimeout(request, 2000);
         if (networkRes && networkRes.ok) {
           staticCache.put(url.pathname + url.search, networkRes.clone()).catch(() => {});
           if (url.search) {
@@ -189,30 +226,40 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // External CDN assets (Leaflet, Google Fonts): Stale-While-Revalidate
+  // External CDN assets (Firebase, Fonts, OSM Tiles, Maps): CacheFirst / SWR + safe offline stub
   if (
-    url.hostname.includes('unpkg.com') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com')
+    url.hostname.includes('gstatic.com') ||
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('tile.openstreetmap.org') ||
+    url.hostname.includes('unpkg.com')
   ) {
     event.respondWith((async () => {
       const runtimeCache = await caches.open(RUNTIME_CACHE);
       const cached = await runtimeCache.match(request);
-      const networkPromise = fetchWithTimeout(request, 3000)
-        .then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) {
-            runtimeCache.put(request, res.clone()).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => null);
-
       if (cached) {
+        if (!isKnownOffline()) {
+          fetchWithTimeout(request, 3000)
+            .then((res) => {
+              if (res && (res.ok || res.type === 'opaque')) {
+                runtimeCache.put(request, res.clone()).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
         return cached;
       }
-      const netRes = await networkPromise;
-      if (netRes) return netRes;
-      return new Response('', { status: 204 });
+      if (isKnownOffline()) {
+        return buildOfflineExternalStub(url, request);
+      }
+      try {
+        const netRes = await fetchWithTimeout(request, 3000);
+        if (netRes && (netRes.ok || netRes.type === 'opaque')) {
+          runtimeCache.put(request, netRes.clone()).catch(() => {});
+        }
+        return netRes;
+      } catch (e) {
+        return buildOfflineExternalStub(url, request);
+      }
     })());
   }
 });

@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse — Civilian Emergency Portal</title>
+  <title>PUYAL — Civilian Emergency Portal</title>
   <meta name="theme-color" content="#0f172a" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="RapidResp" />
+  <meta name="apple-mobile-web-app-title" content="PUYAL" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <!-- Open-Source Leaflet GIS Engine -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Open-Source Local Leaflet GIS Engine -->
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <script src="/vendor/leaflet/leaflet.js"></script>
 </head>
 <body>
 
@@ -26,7 +26,7 @@
   <nav class="navbar">
     <div class="nav-brand">
       <span class="sos-tag">SOS</span>
-      <h1 data-i18n="nav.brand_user">RapidResponse Command</h1>
+      <h1 data-i18n="nav.brand_user">PUYAL Command</h1>
     </div>
     <div class="nav-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
       <!-- Multilingual Translation Selector & Instant Translate Button -->
@@ -204,10 +204,24 @@
           <input class="form-control" type="text" id="contact" placeholder="Name / Phone Number" data-i18n-placeholder="form.contact_placeholder" />
         </div>
 
-        <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
-          <span data-i18n="form.submit_btn">🚨 Submit Emergency Report</span>
-        </button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; align-items: stretch;">
+          <button type="submit" class="btn btn-primary" style="flex: 2; min-width: 210px;">
+            <span data-i18n="form.submit_btn">🚨 Submit Emergency Report</span>
+          </button>
+          <button type="button" id="btn-form-incident-qr" class="btn" style="flex: 1; min-width: 185px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; font-weight: 700; padding: 12px 16px; border-radius: var(--radius-md); cursor: pointer;" onclick="openCurrentDraftQR()">
+            📱 Show Incident QR
+          </button>
+        </div>
       </form>
+
+      <div id="last-submitted-qr-bar" style="display: none; margin-top: 14px; padding: 12px 14px; background: #f0fdf4; border: 1px solid #86efac; border-radius: var(--radius-md); align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+        <div style="font-size: 12px; color: #14532d;">
+          <strong>✅ Report Ready for Responder Scan:</strong> <span id="last-submitted-qr-title">Incident</span>
+        </div>
+        <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; border: none; padding: 7px 14px; font-size: 12px; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer;" onclick="openLastSubmittedQR()">
+          📱 Display Incident QR
+        </button>
+      </div>
     </section>
 
     <!-- ── Live Emergency Dispatch & Route Tracking Map (Simulated in Real Time) ── -->
@@ -817,13 +831,38 @@
                 ${teamAssigned}
               </div>
             </div>
-            <div style="text-align: right;">
+            <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
               <span style="font-size: 12px; font-weight: 700; color: var(--navy); display: block;">Score: ${item.priorityScore || 50}/100</span>
               <span style="font-size: 11px; color: var(--text-muted);">${item.status}</span>
+              <button type="button" class="btn" style="background: #0f172a; color: #f8fafc; border: none; padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; margin-top: 2px;" onclick="openUserIncidentQR('${item.id}')">
+                📱 QR Code
+              </button>
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    function openCurrentDraftQR() {
+      if (typeof window.showIncidentQRModal !== 'function' || typeof window.getCurrentFormIncidentDraft !== 'function') {
+        showToast('QR generator is still loading, please retry.', 'warning');
+        return;
+      }
+      window.showIncidentQRModal(window.getCurrentFormIncidentDraft());
+    }
+
+    function openLastSubmittedQR() {
+      if (window.lastSubmittedIncident && typeof window.showIncidentQRModal === 'function') {
+        window.showIncidentQRModal(window.lastSubmittedIncident);
+      } else {
+        openCurrentDraftQR();
+      }
+    }
+
+    function openUserIncidentQR(id) {
+      const item = userIncidents.find(i => String(i.id) === String(id));
+      if (!item || typeof window.showIncidentQRModal !== 'function') return;
+      window.showIncidentQRModal(item);
     }
 
     updateAISeveritySuggestion();
@@ -948,6 +987,14 @@
           : `Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`,
         currentAppLanguage || 'en'
       );
+
+      window.lastSubmittedIncident = newIncident;
+      const qrBar = document.getElementById('last-submitted-qr-bar');
+      const qrBarTitle = document.getElementById('last-submitted-qr-title');
+      if (qrBar && qrBarTitle) {
+        qrBarTitle.textContent = `${newIncident.title} (#${newIncident.id})`;
+        qrBar.style.display = 'flex';
+      }
 
       document.getElementById('incident-form').reset();
       updateDynamicSeverityMeter();
@@ -1320,6 +1367,11 @@
     function updateBroadcasterStatusBadge() {
       const statusEl = document.getElementById('sos-status-label');
       if (!statusEl) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        statusEl.textContent = '● Offline SOS Armed — Local Recording & Queued for Sync';
+        statusEl.style.color = '#facc15';
+        return;
+      }
       const wsOpen = sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN;
       const rtt = sosWsLatencyMs !== null ? ` · ${sosWsLatencyMs}ms` : '';
       const viewerStr = sosCommandViewers > 0 ? ` · 👁️ HQ Watching (${sosCommandViewers})` : '';
@@ -1385,6 +1437,10 @@
 
     function connectSosBroadcasterWs() {
       if (!sosActiveFlag || !currentSosAlertId) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        updateBroadcasterStatusBadge();
+        return;
+      }
       if (sosBroadcasterWs && (sosBroadcasterWs.readyState === WebSocket.OPEN || sosBroadcasterWs.readyState === WebSocket.CONNECTING)) {
         return;
       }
@@ -1436,7 +1492,9 @@
           if (sosActiveFlag) {
             updateBroadcasterStatusBadge();
             clearTimeout(sosWsReconnectTimer);
-            sosWsReconnectTimer = setTimeout(connectSosBroadcasterWs, 900);
+            if (typeof navigator === 'undefined' || navigator.onLine) {
+              sosWsReconnectTimer = setTimeout(connectSosBroadcasterWs, 900);
+            }
           }
         };
 
@@ -2216,10 +2274,14 @@
             scrollWheelZoom: true
           });
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          const osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
           }).addTo(civilianTrackingMap);
+
+          if (window.attachOfflineMapFallback) {
+            window.attachOfflineMapFallback(civilianTrackingMap, osmTileLayer);
+          }
 
           setTimeout(() => {
             if (civilianTrackingMap) civilianTrackingMap.invalidateSize();
@@ -2469,6 +2531,18 @@
       loadUserIncidents();
     });
 
+    window.addEventListener('online', () => {
+      if (sosActiveFlag) {
+        updateBroadcasterStatusBadge();
+        connectSosBroadcasterWs();
+      }
+    });
+    window.addEventListener('offline', () => {
+      if (sosActiveFlag) {
+        updateBroadcasterStatusBadge();
+      }
+    });
+
     // Support direct deep-links from landing page (?action=sos|voice|report|track)
     window.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(window.location.search);
@@ -2485,6 +2559,9 @@
     });
   </script>
 
+  <!-- Offline QR Generator & Incident Dispatch Card -->
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/incident-qr.js"></script>
   <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
   <script src="js/google-maps-manager.js"></script>
   <script src="js/gemini-assistant.js"></script>

@@ -146,6 +146,9 @@
   }
 
   async function loadGoogleMapsLibraries() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return null;
+    }
     if (cachedLibs) return cachedLibs;
     if (librariesPromise) return librariesPromise;
 

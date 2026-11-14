@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RapidResponse — Admin Command Control</title>
+  <title>PUYAL — Admin Command Control</title>
   <meta name="theme-color" content="#0f172a" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="RapidResp" />
+  <meta name="apple-mobile-web-app-title" content="PUYAL" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Open-Source Leaflet GIS & Mapping Engine -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <!-- Open-Source Local Leaflet GIS & Mapping Engine -->
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <script src="/vendor/leaflet/leaflet.js"></script>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -57,7 +57,7 @@
   <nav class="navbar">
     <div class="nav-brand">
       <span class="sos-tag">SOS</span>
-      <h1 data-i18n="nav.brand_admin">RapidResponse — Admin Command Center</h1>
+      <h1 data-i18n="nav.brand_admin">PUYAL — Admin Command Center</h1>
     </div>
     <div class="nav-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
       <!-- Multilingual Translation Selector & Instant Translate Button -->
@@ -1937,9 +1937,12 @@
         <p><strong>Source:</strong> ${sourceIcon} ${item.source || 'form'}</p>
         <div class="modal-desc">
           <strong>Description:</strong><br>${item.description}
-          <div style="margin-top: 10px;">
-            <button class="btn" style="background: var(--info); color: #fff; padding: 4px 10px; font-size: 11px; border: none; border-radius: var(--radius-sm); cursor: pointer;" onclick="speakText('${item.description.replace(/'/g, "\\'")}', 'en')">
+          <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn" style="background: var(--info); color: #fff; padding: 5px 11px; font-size: 11px; border: none; border-radius: var(--radius-sm); cursor: pointer;" onclick="speakText('${item.description.replace(/'/g, "\\'")}', 'en')">
               🔊 Read Aloud (TTS)
+            </button>
+            <button type="button" class="btn" style="background: #0f172a; color: #38bdf8; padding: 5px 11px; font-size: 11px; font-weight: 700; border: 1px solid #334155; border-radius: var(--radius-sm); cursor: pointer;" onclick="openAdminIncidentQR('${item.id}')">
+              📱 Responder QR Code
             </button>
           </div>
         </div>
@@ -1949,6 +1952,19 @@
 
     function closeModal() {
       document.getElementById('detail-modal').classList.add('hidden');
+    }
+
+    function openAdminIncidentQR(id) {
+      const item = incidents.find(i => String(i.id) === String(id));
+      if (!item || typeof window.showIncidentQRModal !== 'function') return;
+      const assignedTeam = responseTeams.find(t =>
+        String(t.assignedIncidentId) === String(item.id) ||
+        (item.assignedTeam && String(t.id) === String(item.assignedTeam.id))
+      );
+      window.showIncidentQRModal({
+        ...item,
+        assignedTeamName: assignedTeam ? assignedTeam.name : item.assignedTeamName
+      });
     }
 
     // ====================================================================
@@ -2561,6 +2577,7 @@
               </select>
             </td>
             <td class="actions-cell" style="text-align: right; white-space: nowrap;">
+              <button onclick="openAdminIncidentQR('${item.id}')" class="btn-link" style="color: #7c3aed; font-weight: 700; margin-right: 6px;" title="Generate Scannable QR Code for Field Responders">📱 QR</button>
               <button onclick="focusIncidentOnMap('${item.id}')" class="btn-link" style="color: #2563eb; font-weight: 700; margin-right: 6px;" title="Focus on GIS Map & 2km Zone">🗺️ Map</button>
               <button onclick="openTeamAssignmentModal('${item.id}')" class="btn-link" style="color: #047857; font-weight: 700; margin-right: 6px;">⚡ Match</button>
               <button onclick="viewDetails('${item.id}')" class="btn-link btn-view">View</button>
@@ -2723,10 +2740,14 @@
           scrollWheelZoom: true
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
         }).addTo(tacticalMap);
+
+        if (window.attachOfflineMapFallback) {
+          window.attachOfflineMapFallback(tacticalMap, osmTileLayer);
+        }
 
         mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
         mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
@@ -3239,6 +3260,9 @@
     }
   </script>
 
+  <!-- Offline QR Generator & Incident Dispatch Card -->
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/incident-qr.js"></script>
   <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
   <script src="js/google-maps-manager.js"></script>
   <script src="js/gemini-assistant.js"></script>

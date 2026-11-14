@@ -1,5 +1,5 @@
 // ============================================================================
-// RapidResponse AI Assistant & Voice Suite
+// PUYAL AI Assistant & Voice Suite (Online + Offline Emergency Guidance)
 // Integrates:
 // 1. Multi-turn Chatbot (gemini-3.8-flash, gemini-3.1-flash-lite, gemini-4-carbon, gemini-4-argon)
 // 2. Audio Transcription (gemini-3.5-transcribe)
@@ -19,11 +19,44 @@
   let audioChunks = [];
   let isLiveVoiceActive = false;
 
+  function generateOfflineAiReply(msg, role) {
+    const lower = String(msg || '').toLowerCase();
+    if (role === 'admin') {
+      if (/group|dispatch|strike|flood|collapse/.test(lower)) {
+        return '**[Offline Tactical Protocol — Grouped Dispatch]**\n1. Pair **1 ALS Ambulance + 1 NDRF Boat/Rescue Unit** per active flooded or collapsed cluster.\n2. Prioritize Critical SOS alerts within 2km radius before secondary staging.\n3. Cached team & incident statuses remain active and will sync live on reconnect.';
+      }
+      if (/conserve|fleet|readiness|resource/.test(lower)) {
+        return '**[Offline Tactical Protocol — Fleet Conservation]**\n1. Hold minimum 25% of depot ambulances & fire tenders in reserve for high-casualty surges.\n2. Route closest available station unit using straight-line distance estimates.\n3. All queued actions auto-sync when connectivity returns.';
+      }
+      if (/perimeter|2km|evac|corridor/.test(lower)) {
+        return '**[Offline Tactical Protocol — 2km Perimeter]**\n1. Establish a 2km exclusion radius upwind of fire/hazmat scenes or downstream of flood breaches.\n2. Route civilian evacuation outward along high-elevation arterial roads toward command depots.\n3. Emergency contacts: **112 National**, **108 Ambulance**, **101 Fire**.';
+      }
+      return '**[PUYAL AI Offline Command Mode]**\nYou are currently offline. Cached incidents, stations, and 2km map perimeters are still active.\n• **Triage Order:** Critical SOS → Structural Collapse/Fire → Medical Trauma → Road Accident.\n• Emergency lines: **112**, **108**, **101**.';
+    }
+
+    if (/fire|burn|smoke|flame|gas|heat/.test(lower)) {
+      return '**[Offline Fire Survival Protocol]**\n1. **Stay low** beneath the smoke layer where air is cleaner.\n2. Cover nose/mouth with a wet cloth and test doors with back of hand before opening.\n3. Exit via stairs only — **never** use elevators.\n4. Once outside, dial **101 (Fire)** or **112** and queue an incident in PUYAL.';
+    }
+    if (/flood|water|drown|cyclone|rain|surge|high ground/.test(lower)) {
+      return '**[Offline Flood & Cyclone Protocol]**\n1. **Move immediately to the highest floor or elevated ground.**\n2. Never walk or drive through moving floodwater and stay clear of downed power lines.\n3. Turn off main electricity/gas if safe to do so.\n4. Keep PUYAL SOS active — location/reports save locally and sync automatically on signal return.';
+    }
+    if (/bleed|blood|heart|breath|injur|wound|first aid|ambulance|medical/.test(lower)) {
+      return '**[Offline First-Aid Protocol]**\n1. **Stop severe bleeding:** Apply firm, direct continuous pressure with a clean cloth.\n2. Keep injured victims warm, still, and breathing comfortably; protect neck/spine in trauma.\n3. For burns, cool with clean running water for 20 minutes — do not apply ice or butter.\n4. Call **108 (Ambulance)** / **112** if cellular voice is available.';
+    }
+    if (/shelter|evac|safe|collapse|earthquake|trapped/.test(lower)) {
+      return '**[Offline Shelter & Rescue Protocol]**\n1. Avoid damaged walls/bridges; move to an open high-ground assembly zone.\n2. If trapped, cover mouth from dust, conserve energy, and **tap rhythmically on pipes or walls**.\n3. Keep your PUYAL SOS GPS beacon armed — queued reports auto-transmit as soon as signal returns.';
+    }
+    return '**[PUYAL AI Offline Safety Guide]**\nInternet is unavailable, so local emergency survival protocols are active:\n• **Flood/Cyclone:** Move to high ground immediately.\n• **Fire/Smoke:** Stay low, exit via stairs.\n• **Medical/Bleeding:** Apply firm clean pressure.\n• Submit SOS or incident reports in PUYAL anytime — they save offline and auto-sync on reconnect. Call **112** / **108** if cellular signal exists.';
+  }
+
   // --------------------------------------------------------------------------
-  // Audio Transcription Utility (gemini-3.5-transcribe)
+  // Audio Transcription Utility (gemini-3.5-transcribe + offline safe fallback)
   // --------------------------------------------------------------------------
   async function transcribeAudioBlob(blob) {
-    return new Promise((resolve, reject) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return 'Offline voice recording captured — describe emergency details or tap SOS for local dispatch queueing.';
+    }
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
@@ -37,17 +70,17 @@
             })
           });
           const data = await res.json();
-          if (data.success && data.text) {
+          if (data && data.success && data.text) {
             resolve(data.text);
           } else {
             resolve('Emergency assistance requested at location.');
           }
         } catch (e) {
-          console.error('Transcription error:', e);
-          reject(e);
+          console.warn('Transcription offline fallback:', e);
+          resolve('Emergency assistance requested at location.');
         }
       };
-      reader.onerror = reject;
+      reader.onerror = () => resolve('Emergency assistance requested at location.');
       reader.readAsDataURL(blob);
     });
   }
@@ -148,9 +181,9 @@
     root.id = 'gemini-assistant-root';
     root.innerHTML = `
       <!-- Floating Launch Button -->
-      <button id="gemini-toggle-btn" class="gemini-floating-btn" title="Open RapidResponse AI Command Assistant">
+      <button id="gemini-toggle-btn" class="gemini-floating-btn" title="Open PUYAL AI Command Assistant">
         <span class="ai-sparkle">✨</span>
-        <span class="ai-label">RapidResponse AI</span>
+        <span class="ai-label">PUYAL AI</span>
         <span class="ai-badge">${appRole === 'admin' ? 'Command' : 'Safety'}</span>
       </button>
 
@@ -160,7 +193,7 @@
           <div class="header-left">
             <div class="gemini-logo-icon">🤖</div>
             <div>
-              <div class="gemini-title">RapidResponse AI</div>
+              <div class="gemini-title">PUYAL AI</div>
               <div class="gemini-sub">Gemini 3.8 / 4.0 &bull; Disaster Intelligence</div>
             </div>
           </div>
@@ -611,34 +644,38 @@
 
     const selectedModel = modelSelect ? modelSelect.value : 'gemini-3.8-flash';
 
-    try {
-      const res = await fetch('/api/gemini/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: msg,
-          history: chatHistory,
-          model: selectedModel,
-          role: appRole
-        })
-      });
-
-      const data = await res.json();
-      const reply = data.reply || 'Emergency status logged.';
-
-      botMsgEl.querySelector('.msg-bubble').innerHTML = formatMarkdown(reply);
-      botMsgEl.querySelector('.msg-bubble').style.opacity = '1';
-
-      // Update history
-      chatHistory.push({ role: 'user', text: msg });
-      chatHistory.push({ role: 'assistant', text: reply });
-
-      thread.scrollTop = thread.scrollHeight;
-    } catch (err) {
-      console.error('Chat error:', err);
-      botMsgEl.querySelector('.msg-bubble').innerHTML = '⚠️ Communication line unstable. Please try again.';
-      botMsgEl.querySelector('.msg-bubble').style.opacity = '1';
+    let reply = null;
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      try {
+        const res = await fetch('/api/gemini/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            history: chatHistory,
+            model: selectedModel,
+            role: appRole
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          reply = data.reply || null;
+        }
+      } catch (err) {
+        console.warn('Chat offline fallback activated:', err);
+      }
     }
+
+    if (!reply) {
+      reply = generateOfflineAiReply(msg, appRole);
+    }
+
+    botMsgEl.querySelector('.msg-bubble').innerHTML = formatMarkdown(reply);
+    botMsgEl.querySelector('.msg-bubble').style.opacity = '1';
+
+    chatHistory.push({ role: 'user', text: msg });
+    chatHistory.push({ role: 'assistant', text: reply });
+    thread.scrollTop = thread.scrollHeight;
   }
 
   // --------------------------------------------------------------------------
@@ -660,41 +697,48 @@
         statusEl.innerText = '✨ Gemini 3.8 Live Thinking...';
         transcriptEl.innerText = `"${spokenText}"`;
 
-        try {
-          const res = await fetch('/api/gemini/live-voice', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ speechText: spokenText, lang: 'en' })
-          });
-          const data = await res.json();
-          const reply = data.speechReply || 'Help is mobilized. Stay on high ground.';
-
-          transcriptEl.innerHTML = `<strong>You:</strong> "${spokenText}"<br><br><strong>Gemini 3.8 Live:</strong> "${reply}"`;
-          statusEl.innerText = '🔊 Speaking response...';
-
-          // Play synthesized audio using Web Speech API
-          if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(reply);
-            utterance.rate = 1.05;
-            utterance.onend = () => {
-              if (isLiveVoiceActive) {
-                statusEl.innerText = 'Listening again...';
-                startLiveVoiceSession();
-              }
-            };
-            window.speechSynthesis.speak(utterance);
-          } else {
-            setTimeout(() => {
-              if (isLiveVoiceActive) {
-                statusEl.innerText = 'Listening again...';
-                startLiveVoiceSession();
-              }
-            }, 3000);
+        let reply = '';
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+          try {
+            const res = await fetch('/api/gemini/live-voice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ speechText: spokenText, lang: 'en' })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              reply = data.speechReply || '';
+            }
+          } catch (e) {
+            console.warn('Live voice offline fallback:', e);
           }
-        } catch (e) {
-          console.error('Live voice error:', e);
-          statusEl.innerText = 'Listening again...';
+        }
+        if (!reply) {
+          reply = 'Offline voice mode active. Stay clear of hazards, move to high ground or open air, and keep PUYAL SOS armed for automatic dispatch sync.';
+        }
+
+        transcriptEl.innerHTML = `<strong>You:</strong> "${spokenText}"<br><br><strong>PUYAL AI Live:</strong> "${reply}"`;
+        statusEl.innerText = '🔊 Speaking response...';
+
+        // Play synthesized audio using Web Speech API
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(reply);
+          utterance.rate = 1.05;
+          utterance.onend = () => {
+            if (isLiveVoiceActive) {
+              statusEl.innerText = 'Listening again...';
+              startLiveVoiceSession();
+            }
+          };
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setTimeout(() => {
+            if (isLiveVoiceActive) {
+              statusEl.innerText = 'Listening again...';
+              startLiveVoiceSession();
+            }
+          }, 3000);
         }
       },
       (state) => {
