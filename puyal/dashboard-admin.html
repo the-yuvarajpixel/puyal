@@ -256,8 +256,8 @@
     <section class="tactical-map-section">
       <div class="map-header">
         <div>
-          <span class="gov-badge" style="background: #fef3c7; color: #92400e; border-color: #fde68a;">
-            OPEN-SOURCE LEAFLET &amp; OPENSTREETMAP GIS
+          <span id="map-engine-badge" class="gov-badge" style="background: #fef3c7; color: #92400e; border-color: #fde68a;">
+            TACTICAL MAPPING GIS ENGINE
           </span>
           <h2 style="font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 4px;" data-i18n="admin.map.heading">
             Tactical GPS Disaster Map &amp; Real-Time Route Visualizer
@@ -300,6 +300,11 @@
             🚀 Simulate Dispatch Demo
           </button>
 
+          <!-- Three.js 3D Tactical Command Scene Launcher -->
+          <a href="/tactical-3d.html?role=admin" class="map-filter-btn" style="background: #0f172a; color: #38bdf8; font-weight: 800; border-color: #1e293b; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+            🧊 3D Sector Twin
+          </a>
+
           <!-- Focus specific incident dropdown -->
           <select id="map-incident-selector" class="filter-select" style="max-width: 200px;" onchange="focusIncidentFromDropdown(this.value)">
             <option value="">🎯 Focus 2km Incident...</option>
@@ -338,9 +343,13 @@
             <span>2 km Operational Perimeter Zone</span>
           </div>
         </div>
-        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">
+        <div id="map-engine-attribution" style="font-size: 11px; color: var(--text-muted); font-weight: 700;">
           OpenStreetMap &bull; Leaflet GIS
         </div>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+        Situational visualization only — follow official emergency dispatch protocols. When Google Maps is active, usage is subject to
+        <a href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">Google Maps End User Terms</a>.
       </div>
     </section>
 
@@ -506,9 +515,12 @@
     <div class="table-card">
       <div class="table-header">
         <div>
-          <h3>All Reported Incidents &amp; Priority Ranking</h3>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <h3>All Civilian Reported Incidents &amp; Priority Ranking</h3>
+            <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 8px; border-radius: 999px;">Civilian Reports Only</span>
+          </div>
           <span style="font-size: 11px; color: var(--text-muted);">
-            Ranked by AI: Severity, People Affected, Category Risk &amp; Elapsed Time
+            Civilian-only intake ranked by AI: Severity, People Affected, Category Risk &amp; Elapsed Time
           </span>
         </div>
         <div class="filters">
@@ -537,6 +549,11 @@
             <option value="voice">Voice</option>
             <option value="sos">SOS</option>
           </select>
+          <label class="filter-toggle-label" for="filter-civilian-category" title="When enabled, show only reports marked with the 'civilian' category">
+            <input type="checkbox" id="filter-civilian-category" onchange="renderDashboard()" />
+            <span class="filter-toggle-switch" aria-hidden="true"></span>
+            <span>Civilian Category Only</span>
+          </label>
         </div>
       </div>
 
@@ -567,11 +584,11 @@
           <span class="stream-rec-badge" style="position: static;"><span class="rec-dot"></span> LIVE CIVILIAN STREAM</span>
           <span style="font-size: 13px; font-weight: 700;" id="stream-user-email">Civilian Stream</span>
           <span id="stream-timer" style="font-family: monospace; font-size: 12px; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-weight: 700; color: #86efac;">00:00</span>
-          <span id="stream-packet-badge" style="font-family: monospace; font-size: 11px; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Packet: Syncing</span>
+          <span id="stream-packet-badge" style="font-family: monospace; font-size: 11px; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Syncing WS...</span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-          <button type="button" id="btn-toggle-audio-monitor" onclick="toggleAdminAudioMonitor()" class="btn" style="background: rgba(255,255,255,0.15); color: #fff; font-size: 11px; padding: 4px 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-sm); cursor: pointer;">
-            🔊 Audio Monitor: OFF
+          <button type="button" id="btn-toggle-audio-monitor" onclick="toggleAdminAudioMonitor()" class="btn" style="background: var(--success); color: #fff; font-size: 11px; padding: 4px 10px; border: 1px solid rgba(134, 239, 172, 0.4); border-radius: var(--radius-sm); cursor: pointer; font-weight: 700;">
+            🔊 Audio: LIVE
           </button>
           <button onclick="closeLiveStreamModal()" class="modal-close" style="color: #fff; background: none; border: none; font-size: 26px; cursor: pointer; line-height: 1;">&times;</button>
         </div>
@@ -583,13 +600,13 @@
           <div id="stream-waiting-indicator" style="text-align: center; color: #94a3b8; padding: 20px;">
             <div style="font-size: 40px; margin-bottom: 8px;">📹</div>
             <div style="font-weight: 800; font-size: 15px; color: #fff;">Connecting to Civilian Camera Feed...</div>
-            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Receiving incoming live video packets from device</div>
+            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Establishing low-latency WebSocket video &amp; audio stream</div>
           </div>
         </div>
 
         <!-- Live Audio Visualizer -->
         <div class="audio-visualizer-wave">
-          <span style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-right: 6px;">🎙️ LIVE AUDIO FEED:</span>
+          <span style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-right: 6px;" id="admin-audio-source-label">🎙️ LIVE AUDIO FEED:</span>
           <div class="audio-wave-bar" id="wave-1"></div>
           <div class="audio-wave-bar" id="wave-2"></div>
           <div class="audio-wave-bar" id="wave-3"></div>
@@ -598,7 +615,7 @@
           <div class="audio-wave-bar" id="wave-6"></div>
           <div class="audio-wave-bar" id="wave-7"></div>
           <div class="audio-wave-bar" id="wave-8"></div>
-          <span style="font-size: 11px; font-weight: 800; color: var(--success); margin-left: 8px;" id="audio-db-level">Active</span>
+          <span style="font-size: 11px; font-weight: 800; color: var(--success); margin-left: 8px;" id="audio-db-level">Listening...</span>
         </div>
 
         <!-- Civilian Dispatch Info & Map Links -->
@@ -942,6 +959,13 @@
     let governmentStations = [];
     let responseTeams = [];
 
+    function isCivilianReportClient(item) {
+      if (!item || item.isSimulated || item.isTest) return false;
+      if (!item.reportedRole) return true;
+      const role = String(item.reportedRole).trim().toLowerCase();
+      return role === 'civilian' || role === 'user';
+    }
+
     async function loadAllData() {
       try {
         const [incList, sosList, govData, teamList] = await Promise.all([
@@ -950,7 +974,7 @@
           rapidSync.fetchGovStations(),
           rapidSync.fetchTeams()
         ]);
-        incidents = incList;
+        incidents = (incList || []).filter(isCivilianReportClient);
         sosAlerts = sosList;
         responseTeams = teamList || [];
         if (govData && govData.stations) {
@@ -991,15 +1015,17 @@
     });
 
     rapidSync.on('INCIDENT_CREATED', (inc) => {
+      if (!isCivilianReportClient(inc)) return;
       playEmergencyAlertChime();
       if (!incidents.some(i => String(i.id) === String(inc.id))) {
         incidents.unshift(inc);
         renderDashboard();
-        showToast(`📢 Incident reported: "${inc.title}" (${inc.severity})`, 'warning');
+        showToast(`📢 Civilian incident reported: "${inc.title}" (${inc.severity})`, 'warning');
       }
     });
 
     rapidSync.on('INCIDENT_UPDATED', (inc) => {
+      if (!isCivilianReportClient(inc)) return;
       const idx = incidents.findIndex(i => String(i.id) === String(inc.id));
       if (idx !== -1) {
         incidents[idx] = inc;
@@ -1214,20 +1240,200 @@
     }
 
     // ====================================================================
-    // LIVE STREAM RECEIVER MODAL (CIVILIAN CAMERA & MIC PLAYBACK)
+    // LIVE STREAM RECEIVER MODAL (REAL-TIME WS CAMERA & PCM AUDIO PLAYBACK)
     // ====================================================================
     let activeStreamSosId = null;
     let streamPollInterval = null;
     let streamTimerInterval = null;
     let streamSeconds = 0;
+    let adminStreamWs = null;
+    let adminWsReconnectTimer = null;
+    let adminAudioMonitorActive = true;
+    let adminAudioCtx = null;
+    let adminGainNode = null;
+    let adminNextAudioTime = 0;
+    let adminStreamPacketCount = 0;
+    let adminFrameTimestamps = [];
+
+    function initAdminAudioPlayback() {
+      try {
+        if (!adminAudioCtx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          adminAudioCtx = new AudioCtx();
+          adminGainNode = adminAudioCtx.createGain();
+          adminGainNode.gain.value = adminAudioMonitorActive ? 1.0 : 0.0;
+          adminGainNode.connect(adminAudioCtx.destination);
+          adminNextAudioTime = adminAudioCtx.currentTime;
+        }
+        if (adminAudioCtx.state === 'suspended') {
+          adminAudioCtx.resume().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('Admin AudioContext init warning:', e);
+      }
+    }
+
+    function updateAudioMonitorButtonUI() {
+      const btn = document.getElementById('btn-toggle-audio-monitor');
+      if (!btn) return;
+      if (adminAudioMonitorActive) {
+        btn.textContent = '🔊 Audio: LIVE';
+        btn.style.background = 'var(--success)';
+      } else {
+        btn.textContent = '🔇 Audio: MUTED';
+        btn.style.background = 'rgba(255,255,255,0.15)';
+      }
+    }
+
+    function toggleAdminAudioMonitor() {
+      adminAudioMonitorActive = !adminAudioMonitorActive;
+      initAdminAudioPlayback();
+      if (adminGainNode && adminAudioCtx) {
+        adminGainNode.gain.setTargetAtTime(adminAudioMonitorActive ? 1.0 : 0.0, adminAudioCtx.currentTime, 0.02);
+      }
+      updateAudioMonitorButtonUI();
+      showToast(adminAudioMonitorActive ? 'Live civilian microphone audio enabled.' : 'Live audio monitor muted.', adminAudioMonitorActive ? 'success' : 'info');
+    }
+
+    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000) {
+      if (!base64Pcm || !activeStreamSosId) return;
+      initAdminAudioPlayback();
+      if (!adminAudioCtx || !adminGainNode) return;
+
+      try {
+        const binary = atob(base64Pcm);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const int16 = new Int16Array(bytes.buffer);
+        if (int16.length === 0) return;
+
+        const audioBuf = adminAudioCtx.createBuffer(1, int16.length, sampleRate);
+        const channelData = audioBuf.getChannelData(0);
+        for (let i = 0; i < int16.length; i++) {
+          channelData[i] = int16[i] / 32768.0;
+        }
+
+        const now = adminAudioCtx.currentTime;
+        // Maintain tight 40ms-350ms jitter buffer so audio stays real-time without drift
+        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.35) {
+          adminNextAudioTime = now + 0.04;
+        }
+
+        const source = adminAudioCtx.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(adminGainNode);
+        source.start(adminNextAudioTime);
+        adminNextAudioTime += audioBuf.duration;
+      } catch (e) {
+        console.warn('PCM audio chunk decode warning:', e);
+      }
+    }
+
+    function updateAudioVisualizer(level, hasRealAudio) {
+      const clamped = Math.min(100, Math.max(4, level || 20));
+      const labelEl = document.getElementById('admin-audio-source-label');
+      const dbEl = document.getElementById('audio-db-level');
+
+      if (labelEl) {
+        labelEl.textContent = hasRealAudio ? '🎙️ LIVE MIC PCM (16kHz):' : '📡 TELEMETRY AUDIO:';
+      }
+      if (dbEl) {
+        dbEl.textContent = hasRealAudio
+          ? (adminAudioMonitorActive ? `${Math.round(clamped)}% · Live Audio` : `${Math.round(clamped)}% · Muted`)
+          : `${Math.round(clamped)}% · Signal`;
+      }
+
+      for (let i = 1; i <= 8; i++) {
+        const wave = document.getElementById(`wave-${i}`);
+        if (wave) {
+          const h = Math.round((Math.sin(i * 0.9 + Date.now() / 110) + 1) * (clamped / 2.6) + 5);
+          wave.style.height = `${h}px`;
+        }
+      }
+    }
+
+    function connectAdminStreamWs(sosId) {
+      if (!activeStreamSosId || String(activeStreamSosId) !== String(sosId)) return;
+      if (adminStreamWs && (adminStreamWs.readyState === WebSocket.OPEN || adminStreamWs.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      try {
+        const wsUrl = rapidSync.getSosWebSocketUrl('viewer', sosId);
+        const ws = new WebSocket(wsUrl);
+        adminStreamWs = ws;
+
+        ws.onopen = () => {
+          if (String(activeStreamSosId) !== String(sosId)) {
+            ws.close();
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'SUBSCRIBE', role: 'viewer', sosId: String(sosId) }));
+        };
+
+        ws.onmessage = (evt) => {
+          if (String(activeStreamSosId) !== String(sosId)) return;
+          try {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === 'SOS_FRAME_UPDATE') {
+              updateActiveStreamUI(msg);
+              if (msg.audioPcmBase64) {
+                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000);
+              }
+            } else if (msg.type === 'SOS_AUDIO_CHUNK') {
+              updateAudioVisualizer(msg.audioLevel, true);
+              if (msg.audioPcmBase64) {
+                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000);
+              }
+            } else if (msg.type === 'SOS_ENDED') {
+              const pktBadge = document.getElementById('stream-packet-badge');
+              if (pktBadge) {
+                pktBadge.textContent = 'Broadcast Ended';
+                pktBadge.style.color = '#fca5a5';
+                pktBadge.style.borderColor = '#fca5a5';
+              }
+            }
+          } catch (e) {}
+        };
+
+        ws.onclose = () => {
+          if (adminStreamWs === ws) adminStreamWs = null;
+          if (String(activeStreamSosId) === String(sosId)) {
+            clearTimeout(adminWsReconnectTimer);
+            adminWsReconnectTimer = setTimeout(() => connectAdminStreamWs(sosId), 1000);
+          }
+        };
+
+        ws.onerror = () => {};
+      } catch (e) {
+        console.warn('Admin WS stream error:', e);
+      }
+    }
 
     async function openLiveStreamModal(sosId, email, lat, lon) {
-      activeStreamSosId = sosId;
+      activeStreamSosId = String(sosId);
       streamSeconds = 0;
+      adminStreamPacketCount = 0;
+      adminFrameTimestamps = [];
+      adminAudioMonitorActive = true;
+
       document.getElementById('live-stream-modal').classList.remove('hidden');
       document.getElementById('stream-user-email').textContent = email || 'Civilian Device';
       document.getElementById('stream-coords').textContent = lat && lon ? `${lat}, ${lon}` : 'Detecting GPS...';
       document.getElementById('stream-map-link').href = lat && lon ? `https://www.google.com/maps?q=${lat},${lon}` : '#';
+      document.getElementById('admin-live-stream-img').style.display = 'none';
+      document.getElementById('stream-waiting-indicator').style.display = 'block';
+      document.getElementById('stream-packet-badge').textContent = 'Connecting WS...';
+
+      // Initialize & resume AudioContext synchronously inside user click handler
+      initAdminAudioPlayback();
+      updateAudioMonitorButtonUI();
+
+      // Connect real-time WebSocket stream viewer
+      connectAdminStreamWs(sosId);
 
       // Start duration timer
       if (streamTimerInterval) clearInterval(streamTimerInterval);
@@ -1238,7 +1444,7 @@
         document.getElementById('stream-timer').textContent = `${mins}:${secs}`;
       }, 1000);
 
-      // Poll feed initially
+      // Fetch initial REST snapshot immediately
       try {
         const feed = await rapidSync.fetchSOSLiveFeed(sosId);
         if (feed.stream) {
@@ -1246,62 +1452,21 @@
         }
       } catch (e) {}
 
-      // Periodic check
+      // Fallback REST poll only when WS isn't OPEN
       if (streamPollInterval) clearInterval(streamPollInterval);
       streamPollInterval = setInterval(async () => {
         if (!activeStreamSosId) return;
+        if (adminStreamWs && adminStreamWs.readyState === WebSocket.OPEN) return;
         try {
           const feed = await rapidSync.fetchSOSLiveFeed(activeStreamSosId);
           if (feed.stream) {
             updateActiveStreamUI(feed.stream);
           }
         } catch (e) {}
-      }, 1500);
+      }, 2000);
 
       speakText(`Connected to live civilian stream for ${email}`, 'en');
     }
-
-    let adminAudioMonitorActive = false;
-    let adminAudioCtx = null;
-
-    function toggleAdminAudioMonitor() {
-      adminAudioMonitorActive = !adminAudioMonitorActive;
-      const btn = document.getElementById('btn-toggle-audio-monitor');
-      if (adminAudioMonitorActive) {
-        if (!adminAudioCtx) {
-          adminAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (adminAudioCtx.state === 'suspended') {
-          adminAudioCtx.resume();
-        }
-        btn.textContent = '🔊 Audio Monitor: LIVE (ON)';
-        btn.style.background = 'var(--success)';
-        showToast('Live microphone audio monitor enabled.', 'success');
-      } else {
-        btn.textContent = '🔊 Audio Monitor: OFF';
-        btn.style.background = 'rgba(255,255,255,0.15)';
-      }
-    }
-
-    function playLiveMicrophoneAcousticPulse(level) {
-      if (!adminAudioMonitorActive || !adminAudioCtx) return;
-      try {
-        const osc = adminAudioCtx.createOscillator();
-        const gain = adminAudioCtx.createGain();
-        osc.type = 'sine';
-        // Pitch varies smoothly with civilian speech volume
-        osc.frequency.setValueAtTime(300 + (level * 4), adminAudioCtx.currentTime);
-        const volume = Math.min(0.08, (level / 100) * 0.08);
-        gain.gain.setValueAtTime(volume, adminAudioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, adminAudioCtx.currentTime + 0.18);
-        osc.connect(gain);
-        gain.connect(adminAudioCtx.destination);
-        osc.start();
-        osc.stop(adminAudioCtx.currentTime + 0.2);
-      } catch (e) {}
-    }
-
-    let adminStreamPacketCount = 0;
 
     function updateActiveStreamUI(data) {
       const img = document.getElementById('admin-live-stream-img');
@@ -1312,46 +1477,50 @@
         img.style.display = 'block';
         indicator.style.display = 'none';
 
+        const now = Date.now();
+        adminFrameTimestamps.push(now);
+        adminFrameTimestamps = adminFrameTimestamps.filter(t => now - t <= 1000);
+        const currentFps = adminFrameTimestamps.length;
+
         adminStreamPacketCount++;
         const pktBadge = document.getElementById('stream-packet-badge');
         if (pktBadge) {
-          pktBadge.textContent = `Packet #${adminStreamPacketCount} · Live`;
+          pktBadge.textContent = `${currentFps} FPS · Pkt #${data.seq || adminStreamPacketCount}`;
           pktBadge.style.color = '#86efac';
           pktBadge.style.borderColor = '#86efac';
         }
       }
 
-      // Audio waveform simulation from civilian microphone level
-      const level = Math.min(100, Math.max(10, data.audioLevel || 35));
-      document.getElementById('audio-db-level').textContent = `${Math.round(level)}% Live`;
+      updateAudioVisualizer(data.audioLevel, Boolean(data.hasRealAudio));
 
-      // Trigger audio monitor if enabled
-      playLiveMicrophoneAcousticPulse(level);
-
-      for (let i = 1; i <= 8; i++) {
-        const wave = document.getElementById(`wave-${i}`);
-        if (wave) {
-          const h = Math.round((Math.sin((i + Date.now() / 150)) + 1) * (level / 2.5) + 6);
-          wave.style.height = `${h}px`;
-        }
-      }
-
-      if (data.coords) {
-        document.getElementById('stream-coords').textContent = `${data.coords.latitude}, ${data.coords.longitude} (GPS Auto)`;
+      if (data.coords && data.coords.latitude && data.coords.longitude) {
+        document.getElementById('stream-coords').textContent = `${data.coords.latitude}, ${data.coords.longitude} (GPS Live)`;
         document.getElementById('stream-map-link').href = `https://www.google.com/maps?q=${data.coords.latitude},${data.coords.longitude}`;
       }
     }
 
     function closeLiveStreamModal() {
       activeStreamSosId = null;
-      adminAudioMonitorActive = false;
       adminStreamPacketCount = 0;
+      adminFrameTimestamps = [];
+      clearTimeout(adminWsReconnectTimer);
+
+      if (adminStreamWs) {
+        try { adminStreamWs.close(); } catch (e) {}
+        adminStreamWs = null;
+      }
+      if (adminAudioCtx) {
+        try { adminAudioCtx.close(); } catch (e) {}
+        adminAudioCtx = null;
+        adminGainNode = null;
+        adminNextAudioTime = 0;
+      }
+
       const pktBadge = document.getElementById('stream-packet-badge');
-      if (pktBadge) pktBadge.textContent = 'Packet: Syncing';
-      const audioBtn = document.getElementById('btn-toggle-audio-monitor');
-      if (audioBtn) {
-        audioBtn.textContent = '🔊 Audio Monitor: OFF';
-        audioBtn.style.background = 'rgba(255,255,255,0.15)';
+      if (pktBadge) {
+        pktBadge.textContent = 'Syncing WS...';
+        pktBadge.style.color = '#38bdf8';
+        pktBadge.style.borderColor = '#38bdf8';
       }
       if (streamPollInterval) clearInterval(streamPollInterval);
       if (streamTimerInterval) clearInterval(streamTimerInterval);
@@ -1873,6 +2042,7 @@
       const statFilter = document.getElementById('filter-status').value;
       const srcFilter = document.getElementById('filter-source').value;
       const sortFilter = document.getElementById('filter-sort').value;
+      const civilianCategoryOnly = Boolean(document.getElementById('filter-civilian-category')?.checked);
 
       document.getElementById('stat-total').innerText = incidents.length;
       const criticalCount = incidents.filter(i => i.severity === 'Critical').length;
@@ -1927,12 +2097,30 @@
       const filtered = sorted.filter(i =>
         (sevFilter === 'All' || i.severity === sevFilter) &&
         (statFilter === 'All' || i.status === statFilter) &&
-        (srcFilter === 'All' || i.source === srcFilter)
+        (srcFilter === 'All' || i.source === srcFilter) &&
+        (!civilianCategoryOnly || String(i.category || '').trim().toLowerCase() === 'civilian')
       );
 
       const sourceIcons = { voice: '🎙️', sos: '🚨', form: '📝' };
 
-      document.getElementById('incident-table').innerHTML = filtered.map((item, idx) => {
+      const tableEl = document.getElementById('incident-table');
+      if (filtered.length === 0) {
+        const emptyMsg = civilianCategoryOnly
+          ? 'No reports marked with the "civilian" category match the active filters.'
+          : (incidents.length === 0
+              ? 'No civilian emergency reports yet. Incoming civilian Form, Voice, and SOS reports will appear here automatically.'
+              : 'No reported incidents match the active filters.');
+        tableEl.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 28px 16px; color: var(--text-faint); font-size: 13px;">
+              ${emptyMsg}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tableEl.innerHTML = filtered.map((item, idx) => {
         const rank = item.priorityRank || (idx + 1);
         const pScore = item.priorityScore || 50;
         const rankClass = rank === 1 ? 'rank-top' :
@@ -2124,15 +2312,23 @@
       const mapEl = document.getElementById('tactical-map');
       if (!mapEl) return;
 
-      // Try Google Maps Platform (Advanced Markers & Routes API)
+      // Try Google Maps Platform (Dynamic Library Import, AdvancedMarkerElement, Routes API)
       if (window.TacticalGoogleMap) {
         googleTacticalMap = new window.TacticalGoogleMap('tactical-map', {
           center: { lat: 13.0604, lng: 80.2496 },
-          zoom: 12
+          zoom: 12,
+          gestureHandling: 'cooperative'
         });
         const gmpSuccess = await googleTacticalMap.init();
         if (gmpSuccess) {
           usingGoogleMaps = true;
+          const badgeEl = document.getElementById('map-engine-badge');
+          if (badgeEl) {
+            badgeEl.textContent = 'GOOGLE MAPS PLATFORM • ADVANCED MARKERS & ROUTES';
+            badgeEl.style.background = '#e0f2fe';
+            badgeEl.style.color = '#0369a1';
+            badgeEl.style.borderColor = '#bae6fd';
+          }
           const attrEl = document.getElementById('map-engine-attribution');
           if (attrEl) attrEl.innerHTML = 'Google Maps Platform &bull; Advanced Markers &bull; Live Telemetry';
           updateTacticalMap();
@@ -2226,9 +2422,20 @@
     }
 
     function updateTacticalMap() {
-      // If Google Maps Platform is active, render via AdvancedMarkerElement
+      // Populate Incident Focus Dropdown regardless of active map provider
+      const selector = document.getElementById('map-incident-selector');
+      if (selector) {
+        const curVal = selector.value;
+        selector.innerHTML = '<option value="">🎯 Focus 2km Incident...</option>' +
+          incidents.map(inc => `<option value="${inc.id}" ${String(curVal) === String(inc.id) ? 'selected' : ''}>
+            #${inc.priorityRank || 1} ${inc.title.slice(0, 24)}... (${inc.severity})
+          </option>`).join('');
+      }
+
+      // If Google Maps Platform is active, render via AdvancedMarkerElement & Routes API
       if (usingGoogleMaps && googleTacticalMap) {
         googleTacticalMap.clearLayers();
+        googleTacticalMap.activeFilter = currentMapFilter;
         googleTacticalMap.showPerimeterCircles = showPerimeterCircles;
         incidents.forEach(inc => googleTacticalMap.addDisasterPin(inc));
         governmentStations.forEach(stn => googleTacticalMap.addStationPin(stn));
@@ -2500,22 +2707,16 @@
         mapLayers.sos.addLayer(marker);
       });
 
-      // Populate Incident Focus Dropdown
-      const selector = document.getElementById('map-incident-selector');
-      if (selector) {
-        const curVal = selector.value;
-        selector.innerHTML = '<option value="">🎯 Focus 2km Incident...</option>' +
-          incidents.map(inc => `<option value="${inc.id}" ${String(curVal) === String(inc.id) ? 'selected' : ''}>
-            #${inc.priorityRank || 1} ${inc.title.slice(0, 24)}... (${inc.severity})
-          </option>`).join('');
-      }
-
       applyMapFilter(currentMapFilter);
     }
 
     function applyMapFilter(filterType) {
-      if (!tacticalMap) return;
       currentMapFilter = filterType;
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.setFilter(filterType);
+        return;
+      }
+      if (!tacticalMap) return;
 
       const layers = ['disasters', 'teams', 'stations', 'sos', 'perimeters', 'routes'];
       layers.forEach(l => {
@@ -2560,6 +2761,10 @@
       if (btn) {
         btn.classList.toggle('active', showPerimeterCircles);
         btn.textContent = showPerimeterCircles ? '⭕ 2 km Perimeters: ON' : '⭕ 2 km Perimeters: OFF';
+      }
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.setShowPerimeters(showPerimeterCircles);
+        return;
       }
       if (!showPerimeterCircles) {
         if (tacticalMap && mapLayers.perimeters && tacticalMap.hasLayer(mapLayers.perimeters)) {
@@ -2623,11 +2828,15 @@
           else responseTeams.push(data.team);
           updateTacticalMap();
           renderTeams();
-          if (tacticalMap && data.team.latitude && data.team.longitude) {
+          if (usingGoogleMaps && googleTacticalMap && data.team.latitude && data.team.longitude) {
+            googleTacticalMap.flyTo(data.team.latitude, data.team.longitude, 14);
+          } else if (tacticalMap && data.team.latitude && data.team.longitude) {
             tacticalMap.flyTo([data.team.latitude, data.team.longitude], 14, { duration: 1.2 });
           }
           showToast(`🚑 Dispatched ${data.team.name}! En route telemetry active.`, 'success');
           speakText(`Live emergency dispatch simulation initialized for ${data.team.name}`, 'en');
+        } else {
+          showToast(data.error || 'No civilian reports available to dispatch to yet.', 'warning');
         }
       } catch (e) {
         showToast('Failed to start dispatch simulation: ' + e.message, 'error');

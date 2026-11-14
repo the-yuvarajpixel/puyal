@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RapidResponse Command — 3D Tactical Sector Twin</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b1220;
+      color: #f8fafc;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+    }
+
+    #scene-canvas-host {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud-top-bar {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 8px 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .hud-back-link {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+
+    .hud-back-link:hover {
+      background: #334155;
+    }
+
+    .hud-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: #f8fafc;
+    }
+
+    .hud-metrics {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      padding-left: 8px;
+      border-left: 1px solid #334155;
+    }
+
+    .hud-inspector {
+      position: fixed;
+      left: 14px;
+      bottom: 86px;
+      z-index: 20;
+      width: 270px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+      display: none;
+    }
+
+    .hud-inspector.visible {
+      display: block;
+    }
+
+    .hud-inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .hud-inspector-tag {
+      font-size: 10px;
+      font-weight: 800;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .hud-inspector-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .hud-dock-wrap {
+      position: fixed;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      max-width: 96vw;
+    }
+
+    .hud-dock {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 8px 12px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    }
+
+    .hud-dock.collapsed {
+      display: none;
+    }
+
+    .dock-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 7px;
+      padding: 6px 11px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .dock-btn:hover {
+      background: #334155;
+    }
+
+    .dock-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    .dock-btn.danger {
+      background: #dc2626;
+      border-color: #ef4444;
+      color: #ffffff;
+    }
+
+    .dock-divider {
+      width: 1px;
+      height: 20px;
+      background: #334155;
+      margin: 0 2px;
+    }
+
+    .dock-collapse-tab {
+      background: rgba(15, 23, 42, 0.94);
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 3px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="scene-canvas-host"></div>
+
+  <!-- Minimal Corner Bar -->
+  <header class="hud-top-bar">
+    <a id="back-console-link" href="/dashboard-admin.html" class="hud-back-link">← Command Console</a>
+    <span class="hud-title">3D Tactical Sector Twin</span>
+    <span id="hud-metrics" class="hud-metrics">Syncing sector...</span>
+  </header>
+
+  <!-- Contextual Entity Selection Readout -->
+  <aside id="hud-inspector" class="hud-inspector">
+    <div class="hud-inspector-header">
+      <span id="inspector-type" class="hud-inspector-tag">Entity</span>
+      <button type="button" class="hud-inspector-close" onclick="closeInspector()" aria-label="Close">✕</button>
+    </div>
+    <div id="inspector-title" style="font-size: 13px; font-weight: 800; color: #f8fafc; margin-bottom: 4px;"></div>
+    <div id="inspector-subtitle" style="font-size: 11px; font-weight: 600; color: #38bdf8; margin-bottom: 4px;"></div>
+    <div id="inspector-details" style="font-size: 11px; color: #cbd5e1; line-height: 1.4;"></div>
+  </aside>
+
+  <!-- Collapsible Bottom Command Dock -->
+  <div class="hud-dock-wrap">
+    <div id="hud-dock" class="hud-dock">
+      <button type="button" class="dock-btn active" onclick="setCameraView('overview', this)">Overview</button>
+      <button type="button" class="dock-btn" onclick="setCameraView('hq', this)">Command HQ</button>
+      <button type="button" class="dock-btn" onclick="setCameraView('incident', this)">Critical Zone</button>
+      <button type="button" class="dock-btn" onclick="setCameraView('dispatch', this)">Track Fleet</button>
+      <span class="dock-divider"></span>
+      <button type="button" id="btn-toggle-perim" class="dock-btn active" onclick="togglePerimeters()">2 km Rings: ON</button>
+      <button type="button" id="btn-toggle-orbit" class="dock-btn" onclick="toggleAutoOrbit()">Auto Orbit: OFF</button>
+      <span class="dock-divider"></span>
+      <button type="button" class="dock-btn danger" onclick="simulateDispatch3D()">Simulate Dispatch</button>
+    </div>
+    <button type="button" id="dock-collapse-btn" class="dock-collapse-tab" onclick="toggleDock()">Hide Controls</button>
+  </div>
+
+  <script type="module">
+    import { Tactical3DScene } from '/js/tactical-3d-scene.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const role = params.get('role') === 'user' ? 'user' : 'admin';
+    const backLink = document.getElementById('back-console-link');
+    if (role === 'user') {
+      backLink.href = '/dashboard-user.html';
+      backLink.textContent = '← Civilian Portal';
+    }
+
+    const host = document.getElementById('scene-canvas-host');
+    const sceneEngine = new Tactical3DScene(host, {
+      onSelect: (meta) => {
+        document.getElementById('inspector-type').textContent = meta.entityType || 'Sector Unit';
+        document.getElementById('inspector-title').textContent = meta.title || 'Unnamed Asset';
+        document.getElementById('inspector-subtitle').textContent = meta.subtitle || '';
+        document.getElementById('inspector-details').textContent = meta.details || '';
+        document.getElementById('hud-inspector').classList.add('visible');
+      }
+    });
+    sceneEngine.init();
+
+    let perimetersOn = true;
+    let orbitOn = false;
+
+    async function refreshOperationalData() {
+      try {
+        const [incRes, teamRes, stnRes, sosRes] = await Promise.all([
+          fetch('/api/incidents'),
+          fetch('/api/teams'),
+          fetch('/api/government/stations'),
+          fetch('/api/sos')
+        ]);
+
+        const [incData, teamData, stnData, sosData] = await Promise.all([
+          incRes.ok ? incRes.json() : [],
+          teamRes.ok ? teamRes.json() : [],
+          stnRes.ok ? stnRes.json() : [],
+          sosRes.ok ? sosRes.json() : []
+        ]);
+
+        const incidents = Array.isArray(incData) ? incData : (incData.incidents || []);
+        const teams = Array.isArray(teamData) ? teamData : (teamData.teams || []);
+        const stations = Array.isArray(stnData) ? stnData : (stnData.stations || []);
+        const sosAlerts = Array.isArray(sosData) ? sosData : (sosData.alerts || []);
+
+        sceneEngine.syncOperationalState({ incidents, teams, stations, sosAlerts });
+
+        const dispatchedCount = teams.filter(t => t.status === 'Dispatched').length;
+        const activeSosCount = sosAlerts.filter(s => s.active).length;
+        document.getElementById('hud-metrics').textContent =
+          `${incidents.length} Incidents • ${dispatchedCount}/${teams.length} En Route • ${activeSosCount} SOS`;
+      } catch (err) {
+        document.getElementById('hud-metrics').textContent = 'Telemetry Offline';
+      }
+    }
+
+    refreshOperationalData();
+    const pollTimer = window.setInterval(refreshOperationalData, 2500);
+
+    // Real-time SSE sync
+    let eventSource = null;
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.onmessage = () => refreshOperationalData();
+    } catch (e) {}
+
+    window.setCameraView = function (mode, btnEl) {
+      document.querySelectorAll('#hud-dock .dock-btn').forEach(b => {
+        if (['Overview', 'Command HQ', 'Critical Zone', 'Track Fleet'].includes(b.textContent)) {
+          b.classList.remove('active');
+        }
+      });
+      if (btnEl) btnEl.classList.add('active');
+      sceneEngine.focusPreset(mode);
+    };
+
+    window.togglePerimeters = function () {
+      perimetersOn = !perimetersOn;
+      sceneEngine.setPerimeterVisibility(perimetersOn);
+      const btn = document.getElementById('btn-toggle-perim');
+      btn.textContent = perimetersOn ? '2 km Rings: ON' : '2 km Rings: OFF';
+      btn.classList.toggle('active', perimetersOn);
+    };
+
+    window.toggleAutoOrbit = function () {
+      orbitOn = !orbitOn;
+      sceneEngine.setAutoOrbit(orbitOn);
+      const btn = document.getElementById('btn-toggle-orbit');
+      btn.textContent = orbitOn ? 'Auto Orbit: ON' : 'Auto Orbit: OFF';
+      btn.classList.toggle('active', orbitOn);
+    };
+
+    window.simulateDispatch3D = async function () {
+      try {
+        await fetch('/api/demo/simulate-dispatch', { method: 'POST' });
+        await refreshOperationalData();
+        sceneEngine.focusPreset('dispatch');
+      } catch (err) {}
+    };
+
+    window.closeInspector = function () {
+      document.getElementById('hud-inspector').classList.remove('visible');
+    };
+
+    window.toggleDock = function () {
+      const dock = document.getElementById('hud-dock');
+      const tab = document.getElementById('dock-collapse-btn');
+      const collapsed = dock.classList.toggle('collapsed');
+      tab.textContent = collapsed ? 'Show Controls' : 'Hide Controls';
+    };
+
+    window.addEventListener('beforeunload', () => {
+      window.clearInterval(pollTimer);
+      if (eventSource) eventSource.close();
+      sceneEngine.dispose();
+    });
+  </script>
+</body>
+</html>

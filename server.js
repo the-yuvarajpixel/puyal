@@ -1,13 +1,16 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
 import { GoogleGenAI } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const server = http.createServer(app);
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = '0.0.0.0';
 
@@ -143,23 +146,15 @@ const defaultTeams = [
     expertise: "Advanced Life Support & Critical Trauma",
     stationId: "STN-CEN-01",
     stationName: "EOC Central Disaster Command Depot",
-    latitude: 13.0554,
-    longitude: 80.2607,
-    originLatitude: 13.0610,
-    originLongitude: 80.2490,
-    targetLatitude: 13.0450,
-    targetLongitude: 80.2824,
-    progress: 35,
-    remainingDistKm: 1.4,
-    etaMinutes: 3,
-    speedKmh: 52,
+    latitude: 13.0595,
+    longitude: 80.2512,
     personnelCount: 5,
     vehicles: ["ALS Mobile ICU Ambulance", "Rapid Paramedic Bike"],
     contact: "+91 44 2859 3922",
-    status: "Dispatched",
-    assignedIncidentId: 1731195000001,
-    assignedIncidentTitle: "Structural Risk & Water Surge Alert",
-    assignedAt: new Date().toISOString()
+    status: "Available",
+    assignedIncidentId: null,
+    assignedIncidentTitle: null,
+    assignedAt: null
   },
   {
     teamId: "TEAM-NDRF-01",
@@ -442,50 +437,40 @@ const defaultStore = {
       createdAt: new Date().toISOString()
     }
   ],
-  incidents: [
-    {
-      id: 1731195000001,
-      title: 'Structural Risk & Water Surge Alert',
-      category: 'Flood',
-      severity: 'Critical',
-      severityScore: 92,
-      location: 'Bridge Sector 4B, Riverfront',
-      latitude: 13.0450,
-      longitude: 80.2824,
-      coords: { lat: 13.0450, lon: 80.2824 },
-      affected: 8,
-      description: 'Water surge overflowing embankment. Structural safety assessment needed immediately.',
-      contact: 'Civilian Emergency Watch',
-      status: 'In Progress',
-      assignedTeamId: 'TEAM-MED-01',
-      assignedTeamName: 'Trauma ALS Rapid Squad 1',
-      assignedTeamCategory: 'Medical Emergency',
-      timestamp: new Date(Date.now() - 1000 * 60 * 15).toLocaleString(),
-      reportedBy: 'civilian.demo@rapidresponse.org',
-      source: 'form'
-    },
-    {
-      id: 1731195000002,
-      title: '[Voice Report] Road Accident Emergency',
-      category: 'Road Accident',
-      severity: 'High',
-      severityScore: 74,
-      location: '12.9716, 77.5946 (GPS Auto)',
-      affected: 3,
-      description: 'Two vehicles collided at intersection. Paramedics dispatched.',
-      contact: 'Voice Report',
-      status: 'In Progress',
-      timestamp: new Date(Date.now() - 1000 * 60 * 35).toLocaleString(),
-      reportedBy: 'civilian.demo@rapidresponse.org',
-      source: 'voice'
-    }
-  ],
+  incidents: [],
   sos_alerts: [],
   government_stations: defaultStations,
   teams: defaultTeams,
   dispatches: [],
   emailTokens: []
 };
+
+const SEEDED_TEST_INCIDENT_IDS = new Set([1731195000001, 1731195000002]);
+
+function isAdminReporter(reportedBy, usersList = []) {
+  if (!reportedBy) return false;
+  const normalized = String(reportedBy).trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'system' || normalized === 'command' || normalized === 'demo_seed') {
+    return true;
+  }
+  return (usersList || []).some(
+    u => u && u.role === 'admin' && u.email && String(u.email).trim().toLowerCase() === normalized
+  );
+}
+
+function isCivilianReport(inc, usersList = []) {
+  if (!inc || typeof inc !== 'object') return false;
+  if (inc.isSimulated === true || inc.isTest === true) return false;
+  if (SEEDED_TEST_INCIDENT_IDS.has(Number(inc.id))) return false;
+
+  if (inc.reportedRole !== undefined && inc.reportedRole !== null && String(inc.reportedRole).trim() !== '') {
+    const role = String(inc.reportedRole).trim().toLowerCase();
+    if (role !== 'civilian' && role !== 'user') return false;
+  }
+
+  if (isAdminReporter(inc.reportedBy, usersList)) return false;
+  return true;
+}
 
 function loadStore() {
   try {
@@ -519,6 +504,21 @@ function loadStore() {
           createdAt: new Date().toISOString()
         });
       }
+
+      parsed.incidents = (parsed.incidents || []).filter(inc => isCivilianReport(inc, parsed.users));
+      const validIds = new Set(parsed.incidents.map(i => String(i.id)));
+      parsed.teams = parsed.teams.map(t => {
+        if (t.assignedIncidentId && !validIds.has(String(t.assignedIncidentId))) {
+          return {
+            ...t,
+            status: 'Available',
+            assignedIncidentId: null,
+            assignedIncidentTitle: null,
+            assignedAt: null
+          };
+        }
+        return t;
+      });
       return parsed;
     }
   } catch (e) {
@@ -933,15 +933,36 @@ Return strictly valid JSON with identical keys and values accurately translated 
   });
 });
 
+const BHASHINI_VOICE_GUIDANCE = {
+  en: 'Selected language: English. You can report an emergency using voice or SOS, or open Admin Control to coordinate rescue teams. Press Control plus L anytime to switch languages.',
+  ta: 'தேர்ந்தெடுக்கப்பட்ட மொழி: தமிழ். அவசரநிலையைப் புகாரளிக்க "அவசரநிலையைப் புகாரளிக்கவும்" என்பதைத் தேர்ந்தெடுக்கவும், அல்லது மீட்புக் குழுக்களை ஒருங்கிணைக்க நிர்வாகக் கட்டுப்பாட்டைத் திறக்கவும். உடனடி உதவிக்கு SOS அல்லது குரல் பதிவைப் பயன்படுத்தவும்.',
+  hi: 'चयनित भाषा: हिन्दी। आपातकाल की रिपोर्ट करने के लिए "आपातकाल की रिपोर्ट करें" चुनें, या बचाव दल के समन्वय के लिए प्रशासन नियंत्रण खोलें। त्वरित सहायता के लिए आवाज़ या एसओएस का उपयोग करें।',
+  te: 'ఎంచుకున్న భాష: తెలుగు. తక్షణ సహాయం కోసం వాయిస్ లేదా SOS ద్వారా "అత్యవసర పరిస్థితిని నివేదించండి" ఎంచుకోండి, లేదా సహాయక చర్యలను సమన్వయం చేయడానికి అడ్మిన్ నియంత్రణను తెరవండి.',
+  ml: 'തിരഞ്ഞെടുത്ത ഭാഷ: മലയാളം. ശബ്ദം അല്ലെങ്കിൽ SOS വഴി അടിയന്തര സാഹചര്യം അറിയിക്കാൻ ആദ്യ ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക, അല്ലെങ്കിൽ രക്ഷാപ്രവർത്തനങ്ങൾ ഏകോപിപ്പിക്കാൻ അഡ്മിൻ കൺട്രോൾ തുറക്കുക.',
+  kn: 'ಆಯ್ಕೆಮಾಡಿದ ಭಾಷೆ: ಕನ್ನಡ. ಧ್ವನಿ ಅಥವಾ SOS ಮೂಲಕ ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ವರದಿ ಮಾಡಲು ಮೊದಲ ಕಾರ್ಡ್ ಆಯ್ಕೆಮಾಡಿ, ಅಥವಾ ರಕ್ಷಣಾ ತಂಡಗಳನ್ನು ಸಂಯೋಜಿಸಲು ನಿರ್ವಾಹಕ ನಿಯಂತ್ರಣವನ್ನು ತೆರೆಯಿರಿ.',
+  bn: 'নির্বাচিত ভাষা: বাংলা। ভয়েস বা SOS-এর মাধ্যমে জরুরি অবস্থা জানাতে প্রথম অপশনটি বেছে নিন, অথবা উদ্ধার দল সমন্বয় করতে প্রশাসন নিয়ন্ত্রণ খুলুন।',
+  mr: 'निवडलेली भाषा: मराठी. आवाज किंवा SOS द्वारे तात्काळ मदतीसाठी आपत्कालीन परिस्थितीची नोंद करा, किंवा मदत पथकांचे समन्वय करण्यासाठी प्रशासन नियंत्रण उघडा.',
+  gu: 'પસંદ કરેલી ભાષા: ગુજરાતી. તાત્કાલિક મદદ માટે વૉઇસ અથવા SOS દ્વારા ઇમરજન્સીની જાણ કરો, અથવા બચાવ દળોના સંકલન માટે વહીવટી નિયંત્રણ ખોલો.',
+  pa: 'ਚੁਣੀ ਗਈ ਭਾਸ਼ਾ: ਪੰਜਾਬੀ। ਤੁਰੰਤ ਮਦਦ ਲਈ ਆਵਾਜ਼ ਜਾਂ SOS ਰਾਹੀਂ ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ, ਜਾਂ ਬਚਾਅ ਟੀਮਾਂ ਦਾ ਤਾਲਮੇਲ ਕਰਨ ਲਈ ਐਡਮਿਨ ਕੰਟਰੋਲ ਖੋਲ੍ਹੋ।',
+  or: 'ମନୋନୀତ ଭାଷା: ଓଡ଼ିଆ। ତୁରନ୍ତ ସାହାଯ୍ୟ ପାଇଁ ଭଏସ୍ କିମ୍ବା SOS ମାଧ୍ୟମରେ ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ କରନ୍ତୁ, କିମ୍ବା ଉଦ୍ଧାରକାରୀ ଦଳର ସମନ୍ୱୟ ପାଇଁ ପ୍ରଶାସନ ନିୟନ୍ତ୍ରଣ ଖୋଲନ୍ତୁ।',
+  es: 'Idioma seleccionado: Español. Seleccione Reportar Emergencia para enviar alertas por voz o SOS, o abra Control Administrativo para coordinar los equipos de rescate.'
+};
+
 app.post('/api/bhashini/tts', (req, res) => {
-  const { text, language = 'ta' } = req.body;
-  const targetLangObj = BHASHINI_LANGUAGES.find(l => l.code === language) || BHASHINI_LANGUAGES[1];
+  const { text, language = 'en', mode = 'tts' } = req.body || {};
+  const targetLangObj = BHASHINI_LANGUAGES.find(l => l.code === language) || BHASHINI_LANGUAGES[0];
+  const guidanceText = BHASHINI_VOICE_GUIDANCE[targetLangObj.code] || BHASHINI_VOICE_GUIDANCE.en;
+  const finalText = (text && String(text).trim()) ? String(text).trim() : guidanceText;
 
   res.json({
     success: true,
     service: 'Bhashini AI Indic Speech Synthesis',
-    text,
-    language,
+    mode,
+    text: finalText,
+    guidanceText,
+    language: targetLangObj.code,
+    languageName: targetLangObj.name,
+    nativeName: targetLangObj.native,
     bhashiniLangCode: targetLangObj.bhashiniCode,
     model: 'Bhashini-Indic-TTS-FastPitch',
     sampleRate: 22050,
@@ -1327,31 +1348,17 @@ app.post('/api/demo/simulate-dispatch', (req, res) => {
   if (!store.teams) store.teams = defaultTeams;
   if (!store.incidents) store.incidents = [];
 
-  // 1. Pick target incident (prefer unassigned or first demo incident)
-  let incident = store.incidents.find(i => i.status !== 'Resolved' && !i.assignedTeamId);
-  if (!incident && store.incidents.length > 0) {
-    incident = store.incidents[0];
+  // 1. Pick target civilian incident (prefer unassigned active civilian report)
+  const civilianIncidents = store.incidents.filter(i => isCivilianReport(i, store.users));
+  let incident = civilianIncidents.find(i => i.status !== 'Resolved' && !i.assignedTeamId);
+  if (!incident && civilianIncidents.length > 0) {
+    incident = civilianIncidents[0];
   }
   if (!incident) {
-    incident = {
-      id: Date.now(),
-      title: 'Emergency Distress Signal',
-      category: 'Medical Emergency',
-      severity: 'Critical',
-      severityScore: 94,
-      location: 'Bridge Sector 4B, Riverfront',
-      latitude: 13.0450,
-      longitude: 80.2824,
-      coords: { lat: 13.0450, lon: 80.2824 },
-      affected: 4,
-      description: 'Emergency rescue unit requested immediately. High-priority dispatch active.',
-      contact: 'Civilian Emergency Watch',
-      status: 'Reported',
-      timestamp: new Date().toLocaleString(),
-      reportedBy: 'civilian.demo@rapidresponse.org',
-      source: 'form'
-    };
-    store.incidents.unshift(incident);
+    return res.status(400).json({
+      success: false,
+      error: 'No active civilian reports available. Submit a civilian report in the Civilian Portal first.'
+    });
   }
 
   // 2. Pick best available team or reset first team
@@ -1476,29 +1483,115 @@ app.get('/api/teams/:id/nearest-incident', (req, res) => {
 // Live Video & Audio SOS Stream Relay (From Civilian to Admin)
 // ----------------------------------------------------------------------------
 
-// Civilian uploads live frame & audio sample
-app.post('/api/sos/:id/stream-frame', (req, res) => {
-  const sosId = req.params.id;
-  const { frameBase64, audioLevel = 50, coords, email } = req.body;
+// Track SSE throttle per SOS so high-FPS WebSocket video does not saturate SSE
+const lastSseFrameEmit = new Map();
+// Connected WebSocket clients for /ws/sos
+const sosWsClients = new Set();
 
+function broadcastSosWs(sosId, payloadObj) {
+  const raw = JSON.stringify(payloadObj);
+  for (const client of sosWsClients) {
+    if (
+      client.readyState === 1 &&
+      client.role === 'viewer' &&
+      (!client.sosId || client.sosId === 'all' || String(client.sosId) === String(sosId))
+    ) {
+      try {
+        if (client.bufferedAmount < 1024 * 512) {
+          client.send(raw);
+        }
+      } catch (e) {}
+    }
+  }
+}
+
+// Civilian uploads live frame & optional audio chunk (HTTP fallback + initial snapshot)
+app.post('/api/sos/:id/stream-frame', (req, res) => {
+  const sosId = String(req.params.id);
+  const { frameBase64, audioLevel = 50, audioPcmBase64, sampleRate = 16000, coords, email, hasRealAudio = false, seq = 0 } = req.body;
+
+  const existing = liveMediaStreams.get(sosId) || {};
   const streamData = {
     sosId,
-    email: email || 'Civilian',
-    lastFrame: frameBase64 || null,
+    email: email || existing.email || 'Civilian',
+    lastFrame: frameBase64 || existing.lastFrame || null,
     audioLevel: parseFloat(audioLevel) || 30,
-    coords: coords || null,
+    hasRealAudio: Boolean(hasRealAudio || existing.hasRealAudio),
+    sampleRate: sampleRate || 16000,
+    coords: coords || existing.coords || null,
+    seq,
     updatedAt: Date.now()
   };
 
   liveMediaStreams.set(sosId, streamData);
 
-  // Broadcast frame to all viewing admins
-  broadcast('SOS_FRAME_UPDATE', {
+  // Sync refined GPS coordinates back onto active alert if updated
+  if (coords && coords.latitude && coords.longitude) {
+    const alert = store.sos_alerts.find(a => String(a.id) === sosId);
+    if (alert) {
+      alert.latitude = parseFloat(coords.latitude);
+      alert.longitude = parseFloat(coords.longitude);
+      if (coords.accuracy) alert.accuracy = parseFloat(coords.accuracy);
+    }
+  }
+
+  // Relay immediately to WebSocket viewers
+  broadcastSosWs(sosId, {
+    type: 'SOS_FRAME_UPDATE',
     sosId,
     audioLevel: streamData.audioLevel,
     hasFrame: Boolean(frameBase64),
     lastFrame: frameBase64,
-    coords: streamData.coords
+    audioPcmBase64: audioPcmBase64 || null,
+    sampleRate: streamData.sampleRate,
+    hasRealAudio: streamData.hasRealAudio,
+    coords: streamData.coords,
+    seq,
+    ts: Date.now()
+  });
+
+  // Throttled SSE fallback (max once per 750ms)
+  const now = Date.now();
+  const lastEmit = lastSseFrameEmit.get(sosId) || 0;
+  if (now - lastEmit >= 750) {
+    lastSseFrameEmit.set(sosId, now);
+    broadcast('SOS_FRAME_UPDATE', {
+      sosId,
+      audioLevel: streamData.audioLevel,
+      hasFrame: Boolean(frameBase64),
+      lastFrame: frameBase64,
+      hasRealAudio: streamData.hasRealAudio,
+      coords: streamData.coords
+    });
+  }
+
+  res.json({ success: true });
+});
+
+// Dedicated HTTP audio chunk fallback endpoint
+app.post('/api/sos/:id/stream-audio', (req, res) => {
+  const sosId = String(req.params.id);
+  const { audioPcmBase64, sampleRate = 16000, audioLevel = 40, seq = 0 } = req.body;
+  if (!audioPcmBase64) {
+    return res.status(400).json({ error: 'audioPcmBase64 required' });
+  }
+
+  const existing = liveMediaStreams.get(sosId) || { sosId };
+  existing.audioLevel = parseFloat(audioLevel) || existing.audioLevel || 40;
+  existing.hasRealAudio = true;
+  existing.sampleRate = sampleRate;
+  existing.updatedAt = Date.now();
+  liveMediaStreams.set(sosId, existing);
+
+  broadcastSosWs(sosId, {
+    type: 'SOS_AUDIO_CHUNK',
+    sosId,
+    audioPcmBase64,
+    sampleRate,
+    audioLevel: existing.audioLevel,
+    hasRealAudio: true,
+    seq,
+    ts: Date.now()
   });
 
   res.json({ success: true });
@@ -1506,7 +1599,7 @@ app.post('/api/sos/:id/stream-frame', (req, res) => {
 
 // Admin fetches live feed snapshot
 app.get('/api/sos/:id/live-feed', (req, res) => {
-  const sosId = req.params.id;
+  const sosId = String(req.params.id);
   const streamData = liveMediaStreams.get(sosId);
 
   if (streamData) {
@@ -1514,7 +1607,7 @@ app.get('/api/sos/:id/live-feed', (req, res) => {
   }
 
   // Fallback if no frames yet uploaded
-  const alert = store.sos_alerts.find(a => a.id === sosId);
+  const alert = store.sos_alerts.find(a => String(a.id) === sosId);
   return res.json({
     success: true,
     stream: {
@@ -1522,6 +1615,7 @@ app.get('/api/sos/:id/live-feed', (req, res) => {
       email: alert ? alert.email : 'Civilian',
       lastFrame: null,
       audioLevel: 25,
+      hasRealAudio: false,
       coords: alert ? { latitude: alert.latitude, longitude: alert.longitude } : null,
       updatedAt: Date.now()
     }
@@ -1702,16 +1796,19 @@ app.post('/api/auth/reauthenticate', (req, res) => {
 // ----------------------------------------------------------------------------
 
 app.get('/api/incidents', (req, res) => {
-  const incidents = (store.incidents || []).map(inc => {
-    const priority = calculateIncidentPriority(inc);
-    const coords = extractIncidentCoords(inc);
-    return {
-      ...inc,
-      priorityScore: priority.priorityScore,
-      priorityRankTier: priority.rankTier,
-      coords
-    };
-  });
+  const incidents = (store.incidents || [])
+    .filter(inc => isCivilianReport(inc, store.users))
+    .map(inc => {
+      const priority = calculateIncidentPriority(inc);
+      const coords = extractIncidentCoords(inc);
+      return {
+        ...inc,
+        reportedRole: 'civilian',
+        priorityScore: priority.priorityScore,
+        priorityRankTier: priority.rankTier,
+        coords
+      };
+    });
 
   // Calculate dynamic rank for each incident (1 = highest priority)
   const sorted = [...incidents].sort((a, b) => b.priorityScore - a.priorityScore);
@@ -1729,7 +1826,20 @@ app.get('/api/incidents', (req, res) => {
 });
 
 app.post('/api/incidents', (req, res) => {
-  const inc = req.body;
+  const inc = req.body || {};
+  const incomingRole = inc.reportedRole ? String(inc.reportedRole).trim().toLowerCase() : 'civilian';
+  if (
+    inc.isSimulated === true ||
+    inc.isTest === true ||
+    (incomingRole !== 'civilian' && incomingRole !== 'user') ||
+    isAdminReporter(inc.reportedBy, store.users)
+  ) {
+    return res.status(403).json({
+      success: false,
+      error: 'Only civilian-submitted emergency reports are accepted.'
+    });
+  }
+
   const initial = {
     id: inc.id || Date.now(),
     title: inc.title || 'Emergency Report',
@@ -1744,6 +1854,7 @@ app.post('/api/incidents', (req, res) => {
     status: inc.status || 'Reported',
     timestamp: inc.timestamp || new Date().toLocaleString(),
     reportedBy: inc.reportedBy || 'Civilian',
+    reportedRole: 'civilian',
     source: inc.source || 'form',
     createdAt: new Date().toISOString()
   };
@@ -1810,7 +1921,14 @@ app.get('/api/sos', (req, res) => {
 });
 
 app.post('/api/sos', (req, res) => {
-  const { userId, email, latitude, longitude, accuracy, active = true, media = {} } = req.body;
+  const { userId, email, latitude, longitude, accuracy, active = true, media = {}, reportedRole, role } = req.body || {};
+  const resolvedRole = (reportedRole || role || 'civilian').toString().trim().toLowerCase();
+  if ((resolvedRole !== 'civilian' && resolvedRole !== 'user') || isAdminReporter(email, store.users)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Only civilian SOS reports are accepted.'
+    });
+  }
 
   const parsedLat = (latitude !== null && latitude !== undefined && !isNaN(parseFloat(latitude))) ? parseFloat(latitude) : 13.0604;
   const parsedLon = (longitude !== null && longitude !== undefined && !isNaN(parseFloat(longitude))) ? parseFloat(longitude) : 80.2496;
@@ -1821,6 +1939,7 @@ app.post('/api/sos', (req, res) => {
     id: alertId,
     userId: userId || 'demo_user',
     email: email || 'civilian.demo@rapidresponse.org',
+    reportedRole: 'civilian',
     latitude: parsedLat,
     longitude: parsedLon,
     accuracy: parsedAcc,
@@ -1852,6 +1971,7 @@ app.post('/api/sos', (req, res) => {
     status: 'Reported',
     timestamp: new Date().toLocaleString(),
     reportedBy: email || 'civilian.demo@rapidresponse.org',
+    reportedRole: 'civilian',
     source: 'sos',
     createdAt: new Date().toISOString()
   };
@@ -1865,12 +1985,15 @@ app.post('/api/sos', (req, res) => {
 });
 
 app.post('/api/sos/:id/resolve', (req, res) => {
-  const id = req.params.id;
-  const alert = store.sos_alerts.find(a => a.id === id);
+  const id = String(req.params.id);
+  const alert = store.sos_alerts.find(a => String(a.id) === id);
   if (alert) {
     alert.active = false;
     alert.resolvedAt = new Date().toISOString();
     saveStore(store);
+    liveMediaStreams.delete(id);
+    lastSseFrameEmit.delete(id);
+    broadcastSosWs(id, { type: 'SOS_ENDED', sosId: id, reason: 'resolved' });
     broadcast('SOS_RESOLVED', { id });
     return res.json({ success: true, alert });
   }
@@ -1878,11 +2001,14 @@ app.post('/api/sos/:id/resolve', (req, res) => {
 });
 
 app.post('/api/sos/:id/deactivate', (req, res) => {
-  const id = req.params.id;
-  const alert = store.sos_alerts.find(a => a.id === id);
+  const id = String(req.params.id);
+  const alert = store.sos_alerts.find(a => String(a.id) === id);
   if (alert) {
     alert.active = false;
     saveStore(store);
+    liveMediaStreams.delete(id);
+    lastSseFrameEmit.delete(id);
+    broadcastSosWs(id, { type: 'SOS_ENDED', sosId: id, reason: 'deactivated' });
     broadcast('SOS_DEACTIVATED', { id });
     return res.json({ success: true, alert });
   }
@@ -1893,6 +2019,7 @@ app.post('/api/sos/:id/deactivate', (req, res) => {
 // Static Assets & Routing
 // ----------------------------------------------------------------------------
 
+app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three')));
 app.use(express.static(puyalDir, { extensions: ['html'] }));
 app.use('/puyal', express.static(puyalDir, { extensions: ['html'] }));
 
@@ -2027,6 +2154,7 @@ app.get('/api/maps/config', (req, res) => {
   res.json({
     apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
     mapId: 'DEMO_MAP_ID',
+    attributionId: 'gmp_mcp_codeassist_v1_aistudio',
     configured: Boolean(process.env.GOOGLE_MAPS_API_KEY)
   });
 });
@@ -2293,7 +2421,118 @@ Speak calmly and clearly. Language requested: ${lang}.`;
   });
 });
 
-app.listen(PORT, HOST, () => {
+// ----------------------------------------------------------------------------
+// WebSocket Live Camera & Audio Relay (/ws/sos)
+// ----------------------------------------------------------------------------
+const wss = new WebSocketServer({ server, path: '/ws/sos', maxPayload: 4 * 1024 * 1024 });
+
+wss.on('connection', (ws, req) => {
+  try {
+    const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    ws.role = reqUrl.searchParams.get('role') || 'viewer';
+    ws.sosId = reqUrl.searchParams.get('sosId') || 'all';
+  } catch (e) {
+    ws.role = 'viewer';
+    ws.sosId = 'all';
+  }
+
+  sosWsClients.add(ws);
+
+  // Send latest snapshot immediately when an admin viewer joins
+  if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
+    const existing = liveMediaStreams.get(String(ws.sosId));
+    if (existing) {
+      try {
+        ws.send(JSON.stringify({
+          type: 'SOS_FRAME_UPDATE',
+          ...existing
+        }));
+      } catch (e) {}
+    }
+  }
+
+  ws.on('message', (rawMsg) => {
+    try {
+      const msg = JSON.parse(rawMsg.toString());
+      if (!msg || !msg.type) return;
+
+      if (msg.type === 'SUBSCRIBE') {
+        ws.role = msg.role || ws.role;
+        ws.sosId = String(msg.sosId || ws.sosId);
+        if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
+          const existing = liveMediaStreams.get(ws.sosId);
+          if (existing) {
+            try {
+              ws.send(JSON.stringify({ type: 'SOS_FRAME_UPDATE', ...existing }));
+            } catch (e) {}
+          }
+        }
+        return;
+      }
+
+      const rawTargetId = msg.sosId || ws.sosId;
+      if (!rawTargetId || rawTargetId === 'all') return;
+      const targetSosId = String(rawTargetId);
+
+      if (msg.type === 'VIDEO_FRAME') {
+        const existing = liveMediaStreams.get(targetSosId) || {};
+        const updated = {
+          sosId: targetSosId,
+          email: msg.email || existing.email || 'Civilian',
+          lastFrame: msg.frameBase64 || existing.lastFrame || null,
+          audioLevel: msg.audioLevel !== undefined ? parseFloat(msg.audioLevel) : (existing.audioLevel || 30),
+          hasRealAudio: Boolean(msg.hasRealAudio || existing.hasRealAudio),
+          sampleRate: existing.sampleRate || 16000,
+          coords: msg.coords || existing.coords || null,
+          seq: msg.seq || 0,
+          updatedAt: Date.now()
+        };
+        liveMediaStreams.set(targetSosId, updated);
+
+        broadcastSosWs(targetSosId, {
+          type: 'SOS_FRAME_UPDATE',
+          sosId: targetSosId,
+          lastFrame: msg.frameBase64,
+          audioLevel: updated.audioLevel,
+          hasRealAudio: updated.hasRealAudio,
+          coords: updated.coords,
+          seq: msg.seq || 0,
+          ts: msg.ts || Date.now()
+        });
+      } else if (msg.type === 'AUDIO_CHUNK') {
+        const existing = liveMediaStreams.get(targetSosId) || { sosId: targetSosId };
+        existing.audioLevel = msg.audioLevel !== undefined ? parseFloat(msg.audioLevel) : existing.audioLevel;
+        existing.hasRealAudio = true;
+        existing.sampleRate = msg.sampleRate || 16000;
+        existing.updatedAt = Date.now();
+        liveMediaStreams.set(targetSosId, existing);
+
+        broadcastSosWs(targetSosId, {
+          type: 'SOS_AUDIO_CHUNK',
+          sosId: targetSosId,
+          audioPcmBase64: msg.audioPcmBase64,
+          sampleRate: msg.sampleRate || 16000,
+          audioLevel: existing.audioLevel,
+          hasRealAudio: true,
+          seq: msg.seq || 0,
+          ts: msg.ts || Date.now()
+        });
+      }
+    } catch (e) {
+      // Ignore malformed frame packets
+    }
+  });
+
+  ws.on('close', () => {
+    sosWsClients.delete(ws);
+  });
+
+  ws.on('error', () => {
+    sosWsClients.delete(ws);
+  });
+});
+
+server.listen(PORT, HOST, () => {
   console.log(`RapidResponse Command server running at http://${HOST}:${PORT}`);
 });
 

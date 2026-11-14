@@ -131,9 +131,26 @@
               <div class="bhashini-recent-section" id="bhashini-recent-section">
                 <div class="bhashini-section-header">
                   <span class="bhashini-section-title">🕒 Recent Languages</span>
+                  <button
+                    type="button"
+                    id="btn-clear-recent-langs"
+                    class="bhashini-clear-history-btn"
+                    onclick="clearRecentLanguagesHistory(event)"
+                    title="Clear recent language history"
+                    aria-label="Clear recent language history"
+                  >
+                    Clear History
+                  </button>
                 </div>
                 <div class="bhashini-recent-chips" id="bhashini-recent-chips" role="group" aria-label="Recent languages">
                   <!-- Rendered dynamically -->
+                </div>
+                <div
+                  class="bhashini-recent-note"
+                  title="Your recent language selections are saved locally in your browser for quick future access."
+                >
+                  <span aria-hidden="true">💾</span>
+                  <span>Saved locally in your browser for quick access</span>
                 </div>
               </div>
 
@@ -146,6 +163,30 @@
               <ul class="bhashini-options-list" id="bhashini-options-list" role="listbox" aria-label="Available Languages">
                 <!-- Rendered dynamically by script -->
               </ul>
+
+              <!-- Bhashini Voice Guidance Footer Action -->
+              <div class="bhashini-dropdown-footer">
+                <button
+                  type="button"
+                  id="btn-bhashini-voice-guidance"
+                  class="bhashini-voice-guidance-btn"
+                  onclick="playBhashiniDropdownVoiceGuidance(event)"
+                  title="Read aloud the selected language name and instructions using Bhashini TTS"
+                  aria-label="Bhashini Voice Guidance: Read aloud selected language and instructions"
+                >
+                  <span class="bhashini-guidance-left">
+                    <span id="bhashini-guidance-icon" aria-hidden="true">🔊</span>
+                    <span class="bhashini-guidance-text-group">
+                      <span class="bhashini-guidance-title" id="bhashini-guidance-title">Bhashini Voice Guidance</span>
+                      <span class="bhashini-guidance-sub" id="bhashini-guidance-sub">Read aloud English &amp; instructions</span>
+                    </span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <canvas id="dropdown-tts-wave" class="tts-mini-wave-canvas hidden" width="52" height="20" aria-hidden="true"></canvas>
+                    <span class="bhashini-guidance-badge" id="bhashini-guidance-badge">EN TTS</span>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -163,6 +204,27 @@
             <span id="bhashini-tutorial-icon">🎧</span>
             <span id="bhashini-tutorial-text" data-i18n="role.bhashini_tutorial">Play Audio Tutorial</span>
           </button>
+        </div>
+
+        <!-- Real-Time Voice Guidance Audio Waveform Visualizer -->
+        <div class="tts-waveform-panel" id="tts-waveform-panel" role="region" aria-label="Voice Guidance Audio Visualizer" aria-live="polite">
+          <div class="tts-wave-info">
+            <div class="tts-wave-title" id="tts-wave-title">Bhashini Voice Guidance</div>
+            <div class="tts-wave-meta">
+              <span id="tts-wave-lang">English (EN)</span>
+              <span aria-hidden="true">·</span>
+              <span id="tts-wave-state">Speaking</span>
+            </div>
+          </div>
+          <div class="tts-wave-canvas-wrap">
+            <canvas id="tts-waveform-canvas" class="tts-waveform-canvas" width="320" height="36" aria-label="Real-time audio waveform visualization"></canvas>
+          </div>
+          <div class="tts-wave-controls">
+            <span class="tts-wave-timer" id="tts-wave-timer">00:00</span>
+            <button type="button" class="tts-wave-stop-btn" id="btn-tts-wave-stop" onclick="stopAllVoiceGuidance()" aria-label="Stop voice guidance playback">
+              Stop
+            </button>
+          </div>
         </div>
       </div>
 
@@ -222,20 +284,20 @@
   <script src="js/auth-sync.js"></script>
 
   <script>
-    // Supported Bhashini Indic & International Languages
+    // Supported Bhashini Indic & International Languages (with distinct badge/waveform color identities)
     const BHASHINI_LANGUAGES = [
-      { code: 'en', name: 'English', native: 'English', badge: 'EN' },
-      { code: 'ta', name: 'Tamil', native: 'தமிழ்', badge: 'TA' },
-      { code: 'hi', name: 'Hindi', native: 'हिन्दी', badge: 'HI' },
-      { code: 'te', name: 'Telugu', native: 'తెలుగు', badge: 'TE' },
-      { code: 'ml', name: 'Malayalam', native: 'മലയാളം', badge: 'ML' },
-      { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', badge: 'KN' },
-      { code: 'bn', name: 'Bengali', native: 'বাংলা', badge: 'BN' },
-      { code: 'mr', name: 'Marathi', native: 'मराठी', badge: 'MR' },
-      { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી', badge: 'GU' },
-      { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ', badge: 'PA' },
-      { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ', badge: 'OR' },
-      { code: 'es', name: 'Spanish', native: 'Español', badge: 'ES' }
+      { code: 'en', name: 'English', native: 'English', badge: 'EN', color: '#38bdf8', colorLight: '#7dd3fc', bgTint: 'rgba(56, 189, 248, 0.16)', borderTint: 'rgba(56, 189, 248, 0.4)' },
+      { code: 'ta', name: 'Tamil', native: 'தமிழ்', badge: 'TA', color: '#22c55e', colorLight: '#86efac', bgTint: 'rgba(34, 197, 94, 0.18)', borderTint: 'rgba(34, 197, 94, 0.45)' },
+      { code: 'hi', name: 'Hindi', native: 'हिन्दी', badge: 'HI', color: '#f59e0b', colorLight: '#fcd34d', bgTint: 'rgba(245, 158, 11, 0.18)', borderTint: 'rgba(245, 158, 11, 0.45)' },
+      { code: 'te', name: 'Telugu', native: 'తెలుగు', badge: 'TE', color: '#14b8a6', colorLight: '#5eead4', bgTint: 'rgba(20, 184, 166, 0.18)', borderTint: 'rgba(20, 184, 166, 0.45)' },
+      { code: 'ml', name: 'Malayalam', native: 'മലയാളം', badge: 'ML', color: '#4ade80', colorLight: '#bbf7d0', bgTint: 'rgba(74, 222, 128, 0.18)', borderTint: 'rgba(74, 222, 128, 0.45)' },
+      { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', badge: 'KN', color: '#fb7185', colorLight: '#fecdd3', bgTint: 'rgba(251, 113, 133, 0.18)', borderTint: 'rgba(251, 113, 133, 0.45)' },
+      { code: 'bn', name: 'Bengali', native: 'বাংলা', badge: 'BN', color: '#818cf8', colorLight: '#c7d2fe', bgTint: 'rgba(129, 140, 248, 0.18)', borderTint: 'rgba(129, 140, 248, 0.45)' },
+      { code: 'mr', name: 'Marathi', native: 'मराठी', badge: 'MR', color: '#fb923c', colorLight: '#fed7aa', bgTint: 'rgba(251, 146, 60, 0.18)', borderTint: 'rgba(251, 146, 60, 0.45)' },
+      { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી', badge: 'GU', color: '#60a5fa', colorLight: '#bfdbfe', bgTint: 'rgba(96, 165, 250, 0.18)', borderTint: 'rgba(96, 165, 250, 0.45)' },
+      { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ', badge: 'PA', color: '#facc15', colorLight: '#fef08a', bgTint: 'rgba(250, 204, 21, 0.18)', borderTint: 'rgba(250, 204, 21, 0.45)' },
+      { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ', badge: 'OR', color: '#e879f9', colorLight: '#f5d0fe', bgTint: 'rgba(232, 121, 249, 0.18)', borderTint: 'rgba(232, 121, 249, 0.45)' },
+      { code: 'es', name: 'Spanish', native: 'Español', badge: 'ES', color: '#f87171', colorLight: '#fecaca', bgTint: 'rgba(248, 113, 113, 0.18)', borderTint: 'rgba(248, 113, 113, 0.45)' }
     ];
 
     let currentSelectedLang = 'en';
@@ -256,20 +318,36 @@
     function getRecentLanguages() {
       try {
         const stored = localStorage.getItem('rapid_recent_languages');
-        if (stored) {
+        if (stored !== null) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
-            const valid = parsed.filter(code => BHASHINI_LANGUAGES.some(l => l.code === code));
-            if (valid.length > 0) return valid.slice(0, 3);
+            return parsed
+              .filter(code => BHASHINI_LANGUAGES.some(l => l.code === code))
+              .slice(0, 3);
           }
         }
       } catch (e) {
         console.warn('Error reading recent languages:', e);
       }
-      // Initial default recent languages if none recorded yet
+      // Initial default recent languages only when nothing has been stored yet
       const current = currentSelectedLang || 'en';
       const defaults = [current, 'ta', 'hi'];
       return [...new Set(defaults)].slice(0, 3);
+    }
+
+    // Clear recent languages history explicitly
+    function clearRecentLanguagesHistory(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      try {
+        localStorage.setItem('rapid_recent_languages', JSON.stringify([]));
+      } catch (e) {
+        console.warn('Error clearing recent languages:', e);
+      }
+      renderRecentLanguages();
+      showToast('Recent language history cleared.', 'info');
     }
 
     // Add a language to the recent list (max 3, unique, most recent first)
@@ -285,12 +363,23 @@
       }
     }
 
-    // Render the recent languages chips section
+    // Render the recent languages chips section & toggle Clear History button visibility
     function renderRecentLanguages() {
       const container = document.getElementById('bhashini-recent-chips');
+      const clearBtn = document.getElementById('btn-clear-recent-langs');
       if (!container) return;
 
       const recentCodes = getRecentLanguages();
+
+      if (clearBtn) {
+        clearBtn.style.display = recentCodes.length > 0 ? 'inline-flex' : 'none';
+      }
+
+      if (recentCodes.length === 0) {
+        container.innerHTML = '<span class="bhashini-recent-empty">No recent languages yet</span>';
+        return;
+      }
+
       container.innerHTML = recentCodes.map(code => {
         const langObj = BHASHINI_LANGUAGES.find(l => l.code === code);
         if (!langObj) return '';
@@ -303,7 +392,7 @@
             title="Fast switch to ${langObj.name} (${langObj.native})"
             aria-label="Select recent language: ${langObj.name}"
           >
-            <span class="bhashini-chip-badge">${langObj.badge}</span>
+            <span class="bhashini-chip-badge" style="${isSelected ? `color: ${langObj.color}; background: ${langObj.bgTint}; border-color: ${langObj.borderTint};` : ''}">${langObj.badge}</span>
             <span class="bhashini-recent-native">${langObj.native}</span>
             <span class="bhashini-recent-en">(${langObj.name})</span>
             ${isSelected ? '<span style="font-size:10px; margin-left:2px;">✓</span>' : ''}
@@ -354,6 +443,9 @@
 
       listEl.innerHTML = filtered.map((item, index) => {
         const isSelected = item.code === currentSelectedLang;
+        const highlightedBadge = highlightMatchText(item.badge, q);
+        const highlightedNative = highlightMatchText(item.native, q);
+        const highlightedName = highlightMatchText(item.name, q);
         return `
           <li
             class="bhashini-option-item ${isSelected ? 'selected' : ''}"
@@ -364,9 +456,9 @@
             onclick="selectBhashiniLanguage('${item.code}')"
           >
             <div class="bhashini-opt-left">
-              <span class="bhashini-opt-badge">${item.badge}</span>
-              <span class="bhashini-opt-native">${item.native}</span>
-              <span class="bhashini-opt-en">(${item.name})</span>
+              <span class="bhashini-opt-badge" style="${isSelected ? `color: ${item.color}; background: ${item.bgTint}; border-color: ${item.borderTint};` : ''}">${highlightedBadge}</span>
+              <span class="bhashini-opt-native">${highlightedNative}</span>
+              <span class="bhashini-opt-en">(${highlightedName})</span>
             </div>
             ${isSelected ? '<span class="bhashini-opt-check" aria-hidden="true">✓</span>' : ''}
           </li>
@@ -375,13 +467,49 @@
     }
 
     function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, m => ({
+      return String(str).replace(/[&<>"']/g, m => ({
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
         "'": '&#039;'
       }[m]));
+    }
+
+    function highlightMatchText(text, query) {
+      const source = String(text ?? '');
+      const cleanQuery = String(query ?? '').trim();
+      if (!cleanQuery) return escapeHtml(source);
+
+      const lowerSource = source.toLowerCase();
+      const lowerQuery = cleanQuery.toLowerCase();
+      let result = '';
+      let cursor = 0;
+      let matchIdx = lowerSource.indexOf(lowerQuery, cursor);
+
+      if (matchIdx === -1) return escapeHtml(source);
+
+      while (matchIdx !== -1) {
+        if (matchIdx > cursor) {
+          result += escapeHtml(source.slice(cursor, matchIdx));
+        }
+        const matchedSlice = source.slice(matchIdx, matchIdx + cleanQuery.length);
+        result += `<mark class="bhashini-match-highlight">${escapeHtml(matchedSlice)}</mark>`;
+        cursor = matchIdx + cleanQuery.length;
+        matchIdx = lowerSource.indexOf(lowerQuery, cursor);
+      }
+
+      if (cursor < source.length) {
+        result += escapeHtml(source.slice(cursor));
+      }
+      return result;
+    }
+
+    function applyBadgePalette(el, langObj) {
+      if (!el || !langObj) return;
+      el.style.color = langObj.color;
+      el.style.background = langObj.bgTint;
+      el.style.borderColor = langObj.borderTint;
     }
 
     // Update Dropdown UI (trigger button label, badge, and active list styling)
@@ -393,15 +521,37 @@
       const labelEl = document.getElementById('bhashini-btn-label');
       const nativeSelect = document.getElementById('role-bhashini-select');
 
-      if (badgeEl) badgeEl.textContent = langObj.badge;
+      if (badgeEl) {
+        badgeEl.textContent = langObj.badge;
+        applyBadgePalette(badgeEl, langObj);
+      }
       if (labelEl) labelEl.textContent = `${langObj.native} (${langObj.name})`;
       if (nativeSelect) nativeSelect.value = langCode;
 
       // Update breadcrumb indicator
       const breadcrumbBadge = document.getElementById('breadcrumb-lang-badge');
       const breadcrumbText = document.getElementById('breadcrumb-lang-text');
-      if (breadcrumbBadge) breadcrumbBadge.textContent = langObj.badge;
+      if (breadcrumbBadge) {
+        breadcrumbBadge.textContent = langObj.badge;
+        applyBadgePalette(breadcrumbBadge, langObj);
+      }
       if (breadcrumbText) breadcrumbText.textContent = `${langObj.native} (${langObj.name})`;
+
+      // Update Bhashini Voice Guidance button label inside dropdown
+      const guidanceBadge = document.getElementById('bhashini-guidance-badge');
+      const guidanceSub = document.getElementById('bhashini-guidance-sub');
+      if (guidanceBadge) {
+        guidanceBadge.textContent = `${langObj.badge} TTS`;
+        applyBadgePalette(guidanceBadge, langObj);
+      }
+      if (guidanceSub && !isDropdownGuidancePlaying) {
+        guidanceSub.textContent = `Read aloud ${langObj.native} (${langObj.name}) & guide`;
+      }
+
+      // Sync active waveform panel color if visualizer is running
+      if (typeof syncWaveformBadgeTheme === 'function') {
+        syncWaveformBadgeTheme(langCode);
+      }
 
       // Render recent languages
       renderRecentLanguages();
@@ -696,49 +846,543 @@
       }
     }
 
+    // ====================================================================
+    // REAL-TIME VOICE GUIDANCE AUDIO WAVEFORM VISUALIZER CONTROLLER
+    // ====================================================================
+    const ttsWaveformState = {
+      active: false,
+      speaking: false,
+      mode: null, // 'dropdown' | 'role' | 'tutorial'
+      langCode: 'en',
+      primaryColor: '#38bdf8',
+      secondaryColor: '#7dd3fc',
+      rafId: null,
+      timerId: null,
+      startTime: 0,
+      energy: 0.15,
+      boundaryPulse: 0,
+      lastBoundaryAt: 0,
+      barHeights: new Array(32).fill(0.08),
+      miniBarHeights: new Array(10).fill(0.15),
+      fallbackTimerId: null,
+      onCleanup: null
+    };
+
+    function resolveLanguageWaveformPalette(langCode) {
+      const code = langCode || currentSelectedLang || 'en';
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === code) || BHASHINI_LANGUAGES[0];
+
+      // Read live computed color from the active language badge so waveform bars always match the badge
+      const badgeEl = document.getElementById('bhashini-btn-badge') || document.getElementById('breadcrumb-lang-badge');
+      let badgeComputedColor = null;
+      if (badgeEl && window.getComputedStyle) {
+        const computed = window.getComputedStyle(badgeEl).color;
+        if (computed && computed !== 'rgba(0, 0, 0, 0)' && computed !== 'transparent') {
+          badgeComputedColor = computed;
+        }
+      }
+
+      const primary = badgeComputedColor || langObj.color || '#38bdf8';
+      const secondary = langObj.colorLight || primary;
+      return {
+        primary,
+        secondary,
+        borderTint: langObj.borderTint || 'rgba(56, 189, 248, 0.32)'
+      };
+    }
+
+    function syncWaveformBadgeTheme(langCode) {
+      const palette = resolveLanguageWaveformPalette(langCode);
+      ttsWaveformState.langCode = langCode || currentSelectedLang || 'en';
+      ttsWaveformState.primaryColor = palette.primary;
+      ttsWaveformState.secondaryColor = palette.secondary;
+
+      const panel = document.getElementById('tts-waveform-panel');
+      if (panel) {
+        panel.style.borderColor = palette.borderTint;
+      }
+    }
+
+    function formatWaveElapsed(ms) {
+      const totalSec = Math.max(0, Math.floor(ms / 1000));
+      const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+      return `${mins}:${secs}`;
+    }
+
+    function setupHighDpiCanvas(canvas, cssW, cssH) {
+      if (!canvas) return null;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      const targetW = Math.max(1, Math.round((rect.width || cssW) * dpr));
+      const targetH = Math.max(1, Math.round((rect.height || cssH) * dpr));
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, width: rect.width || cssW, height: rect.height || cssH };
+    }
+
+    function renderWaveformFrame(now) {
+      if (!ttsWaveformState.active) return;
+
+      const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const t = now * 0.001;
+
+      // Keep bar colors synchronized with the active language badge color
+      const palette = resolveLanguageWaveformPalette(ttsWaveformState.langCode);
+      ttsWaveformState.primaryColor = palette.primary;
+      ttsWaveformState.secondaryColor = palette.secondary;
+
+      // Decay boundary word impulse smoothly
+      ttsWaveformState.boundaryPulse *= 0.88;
+
+      // Keep organic vocal cadence running while utterance speaks
+      const msSinceBoundary = now - ttsWaveformState.lastBoundaryAt;
+      const baseActivity = ttsWaveformState.speaking
+        ? (msSinceBoundary < 450 ? 0.52 : 0.34)
+        : 0.14;
+
+      const targetEnergy = Math.min(1, baseActivity + ttsWaveformState.boundaryPulse * 0.65);
+      ttsWaveformState.energy += (targetEnergy - ttsWaveformState.energy) * 0.22;
+
+      // Render main waveform canvas (#tts-waveform-canvas)
+      const mainCanvas = document.getElementById('tts-waveform-canvas');
+      const mainSetup = setupHighDpiCanvas(mainCanvas, 320, 36);
+      if (mainSetup) {
+        const { ctx, width, height } = mainSetup;
+        ctx.clearRect(0, 0, width, height);
+
+        const bars = ttsWaveformState.barHeights;
+        const count = bars.length;
+        const gap = 3;
+        const barW = Math.max(2, (width - gap * (count - 1)) / count);
+        const centerY = height / 2;
+
+        // Language badge color-synced gradient across bars
+        const grad = ctx.createLinearGradient(0, 0, 0, height);
+        grad.addColorStop(0, ttsWaveformState.secondaryColor);
+        grad.addColorStop(0.5, ttsWaveformState.primaryColor);
+        grad.addColorStop(1, ttsWaveformState.secondaryColor);
+        ctx.fillStyle = grad;
+
+        for (let i = 0; i < count; i++) {
+          const normCenter = 1 - Math.abs((i / (count - 1)) * 2 - 1) * 0.45;
+          let targetAmp;
+          if (reducedMotion) {
+            targetAmp = ttsWaveformState.speaking ? 0.42 * normCenter : 0.16 * normCenter;
+          } else {
+            const harmonic =
+              Math.sin(t * 9.5 + i * 0.55) * 0.35 +
+              Math.cos(t * 14.2 - i * 0.82) * 0.25 +
+              Math.sin(t * 5.3 + i * 1.15) * 0.2 +
+              0.55;
+            targetAmp = Math.max(0.08, Math.min(1, harmonic * ttsWaveformState.energy * normCenter));
+          }
+          bars[i] += (targetAmp - bars[i]) * 0.32;
+
+          const barH = Math.max(3, bars[i] * (height - 4));
+          const x = i * (barW + gap);
+          const y = centerY - barH / 2;
+          const r = Math.min(barW / 2, 2);
+
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(x, y, barW, barH, r);
+          } else {
+            ctx.rect(x, y, barW, barH);
+          }
+          ctx.fill();
+        }
+      }
+
+      // Render compact dropdown mini canvas (#dropdown-tts-wave) when active in dropdown mode
+      if (ttsWaveformState.mode === 'dropdown') {
+        const miniCanvas = document.getElementById('dropdown-tts-wave');
+        const miniSetup = setupHighDpiCanvas(miniCanvas, 52, 20);
+        if (miniSetup) {
+          const { ctx, width, height } = miniSetup;
+          ctx.clearRect(0, 0, width, height);
+
+          const bars = ttsWaveformState.miniBarHeights;
+          const count = bars.length;
+          const gap = 2;
+          const barW = Math.max(2, (width - gap * (count - 1)) / count);
+          const centerY = height / 2;
+          ctx.fillStyle = ttsWaveformState.primaryColor;
+
+          for (let i = 0; i < count; i++) {
+            const targetAmp = reducedMotion
+              ? 0.45
+              : Math.max(0.14, Math.min(1, (Math.sin(t * 11 + i * 0.8) * 0.45 + 0.55) * ttsWaveformState.energy));
+            bars[i] += (targetAmp - bars[i]) * 0.35;
+            const barH = Math.max(3, bars[i] * (height - 2));
+            const x = i * (barW + gap);
+            const y = centerY - barH / 2;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(x, y, barW, barH, 1.5);
+            } else {
+              ctx.rect(x, y, barW, barH);
+            }
+            ctx.fill();
+          }
+        }
+      }
+
+      ttsWaveformState.rafId = requestAnimationFrame(renderWaveformFrame);
+    }
+
+    function startVoiceWaveformVisualizer({ mode, title, langCode, langLabel, stateLabel }) {
+      const panel = document.getElementById('tts-waveform-panel');
+      const titleEl = document.getElementById('tts-wave-title');
+      const langEl = document.getElementById('tts-wave-lang');
+      const stateEl = document.getElementById('tts-wave-state');
+      const timerEl = document.getElementById('tts-wave-timer');
+      const miniCanvas = document.getElementById('dropdown-tts-wave');
+
+      ttsWaveformState.active = true;
+      ttsWaveformState.speaking = false;
+      ttsWaveformState.mode = mode;
+      ttsWaveformState.startTime = Date.now();
+      ttsWaveformState.boundaryPulse = 0.45;
+      ttsWaveformState.lastBoundaryAt = performance.now();
+
+      syncWaveformBadgeTheme(langCode || currentSelectedLang || 'en');
+
+      if (titleEl) titleEl.textContent = title || 'Bhashini Voice Guidance';
+      if (langEl) langEl.textContent = langLabel || 'English (EN)';
+      if (stateEl) stateEl.textContent = stateLabel || 'Synthesizing';
+      if (timerEl) timerEl.textContent = '00:00';
+      if (panel) panel.classList.add('active');
+
+      if (miniCanvas) {
+        if (mode === 'dropdown') {
+          miniCanvas.classList.remove('hidden');
+        } else {
+          miniCanvas.classList.add('hidden');
+        }
+      }
+
+      if (ttsWaveformState.timerId) clearInterval(ttsWaveformState.timerId);
+      ttsWaveformState.timerId = setInterval(() => {
+        if (!ttsWaveformState.active) return;
+        const el = document.getElementById('tts-wave-timer');
+        if (el) el.textContent = formatWaveElapsed(Date.now() - ttsWaveformState.startTime);
+      }, 250);
+
+      if (ttsWaveformState.rafId) cancelAnimationFrame(ttsWaveformState.rafId);
+      ttsWaveformState.rafId = requestAnimationFrame(renderWaveformFrame);
+    }
+
+    function updateVoiceWaveformState(speaking, stateLabel) {
+      if (!ttsWaveformState.active) return;
+      ttsWaveformState.speaking = speaking;
+      if (speaking) {
+        ttsWaveformState.boundaryPulse = 0.85;
+        ttsWaveformState.lastBoundaryAt = performance.now();
+      }
+      const stateEl = document.getElementById('tts-wave-state');
+      if (stateEl && stateLabel) {
+        stateEl.textContent = stateLabel;
+      }
+    }
+
+    function pulseVoiceWaveformBoundary() {
+      if (!ttsWaveformState.active) return;
+      ttsWaveformState.speaking = true;
+      ttsWaveformState.boundaryPulse = 0.9 + Math.random() * 0.2;
+      ttsWaveformState.lastBoundaryAt = performance.now();
+    }
+
+    function stopVoiceWaveformVisualizer() {
+      ttsWaveformState.active = false;
+      ttsWaveformState.speaking = false;
+      ttsWaveformState.mode = null;
+
+      if (ttsWaveformState.rafId) {
+        cancelAnimationFrame(ttsWaveformState.rafId);
+        ttsWaveformState.rafId = null;
+      }
+      if (ttsWaveformState.timerId) {
+        clearInterval(ttsWaveformState.timerId);
+        ttsWaveformState.timerId = null;
+      }
+      if (ttsWaveformState.fallbackTimerId) {
+        clearTimeout(ttsWaveformState.fallbackTimerId);
+        ttsWaveformState.fallbackTimerId = null;
+      }
+
+      const panel = document.getElementById('tts-waveform-panel');
+      if (panel) panel.classList.remove('active');
+
+      const miniCanvas = document.getElementById('dropdown-tts-wave');
+      if (miniCanvas) miniCanvas.classList.add('hidden');
+    }
+
+    function resetAllVoiceGuidanceButtons(langCode) {
+      const code = langCode || currentSelectedLang || localStorage.getItem('rapid_language') || 'en';
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === code) || BHASHINI_LANGUAGES[0];
+
+      // Reset dropdown guidance button
+      resetDropdownGuidanceUI(langObj);
+
+      // Reset toolbar listen button
+      isRoleVoicePlaying = false;
+      const voiceBtn = document.getElementById('btn-role-voice');
+      const voiceIcon = document.getElementById('bhashini-voice-icon');
+      if (voiceBtn) voiceBtn.classList.remove('speaking');
+      if (voiceIcon) voiceIcon.textContent = '🔊';
+
+      // Reset tutorial button
+      isTutorialAudioPlaying = false;
+      const tutorialBtn = document.getElementById('btn-audio-tutorial');
+      const tutIcon = document.getElementById('bhashini-tutorial-icon');
+      const tutText = document.getElementById('bhashini-tutorial-text');
+      if (tutorialBtn) tutorialBtn.classList.remove('playing');
+      if (tutIcon) tutIcon.textContent = '🎧';
+      if (tutText) tutText.textContent = (window.t && window.t('role.bhashini_tutorial', code)) || 'Play Audio Tutorial';
+    }
+
+    function stopAllVoiceGuidance(silent = false) {
+      if ('speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+      }
+      stopVoiceWaveformVisualizer();
+      resetAllVoiceGuidanceButtons();
+      if (!silent) {
+        showToast('⏹️ Voice guidance playback stopped.', 'info');
+      }
+    }
+
+    function speakTextWithVisualizer({ text, langCode, bhashiniLangCode, mode, title, onFinished }) {
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === langCode) || BHASHINI_LANGUAGES[0];
+      const targetLang = bhashiniLangCode || (langCode === 'en' ? 'en-US' : `${langCode}-IN`);
+
+      if (!ttsWaveformState.active || ttsWaveformState.mode !== mode) {
+        startVoiceWaveformVisualizer({
+          mode,
+          title,
+          langCode,
+          langLabel: `${langObj.native} (${langObj.badge})`,
+          stateLabel: 'Speaking'
+        });
+      } else {
+        syncWaveformBadgeTheme(langCode);
+        updateVoiceWaveformState(true, 'Speaking');
+      }
+
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = targetLang;
+          utterance.rate = 0.95;
+
+          const voices = window.speechSynthesis.getVoices();
+          const matchedVoice = voices.find(v => v.lang === targetLang || v.lang.startsWith(langCode));
+          if (matchedVoice) {
+            utterance.voice = matchedVoice;
+          }
+
+          let wordCounter = 0;
+          utterance.onstart = () => {
+            updateVoiceWaveformState(true, 'Speaking');
+          };
+          utterance.onboundary = () => {
+            wordCounter++;
+            pulseVoiceWaveformBoundary();
+            const stateEl = document.getElementById('tts-wave-state');
+            if (stateEl && ttsWaveformState.active) {
+              stateEl.textContent = `Speaking · ${wordCounter}w`;
+            }
+          };
+
+          const finish = () => {
+            if (ttsWaveformState.fallbackTimerId) {
+              clearTimeout(ttsWaveformState.fallbackTimerId);
+              ttsWaveformState.fallbackTimerId = null;
+            }
+            stopVoiceWaveformVisualizer();
+            if (typeof onFinished === 'function') onFinished();
+          };
+
+          utterance.onend = finish;
+          utterance.onerror = finish;
+
+          // Mark speaking immediately in case a headless/browser engine omits onstart
+          updateVoiceWaveformState(true, 'Speaking');
+          window.speechSynthesis.speak(utterance);
+
+          const fallbackTimerMs = Math.max(7000, text.length * 85);
+          if (ttsWaveformState.fallbackTimerId) clearTimeout(ttsWaveformState.fallbackTimerId);
+          ttsWaveformState.fallbackTimerId = setTimeout(finish, fallbackTimerMs);
+          return;
+        } catch (err) {
+          console.warn('Web Speech playback error:', err);
+        }
+      }
+
+      // Visual cadence fallback when speechSynthesis is unavailable
+      updateVoiceWaveformState(true, 'Visual Playback');
+      if (ttsWaveformState.fallbackTimerId) clearTimeout(ttsWaveformState.fallbackTimerId);
+      ttsWaveformState.fallbackTimerId = setTimeout(() => {
+        stopVoiceWaveformVisualizer();
+        if (typeof onFinished === 'function') onFinished();
+      }, Math.max(4000, Math.min(9000, text.length * 55)));
+    }
+
+    let isRoleVoicePlaying = false;
+
     // Play Voice Guidance using Bhashini AI TTS / Native Speech Synthesis
     async function playRoleGuidanceAudio() {
       const currentLang = currentSelectedLang || (localStorage.getItem('rapid_language') || 'en');
+      if (isRoleVoicePlaying) {
+        stopAllVoiceGuidance();
+        return;
+      }
+
+      stopAllVoiceGuidance(true);
+      isRoleVoicePlaying = true;
+
       const voiceBtn = document.getElementById('btn-role-voice');
       const icon = document.getElementById('bhashini-voice-icon');
 
       const userTitle = (window.t && window.t('role.user_title', currentLang)) || 'Report Emergency';
       const userDesc = (window.t && window.t('role.user_desc', currentLang)) || 'Report an emergency, use voice or SOS for instant help';
       const adminTitle = (window.t && window.t('role.admin_title', currentLang)) || 'Admin Control';
-
       const speechMessage = `${userTitle}. ${userDesc}. ${adminTitle}.`;
 
       if (voiceBtn) voiceBtn.classList.add('speaking');
-      if (icon) icon.textContent = '🔊';
+      if (icon) icon.textContent = '⏹️';
 
       showToast(`🔊 Speaking in ${(window.RAPID_LANG_NAMES && window.RAPID_LANG_NAMES[currentLang]) || currentLang}...`, 'info');
 
-      try {
-        if (window.rapidSync && typeof window.rapidSync.speakText === 'function') {
-          window.rapidSync.speakText(speechMessage, currentLang);
-        } else if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(speechMessage);
-          utterance.lang = currentLang === 'en' ? 'en-US' : (currentLang + '-IN');
-          utterance.rate = 0.95;
-          utterance.onend = () => {
-            if (voiceBtn) voiceBtn.classList.remove('speaking');
-            if (icon) icon.textContent = '🔊';
-          };
-          utterance.onerror = () => {
-            if (voiceBtn) voiceBtn.classList.remove('speaking');
-            if (icon) icon.textContent = '🔊';
-          };
-          window.speechSynthesis.speak(utterance);
-        }
-      } catch (err) {
-        console.warn('Speech error:', err);
+      speakTextWithVisualizer({
+        text: speechMessage,
+        langCode: currentLang,
+        mode: 'role',
+        title: 'Bhashini AI Voice Guidance',
+        onFinished: () => resetAllVoiceGuidanceButtons(currentLang)
+      });
+    }
+
+    // Language-specific Bhashini Voice Guidance scripts (fallback if offline)
+    const BHASHINI_DROPDOWN_GUIDANCE_FALLBACK = {
+      en: 'Selected language: English. You can report an emergency using voice or SOS, or open Admin Control to coordinate rescue teams. Press Control plus L anytime to switch languages.',
+      ta: 'தேர்ந்தெடுக்கப்பட்ட மொழி: தமிழ். அவசரநிலையைப் புகாரளிக்க "அவசரநிலையைப் புகாரளிக்கவும்" என்பதைத் தேர்ந்தெடுக்கவும், அல்லது மீட்புக் குழுக்களை ஒருங்கிணைக்க நிர்வாகக் கட்டுப்பாட்டைத் திறக்கவும். உடனடி உதவிக்கு SOS அல்லது குரல் பதிவைப் பயன்படுத்தவும்.',
+      hi: 'चयनित भाषा: हिन्दी। आपातकाल की रिपोर्ट करने के लिए "आपातकाल की रिपोर्ट करें" चुनें, या बचाव दल के समन्वय के लिए प्रशासन नियंत्रण खोलें। त्वरित सहायता के लिए आवाज़ या एसओएस का उपयोग करें।',
+      te: 'ఎంచుకున్న భాష: తెలుగు. తక్షణ సహాయం కోసం వాయిస్ లేదా SOS ద్వారా "అత్యవసర పరిస్థితిని నివేదించండి" ఎంచుకోండి, లేదా సహాయక చర్యలను సమన్వయం చేయడానికి అడ్మిన్ నియంత్రణను తెరవండి.',
+      ml: 'തിരഞ്ഞെടുത്ത ഭാഷ: മലയാളം. ശബ്ദം അല്ലെങ്കിൽ SOS വഴി അടിയന്തര സാഹചര്യം അറിയിക്കാൻ ആദ്യ ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക, അല്ലെങ്കിൽ രക്ഷാപ്രവർത്തനങ്ങൾ ഏകോപിപ്പിക്കാൻ അഡ്മിൻ കൺട്രോൾ തുറക്കുക.',
+      kn: 'ಆಯ್ಕೆಮಾಡಿದ ಭಾಷೆ: ಕನ್ನಡ. ಧ್ವನಿ ಅಥವಾ SOS ಮೂಲಕ ತುರ್ತು ಪರಿಸ್ಥಿತಿಯನ್ನು ವರದಿ ಮಾಡಲು ಮೊದಲ ಕಾರ್ಡ್ ಆಯ್ಕೆಮಾಡಿ, ಅಥವಾ ರಕ್ಷಣಾ ತಂಡಗಳನ್ನು ಸಂಯೋಜಿಸಲು ನಿರ್ವಾಹಕ ನಿಯಂತ್ರಣವನ್ನು ತೆರೆಯಿರಿ.',
+      bn: 'নির্বাচিত ভাষা: বাংলা। ভয়েস বা SOS-এর মাধ্যমে জরুরি অবস্থা জানাতে প্রথম অপশনটি বেছে নিন, অথবা উদ্ধার দল সমন্বয় করতে প্রশাসন নিয়ন্ত্রণ খুলুন।',
+      mr: 'निवडलेली भाषा: मराठी. आवाज किंवा SOS द्वारे तात्काळ मदतीसाठी आपत्कालीन परिस्थितीची नोंद करा, किंवा मदत पथकांचे समन्वय करण्यासाठी प्रशासन नियंत्रण उघडा.',
+      gu: 'પસંદ કરેલી ભાષા: ગુજરાતી. તાત્કાલિક મદદ માટે વૉઇસ અથવા SOS દ્વારા ઇમરજન્સીની જાણ કરો, અથવા બચાવ દળોના સંકલન માટે વહીવટી નિયંત્રણ ખોલો.',
+      pa: 'ਚੁਣੀ ਗਈ ਭਾਸ਼ਾ: ਪੰਜਾਬੀ। ਤੁਰੰਤ ਮਦਦ ਲਈ ਆਵਾਜ਼ ਜਾਂ SOS ਰਾਹੀਂ ਐਮਰਜੈਂਸੀ ਦੀ ਰਿਪੋਰਟ ਕਰੋ, ਜਾਂ ਬਚਾਅ ਟੀਮਾਂ ਦਾ ਤਾਲਮੇਲ ਕਰਨ ਲਈ ਐਡਮਿਨ ਕੰਟਰੋਲ ਖੋਲ੍ਹੋ।',
+      or: 'ମନୋନୀତ ଭାଷା: ଓଡ଼ିଆ। ତୁରନ୍ତ ସାହାଯ୍ୟ ପାଇଁ ଭଏସ୍ କିମ୍ବା SOS ମାଧ୍ୟମରେ ଜରୁରୀକାଳୀନ ରିପୋର୍ଟ କରନ୍ତୁ, କିମ୍ବା ଉଦ୍ଧାରକାରୀ ଦଳର ସମନ୍ୱୟ ପାଇଁ ପ୍ରଶାସନ ନିୟନ୍ତ୍ରଣ ଖୋଲନ୍ତୁ।',
+      es: 'Idioma seleccionado: Español. Seleccione Reportar Emergencia para enviar alertas por voz o SOS, o abra Control Administrativo para coordinar los equipos de rescate.'
+    };
+
+    let isDropdownGuidancePlaying = false;
+
+    function resetDropdownGuidanceUI(langObj) {
+      isDropdownGuidancePlaying = false;
+      const btn = document.getElementById('btn-bhashini-voice-guidance');
+      const icon = document.getElementById('bhashini-guidance-icon');
+      const title = document.getElementById('bhashini-guidance-title');
+      const sub = document.getElementById('bhashini-guidance-sub');
+      const miniCanvas = document.getElementById('dropdown-tts-wave');
+      if (btn) btn.classList.remove('speaking');
+      if (icon) icon.textContent = '🔊';
+      if (title) title.textContent = 'Bhashini Voice Guidance';
+      if (sub && langObj) sub.textContent = `Read aloud ${langObj.native} (${langObj.name}) & guide`;
+      if (miniCanvas) miniCanvas.classList.add('hidden');
+    }
+
+    /**
+     * Plays Bhashini Voice Guidance from inside the language dropdown menu:
+     * Calls the Bhashini TTS service and reads aloud the selected language name
+     * plus specific instructions for that language with real-time waveform feedback.
+     */
+    async function playBhashiniDropdownVoiceGuidance(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
       }
 
-      setTimeout(() => {
-        if (voiceBtn) voiceBtn.classList.remove('speaking');
-        if (icon) icon.textContent = '🔊';
-      }, 5000);
+      const langCode = currentSelectedLang || localStorage.getItem('rapid_language') || 'en';
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === langCode) || BHASHINI_LANGUAGES[0];
+
+      if (isDropdownGuidancePlaying) {
+        stopAllVoiceGuidance();
+        return;
+      }
+
+      stopAllVoiceGuidance(true);
+      isDropdownGuidancePlaying = true;
+
+      const btn = document.getElementById('btn-bhashini-voice-guidance');
+      const icon = document.getElementById('bhashini-guidance-icon');
+      const title = document.getElementById('bhashini-guidance-title');
+      const sub = document.getElementById('bhashini-guidance-sub');
+      const statusText = document.getElementById('bhashini-status-text');
+
+      if (btn) btn.classList.add('speaking');
+      if (icon) icon.textContent = '⏹️';
+      if (title) title.textContent = 'Stop Voice Guidance';
+      if (sub) sub.textContent = `Synthesizing ${langObj.native} (${langObj.name}) via Bhashini TTS...`;
+
+      startVoiceWaveformVisualizer({
+        mode: 'dropdown',
+        title: 'Bhashini Voice Guidance',
+        langCode,
+        langLabel: `${langObj.native} (${langObj.badge})`,
+        stateLabel: 'Synthesizing'
+      });
+
+      let guidanceText = BHASHINI_DROPDOWN_GUIDANCE_FALLBACK[langCode] || BHASHINI_DROPDOWN_GUIDANCE_FALLBACK.en;
+      let ttsLangCode = langCode === 'en' ? 'en-IN' : `${langCode}-IN`;
+
+      try {
+        let ttsData = null;
+        if (window.rapidSync && typeof window.rapidSync.synthesizeWithBhashiniTTS === 'function') {
+          ttsData = await window.rapidSync.synthesizeWithBhashiniTTS('', langCode, 'guidance');
+        } else {
+          const res = await fetch('/api/bhashini/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: langCode, mode: 'guidance' })
+          });
+          if (res.ok) ttsData = await res.json();
+        }
+
+        if (ttsData && ttsData.success) {
+          if (ttsData.text) guidanceText = ttsData.text;
+          if (ttsData.bhashiniLangCode) ttsLangCode = ttsData.bhashiniLangCode;
+          if (statusText) {
+            statusText.textContent = `Bhashini TTS Active (${ttsData.bhashiniLangCode || langCode.toUpperCase()})`;
+          }
+        }
+      } catch (err) {
+        console.warn('Bhashini TTS API fallback to local guidance:', err);
+      }
+
+      if (!isDropdownGuidancePlaying) return;
+
+      if (sub) sub.textContent = `Speaking ${langObj.native} (${langObj.name})...`;
+      showToast(`🔊 Bhashini TTS: Reading ${langObj.native} (${langObj.name}) voice guidance...`, 'info');
+
+      speakTextWithVisualizer({
+        text: guidanceText,
+        langCode,
+        bhashiniLangCode: ttsLangCode,
+        mode: 'dropdown',
+        title: 'Bhashini Voice Guidance',
+        onFinished: () => resetAllVoiceGuidanceButtons(langCode)
+      });
     }
 
     // Multilingual Audio Tutorial Scripts (Explains how to navigate Bhashini UI in selected language)
@@ -748,7 +1392,7 @@
       hi: "रैपिडरेस्पॉन्स भाषा चयन में आपका स्वागत है। भाषा बदलने के लिए ड्रॉपडाउन पर क्लिक करें या कंट्रोल प्लस एल दबाएं। आप खोज बॉक्स में टाइप कर सकते हैं या माइक बटन दबाकर भाषा का नाम बोल सकते हैं। हालिया भाषाओं से तुरंत चुनें या बारह भाषाओं में से चुनें। आपकी पसंद पूरे पोर्टल का तुरंत अनुवाद कर देगी।",
       te: "ర్యాపిడ్ రెస్పాన్స్ భాషా ఎంపికకు స్వాగతం. భాషను మార్చడానికి డ్రాప్‌డౌన్‌పై క్లిక్ చేయండి లేదా కంట్రోల్ ప్లస్ ఎల్ నొక్కండి. మీరు శోధన పెట్టెలో టైప్ చేయవచ్చు లేదా మైక్రోఫోన్ బటన్‌ను నొక్కి భాష పేరును మాట్లాడవచ్చు. పైనున్న ఇటీవలి భాషల నుండి కూడా త్వరగా ఎంచుకోవచ్చు. మీ ఎంపిక పోర్టల్‌ను తక్షణమే అనువదిస్తుంది.",
       ml: "റാപ്പിഡ് റെസ്പോൺസ് ഭാഷാ തെരഞ്ഞെടുപ്പിലേക്ക് സ്വാഗതം. ഭാഷ മാറ്റാൻ ഡ്രോപ്ഡൗൺ ക്ലിക്ക് ചെയ്യുകയോ കൺട്രോൾ പ്ലസ് എൽ അമർത്തുകയോ ചെയ്യുക. സെർച്ച് ബോക്സിൽ ടൈപ്പ് ചെയ്യുകയോ മൈക്രോഫോൺ ബട്ടൺ അമർത്തി സംസാരിക്കുകയോ ചെയ്യാം. മുകളിലുള്ള സമീപകാല ഭാഷകളിൽ നിന്നും തിരഞ്ഞെടുക്കാം.",
-      kn: "ರಾಪಿಡ್ ರೆಸ್ಪಾನ್ಸ್ ಭಾಷಾ ಆಯ್ಕೆಗೆ ಸುಸ್ವಾಗತ. ಭಾಷೆಯನ್ನು ಬದಲಾಯಿಸಲು ಡ್ರಾಪ್‌ಡೌನ್ ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ ಕಂಟ್ರೋಲ್ ಪ್ಲಸ್ ಎಲ್ ಒತ್ತಿರಿ. ಸರ್ಚ್ ಬಾಕ್ಸ್‌ನಲ್ಲಿ ಟೈಪ್ ಮಾಡಬಹುದು ಅಥವಾ ಮೈಕ್ರೋಫೋನ್ ಬಳಸಿ ಭಾಷೆಯ ಹೆಸರನ್ನು ಮಾತನಾಡಬಹುದು. ಮೇಲಿರುವ ಇತ್ತೀಚಿನ ಭಾಷೆಗಳಿಂದಲೂ ತಕ್ಷಣವೇ ಆಯ್ಕೆ ಮಾಡಬಹುದು.",
+      kn: "ರಾಪಿಡ್ ರೆಸ್ಪಾನ್ಸ್ ಭಾಷಾ ಆಯ್ಕೆಗೆ ಸುಸ್ವಾಗತ. ಭಾಷೆಯನ್ನು ಬದಲಾಯಿಸಲು ಡ್ರಾಪ್‌ಡೌನ್ ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ ಕಂಟ್ರೋಲ್ ಪ್లಸ್ ಎಲ್ ಒತ್ತಿರಿ. ಸರ್ಚ್ ಬಾಕ್ಸ್‌ನಲ್ಲಿ ಟೈಪ್ ಮಾಡಬಹುದು ಅಥವಾ ಮೈಕ್ರೋಫೋನ್ ಬಳಸಿ ಭಾಷೆಯ ಹೆಸರನ್ನು ಮಾತನಾಡಬಹುದು. ಮೇಲಿರುವ ಇತ್ತೀಚಿನ ಭಾಷೆಗಳಿಂದಲೂ ತಕ್ಷಣವೇ ಆಯ್ಕೆ ಮಾಡಬಹುದು.",
       bn: "র‍্যাপিডরেসপন্স ভাষা নির্বাচনে আপনাকে স্বাগতম। ভাষা পরিবর্তন করতে ড্রপডাউনে ক্লিক করুন বা কন্ট্রোল প্লাস এল চাপুন। আপনি সার্চ বক্সে টাইপ করতে পারেন অথবা মাইক বোতাম টিপে ভাষার নাম বলতে পারেন। আপনার পছন্দের ভাষা পুরো জরুরি পোর্টালটিকে তাৎক্ষণিকভাবে অনুবাদ করবে।",
       mr: "रॅपिडरिस्पॉन्स भाषा निवडीमध्ये आपले स्वागत आहे. भाषा बदलण्यासाठी ड्रॉपडाउन उघडा किंवा कंट्रोल अधिक एल दाबा. आपण सर्च बॉक्समध्ये टाइप करू शकता किंवा मायक्रोफोन वापरून भाषेचे नाव बोलू शकता. वरील अलीकडील भाषांमधूनही आपण पटकन निवडू शकता.",
       gu: "રેપિડરેસ્પોન્સ ભાષા પસંદગીમાં આપનું સ્વાગત છે. ભાષા બદલવા માટે ડ્રોપડાઉન પર ક્લિક કરો અથવા કંટ્રોલ પ્લસ એલ દબાવો. તમે સર્ચ બોક્સમાં ટાઈપ કરી શકો છો અથવા માઇક બટન દબાવીને ભાષાનું નામ બોલી શકો છો. તમારી પસંદગી સમગ્ર ઇમરજન્સી પોર્ટલને ત્વરિત અનુવાદિત કરશે.",
@@ -761,28 +1405,23 @@
 
     /**
      * Toggles playback of the audio tutorial explaining Bhashini navigation
-     * in the currently selected language
+     * in the currently selected language with real-time waveform visualizer feedback
      */
     async function toggleAudioTutorial() {
       const currentLang = currentSelectedLang || (localStorage.getItem('rapid_language') || 'en');
-      const tutorialBtn = document.getElementById('btn-audio-tutorial');
-      const icon = document.getElementById('bhashini-tutorial-icon');
-      const text = document.getElementById('bhashini-tutorial-text');
 
       if (isTutorialAudioPlaying) {
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-        }
-        isTutorialAudioPlaying = false;
-        if (tutorialBtn) tutorialBtn.classList.remove('playing');
-        if (icon) icon.textContent = '🎧';
-        if (text) text.textContent = (window.t && window.t('role.bhashini_tutorial', currentLang)) || 'Play Audio Tutorial';
-        showToast('⏹️ Audio tutorial stopped.', 'info');
+        stopAllVoiceGuidance();
         return;
       }
 
-      const script = BHASHINI_AUDIO_TUTORIALS[currentLang] || BHASHINI_AUDIO_TUTORIALS.en;
+      stopAllVoiceGuidance(true);
       isTutorialAudioPlaying = true;
+
+      const tutorialBtn = document.getElementById('btn-audio-tutorial');
+      const icon = document.getElementById('bhashini-tutorial-icon');
+      const text = document.getElementById('bhashini-tutorial-text');
+      const script = BHASHINI_AUDIO_TUTORIALS[currentLang] || BHASHINI_AUDIO_TUTORIALS.en;
 
       if (tutorialBtn) tutorialBtn.classList.add('playing');
       if (icon) icon.textContent = '⏹️';
@@ -791,38 +1430,13 @@
       const langName = (window.RAPID_LANG_NAMES && window.RAPID_LANG_NAMES[currentLang]) || currentLang;
       showToast(`🎧 Audio Tutorial: Speaking in ${langName}...`, 'info');
 
-      const onTutorialEnd = () => {
-        isTutorialAudioPlaying = false;
-        if (tutorialBtn) tutorialBtn.classList.remove('playing');
-        if (icon) icon.textContent = '🎧';
-        if (text) text.textContent = (window.t && window.t('role.bhashini_tutorial', currentLang)) || 'Play Audio Tutorial';
-      };
-
-      try {
-        if (window.rapidSync && typeof window.rapidSync.speakText === 'function') {
-          window.rapidSync.speakText(script, currentLang);
-          const approxDurationMs = Math.max(7000, script.length * 75);
-          setTimeout(onTutorialEnd, approxDurationMs);
-        } else if ('speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(script);
-          const langMap = {
-            en: 'en-US', ta: 'ta-IN', hi: 'hi-IN', te: 'te-IN',
-            ml: 'ml-IN', kn: 'kn-IN', bn: 'bn-IN', mr: 'mr-IN',
-            gu: 'gu-IN', pa: 'pa-IN', or: 'or-IN', es: 'es-ES'
-          };
-          utterance.lang = langMap[currentLang] || 'en-US';
-          utterance.rate = 0.95;
-          utterance.onend = onTutorialEnd;
-          utterance.onerror = onTutorialEnd;
-          window.speechSynthesis.speak(utterance);
-        } else {
-          onTutorialEnd();
-        }
-      } catch (err) {
-        console.warn('Audio tutorial speech error:', err);
-        onTutorialEnd();
-      }
+      speakTextWithVisualizer({
+        text: script,
+        langCode: currentLang,
+        mode: 'tutorial',
+        title: 'Bhashini Navigation Tutorial',
+        onFinished: () => resetAllVoiceGuidanceButtons(currentLang)
+      });
     }
 
     /**

@@ -488,6 +488,15 @@ class RapidSync {
     return await res.json();
   }
 
+  async synthesizeWithBhashiniTTS(text, language = 'en', mode = 'tts') {
+    const res = await fetch('/api/bhashini/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, language, mode })
+    });
+    return await res.json();
+  }
+
   async fetchGovStations() {
     const res = await fetch('/api/government/stations');
     return await res.json();
@@ -509,12 +518,38 @@ class RapidSync {
     return await res.json();
   }
 
-  async streamSOSFrame(sosId, frameBase64, audioLevel, coords, email) {
+  getSosWebSocketUrl(role, sosId) {
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProto}//${window.location.host}/ws/sos?role=${encodeURIComponent(role)}&sosId=${encodeURIComponent(sosId || 'all')}`;
+  }
+
+  async streamSOSFrame(sosId, frameBase64, audioLevel, coords, email, extras = {}) {
     try {
       const res = await fetch(`/api/sos/${sosId}/stream-frame`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frameBase64, audioLevel, coords, email })
+        body: JSON.stringify({
+          frameBase64,
+          audioLevel,
+          coords,
+          email,
+          hasRealAudio: Boolean(extras.hasRealAudio),
+          sampleRate: extras.sampleRate || 16000,
+          seq: extras.seq || 0
+        })
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
+  }
+
+  async streamSOSAudio(sosId, audioPcmBase64, sampleRate = 16000, audioLevel = 40, seq = 0) {
+    try {
+      const res = await fetch(`/api/sos/${sosId}/stream-audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioPcmBase64, sampleRate, audioLevel, seq })
       });
       return await res.json();
     } catch (e) {

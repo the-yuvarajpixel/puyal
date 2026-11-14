@@ -202,9 +202,14 @@
             </p>
           </div>
         </div>
-        <button type="button" class="btn" style="background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; border: none; padding: 6px 14px; border-radius: var(--radius-md); cursor: pointer;" onclick="triggerCivilianDemoDispatch()">
-          🚀 Simulate Dispatch Demo
-        </button>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <a href="/tactical-3d.html?role=user" class="btn" style="background: #0f172a; color: #38bdf8; font-size: 12px; font-weight: 700; border: 1px solid #1e293b; padding: 6px 12px; border-radius: var(--radius-md); text-decoration: none;">
+            🧊 3D Sector Twin
+          </a>
+          <button type="button" class="btn" style="background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; border: none; padding: 6px 14px; border-radius: var(--radius-md); cursor: pointer;" onclick="triggerCivilianDemoDispatch()">
+            🚀 Simulate Dispatch Demo
+          </button>
+        </div>
       </div>
 
       <!-- Live Telemetry Grid -->
@@ -243,6 +248,11 @@
           <div class="legend-item"><span style="display:inline-block; width:14px; height:4px; background:#dc2626; border-bottom: 2px dashed #dc2626;"></span> Live Route Ahead</div>
           <div class="legend-item"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#f59e0b;"></span> 🚑 Moving Vehicle</div>
         </div>
+        <div id="civilian-map-attribution" style="font-size: 10px; color: var(--text-muted); font-weight: 700;">OpenStreetMap &bull; Leaflet</div>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+        GPS location sharing is explicit and revocable via browser permissions or Ending SOS. Map visualization is subject to
+        <a href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">Google Maps End User Terms</a>.
       </div>
     </section>
 
@@ -250,15 +260,15 @@
     <section class="card" style="max-width: 720px; margin: 24px auto 0;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
         <div>
-          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy);" data-i18n="user_list.heading">⚡ Active Regional Incidents &amp; Priority Rank</h3>
+          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy);" data-i18n="user_list.heading">⚡ Active Civilian Reports &amp; Priority Rank</h3>
           <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" data-i18n="user_list.subheading">
-            Ranked by AI priority score (Severity, Affected, Category Risk &amp; Elapsed Time)
+            Civilian-submitted emergencies ranked by AI priority score (Severity, Affected, Category Risk &amp; Elapsed Time)
           </p>
         </div>
         <span id="user-incidents-count" class="priority-rank-badge rank-top">Loading...</span>
       </div>
       <div id="user-incidents-list" style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;" data-i18n="user_list.no_incidents">Loading active incidents...</div>
+        <div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;" data-i18n="user_list.no_incidents">Loading civilian reports...</div>
       </div>
     </section>
 
@@ -375,6 +385,9 @@
       </div>
 
       <div class="sos-actions" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <button type="button" class="btn" id="btn-toggle-user-mic" style="background: rgba(16, 185, 129, 0.25); color: #86efac; font-size: 12px; font-weight: 700; border: 1px solid rgba(134, 239, 172, 0.45); padding: 10px 16px; border-radius: var(--radius-md); cursor: pointer;" onclick="toggleUserMicMute()">
+          🎙️ Mic: LIVE
+        </button>
         <button type="button" class="btn" id="btn-toggle-sim-feed" style="background: rgba(255,255,255,0.15); color: #fff; font-size: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,0.3); padding: 10px 16px; border-radius: var(--radius-md); cursor: pointer;" onclick="toggleSimulatedFeedMode()">
           🔄 Toggle Simulated / Real Feed
         </button>
@@ -625,10 +638,17 @@
     // ====================================================================
     let userIncidents = [];
 
+    function isCivilianIncidentRecord(item) {
+      if (!item || item.isSimulated || item.isTest) return false;
+      if (!item.reportedRole) return true;
+      const role = String(item.reportedRole).trim().toLowerCase();
+      return role === 'civilian' || role === 'user';
+    }
+
     async function loadUserIncidents() {
       try {
         const list = await rapidSync.fetchIncidents();
-        userIncidents = list || [];
+        userIncidents = (list || []).filter(isCivilianIncidentRecord);
         renderUserIncidents();
         checkCivilianDispatches();
       } catch (e) {
@@ -641,10 +661,10 @@
       const countEl = document.getElementById('user-incidents-count');
       if (!container) return;
 
-      countEl.textContent = `${userIncidents.length} active`;
+      countEl.textContent = `${userIncidents.length} civilian`;
 
       if (userIncidents.length === 0) {
-        container.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;">No active incidents reported in this zone.</div>`;
+        container.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-faint); font-size: 13px;">No civilian emergency reports submitted yet.</div>`;
         return;
       }
 
@@ -768,11 +788,16 @@
         status: 'Reported',
         timestamp: new Date().toLocaleString(),
         reportedBy: currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org',
+        reportedRole: 'civilian',
         source: 'form'
       };
 
       try {
-        await rapidSync.createIncident(newIncident);
+        const createRes = await rapidSync.createIncident(newIncident);
+        if (createRes && createRes.success === false) {
+          showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
+          return;
+        }
       } catch (err) {
         console.warn('Server incident post error:', err);
       }
@@ -1034,10 +1059,15 @@
         status: 'Reported',
         timestamp: new Date().toLocaleString(),
         reportedBy: currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org',
+        reportedRole: 'civilian',
         source: 'voice'
       };
 
-      await rapidSync.createIncident(newIncident);
+      const createRes = await rapidSync.createIncident(newIncident);
+      if (createRes && createRes.success === false) {
+        showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
+        return;
+      }
 
       if (window.db) {
         window.db.collection('incidents').add({
@@ -1052,26 +1082,243 @@
     }
 
     // ====================================================================
-    // SOS — LIVE VIDEO & AUDIO STREAM TRANSMISSION TO ADMIN
+    // SOS — REAL-TIME 15 FPS VIDEO & 16kHz PCM AUDIO STREAM TO ADMIN
     // ====================================================================
     let sosStream = null;
     let audioContext = null;
     let audioAnalyser = null;
+    let audioProcessorNode = null;
+    let audioMuteGain = null;
     let audioAnimFrame = null;
     let currentSosAlertId = null;
     let streamInterval = null;
+    let sosBroadcasterWs = null;
+    let sosWsReconnectTimer = null;
+    let sosActiveFlag = false;
+    let userMicMuted = false;
+    let hasPhysicalVideo = false;
+    let hasPhysicalAudio = false;
+    let liveAudioLevel = 0;
+    let videoSeq = 0;
+    let audioSeq = 0;
+    let isSimulatedFeed = false;
+    let simulatedPacketSeq = 1;
+
+    function int16ToBase64(int16Arr) {
+      const bytes = new Uint8Array(int16Arr.buffer, int16Arr.byteOffset, int16Arr.byteLength);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(binary);
+    }
+
+    function downsampleTo16kInt16(float32Input, inputSampleRate) {
+      const targetRate = 16000;
+      if (inputSampleRate === targetRate) {
+        const out = new Int16Array(float32Input.length);
+        for (let i = 0; i < float32Input.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32Input[i]));
+          out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        return out;
+      }
+      const ratio = inputSampleRate / targetRate;
+      const newLen = Math.max(1, Math.floor(float32Input.length / ratio));
+      const out = new Int16Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        const pos = i * ratio;
+        const idx = Math.floor(pos);
+        const frac = pos - idx;
+        const s0 = float32Input[idx] || 0;
+        const s1 = float32Input[Math.min(idx + 1, float32Input.length - 1)] || s0;
+        const sample = Math.max(-1, Math.min(1, s0 + (s1 - s0) * frac));
+        out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      }
+      return out;
+    }
+
+    function connectSosBroadcasterWs() {
+      if (!sosActiveFlag || !currentSosAlertId) return;
+      if (sosBroadcasterWs && (sosBroadcasterWs.readyState === WebSocket.OPEN || sosBroadcasterWs.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      try {
+        const wsUrl = rapidSync.getSosWebSocketUrl('broadcaster', currentSosAlertId);
+        const ws = new WebSocket(wsUrl);
+        sosBroadcasterWs = ws;
+
+        ws.onopen = () => {
+          if (!sosActiveFlag) {
+            ws.close();
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'SUBSCRIBE', role: 'broadcaster', sosId: currentSosAlertId }));
+          const statusEl = document.getElementById('sos-status-label');
+          if (statusEl) {
+            statusEl.textContent = hasPhysicalAudio
+              ? '● WS 15 FPS + Live Mic Audio'
+              : '● WS 15 FPS Live Video';
+            statusEl.style.color = '#4ade80';
+          }
+        };
+
+        ws.onclose = () => {
+          if (sosBroadcasterWs === ws) sosBroadcasterWs = null;
+          if (sosActiveFlag) {
+            const statusEl = document.getElementById('sos-status-label');
+            if (statusEl) {
+              statusEl.textContent = '● HTTP Relay (Reconnecting WS...)';
+              statusEl.style.color = '#facc15';
+            }
+            clearTimeout(sosWsReconnectTimer);
+            sosWsReconnectTimer = setTimeout(connectSosBroadcasterWs, 1000);
+          }
+        };
+
+        ws.onerror = () => {
+          // Close triggers reconnect cleanly
+        };
+      } catch (e) {
+        console.warn('WebSocket init fallback to HTTP:', e);
+      }
+    }
+
+    function setupAudioStreamer(stream) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioCtx();
+        if (audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+        const source = audioContext.createMediaStreamSource(stream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        source.connect(audioAnalyser);
+
+        // Real PCM streamer using ScriptProcessorNode (2048 frames @ source rate -> 16kHz Int16 chunks)
+        const bufferSize = 2048;
+        audioProcessorNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
+        audioMuteGain = audioContext.createGain();
+        audioMuteGain.gain.value = 0;
+
+        let pcmAccumulator = [];
+        const TARGET_CHUNK_SAMPLES = 2048; // 128ms @ 16kHz
+
+        audioProcessorNode.onaudioprocess = (event) => {
+          if (!sosActiveFlag || userMicMuted) return;
+          const input = event.inputBuffer.getChannelData(0);
+          let sumSq = 0;
+          for (let i = 0; i < input.length; i++) {
+            sumSq += input[i] * input[i];
+          }
+          const rms = Math.sqrt(sumSq / input.length);
+          liveAudioLevel = Math.min(100, Math.max(2, Math.round(rms * 350)));
+
+          const int16 = downsampleTo16kInt16(input, audioContext.sampleRate || 48000);
+          for (let i = 0; i < int16.length; i++) {
+            pcmAccumulator.push(int16[i]);
+          }
+
+          if (pcmAccumulator.length >= TARGET_CHUNK_SAMPLES) {
+            const chunkArr = new Int16Array(pcmAccumulator.splice(0, TARGET_CHUNK_SAMPLES));
+            const audioPcmBase64 = int16ToBase64(chunkArr);
+            audioSeq++;
+
+            if (currentSosAlertId) {
+              if (sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN) {
+                if (sosBroadcasterWs.bufferedAmount < 256 * 1024) {
+                  sosBroadcasterWs.send(JSON.stringify({
+                    type: 'AUDIO_CHUNK',
+                    sosId: currentSosAlertId,
+                    audioPcmBase64,
+                    sampleRate: 16000,
+                    audioLevel: liveAudioLevel,
+                    seq: audioSeq,
+                    ts: Date.now()
+                  }));
+                }
+              } else {
+                rapidSync.streamSOSAudio(currentSosAlertId, audioPcmBase64, 16000, liveAudioLevel, audioSeq);
+              }
+            }
+          }
+        };
+
+        source.connect(audioProcessorNode);
+        audioProcessorNode.connect(audioMuteGain);
+        audioMuteGain.connect(audioContext.destination);
+
+        hasPhysicalAudio = true;
+        const audioModeLabel = document.getElementById('sos-audio-mode-label');
+        if (audioModeLabel) audioModeLabel.textContent = '🎙️ LIVE 16kHz PCM STREAMING';
+        const freqLabel = document.getElementById('sos-audio-freq-label');
+        if (freqLabel) freqLabel.textContent = '16kHz PCM Mic Stream Active';
+
+        visualizeAudio();
+      } catch (e) {
+        console.warn('AudioContext streamer error:', e);
+        hasPhysicalAudio = false;
+      }
+    }
+
+    function toggleUserMicMute() {
+      userMicMuted = !userMicMuted;
+      if (sosStream) {
+        sosStream.getAudioTracks().forEach(t => {
+          t.enabled = !userMicMuted;
+        });
+      }
+      const btn = document.getElementById('btn-toggle-user-mic');
+      const audioModeLabel = document.getElementById('sos-audio-mode-label');
+      if (btn) {
+        if (userMicMuted) {
+          btn.textContent = '🔇 Mic: MUTED';
+          btn.style.background = 'rgba(239, 68, 68, 0.25)';
+          btn.style.color = '#fca5a5';
+          btn.style.borderColor = 'rgba(252, 165, 165, 0.45)';
+        } else {
+          btn.textContent = '🎙️ Mic: LIVE';
+          btn.style.background = 'rgba(16, 185, 129, 0.25)';
+          btn.style.color = '#86efac';
+          btn.style.borderColor = 'rgba(134, 239, 172, 0.45)';
+        }
+      }
+      if (audioModeLabel) {
+        audioModeLabel.textContent = userMicMuted
+          ? '🔇 MICROPHONE MUTED'
+          : (hasPhysicalAudio ? '🎙️ LIVE 16kHz PCM STREAMING' : 'SIMULATED AUDIO RELAY ACTIVE');
+      }
+    }
 
     async function activateSOS() {
+      sosActiveFlag = true;
+      userMicMuted = false;
+      hasPhysicalVideo = false;
+      hasPhysicalAudio = false;
+      videoSeq = 0;
+      audioSeq = 0;
+
       document.getElementById('sos-overlay').classList.remove('hidden');
       document.getElementById('sos-time').textContent = new Date().toLocaleTimeString();
       document.getElementById('sos-location').textContent = 'Acquiring GPS...';
       document.getElementById('sos-coords').textContent = 'Fetching GPS...';
 
       const fallbackCoords = window._currentCoords || (window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496, accuracy: 10 });
+      currentCoords = fallbackCoords;
+      document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
+      document.getElementById('sos-location').textContent = `GPS ±${fallbackCoords.accuracy || 10}m (Acquiring high accuracy...)`;
 
+      // 1. Dispatch SOS IMMEDIATELY so currentSosAlertId & WebSocket streaming start without waiting on GPS timeout
+      await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
+      connectSosBroadcasterWs();
+
+      // Refine GPS asynchronously in background
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          async (pos) => {
+          (pos) => {
+            if (!sosActiveFlag) return;
             const lat = parseFloat(pos.coords.latitude.toFixed(6));
             const lon = parseFloat(pos.coords.longitude.toFixed(6));
             const acc = parseFloat((pos.coords.accuracy || 8).toFixed(1));
@@ -1079,59 +1326,61 @@
             window._currentCoords = currentCoords;
             document.getElementById('sos-coords').textContent = `${lat}, ${lon}`;
             document.getElementById('sos-location').textContent = `GPS ±${acc}m accuracy`;
-            await dispatchSOS(lat, lon, acc);
           },
-          async (err) => {
-            console.warn('SOS geolocation fallback active:', err.message);
-            currentCoords = fallbackCoords;
-            document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
+          (err) => {
+            console.warn('SOS geolocation refinement fallback:', err.message);
+            if (!sosActiveFlag) return;
             document.getElementById('sos-location').textContent = `GPS ±${fallbackCoords.accuracy || 10}m (Grid)`;
-            await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
           },
           { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
         );
+      }
+
+      // 2. Capture Physical Camera + Microphone (with audio-only fallback before full simulation)
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          });
+          sosStream = stream;
+          hasPhysicalVideo = stream.getVideoTracks().length > 0;
+          const video = document.getElementById('sos-video');
+          video.srcObject = stream;
+          video.style.display = 'block';
+          document.getElementById('sos-canvas').style.display = 'none';
+          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed (15 FPS)';
+
+          if (stream.getAudioTracks().length > 0) {
+            setupAudioStreamer(stream);
+          }
+
+          isSimulatedFeed = false;
+          startLiveFrameRelay();
+        } catch (err) {
+          console.warn('Camera+Mic unavailable, trying Microphone-only stream:', err.message);
+          try {
+            const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+            sosStream = audioOnlyStream;
+            hasPhysicalVideo = false;
+            setupAudioStreamer(audioOnlyStream);
+            activateSimulatedEmergencyFeed(true);
+            showToast('🎙️ Live microphone audio connected! Using tactical video canvas.', 'info');
+          } catch (audioErr) {
+            console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', audioErr);
+            activateSimulatedEmergencyFeed(false);
+          }
+        }
       } else {
-        currentCoords = fallbackCoords;
-        document.getElementById('sos-coords').textContent = `${fallbackCoords.latitude}, ${fallbackCoords.longitude}`;
-        document.getElementById('sos-location').textContent = `GPS ±${fallbackCoords.accuracy || 10}m (Grid)`;
-        await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
+        activateSimulatedEmergencyFeed(false);
       }
 
-      // 2. Start Camera & Microphone (or fallback to Simulated Emergency Feed)
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: true
-        });
-        sosStream = stream;
-        const video = document.getElementById('sos-video');
-        video.srcObject = stream;
-        video.style.display = 'block';
-        document.getElementById('sos-canvas').style.display = 'none';
-        document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed';
-
-        // Setup audio visualizer
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        audioAnalyser = audioContext.createAnalyser();
-        audioAnalyser.fftSize = 256;
-        source.connect(audioAnalyser);
-        visualizeAudio();
-
-        isSimulatedFeed = false;
-        startLiveFrameRelay();
-      } catch (err) {
-        console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', err);
-        activateSimulatedEmergencyFeed();
-      }
-
-      speakText('SOS Emergency Activated. Live video and audio feed are streaming to Admin Command Center.', 'en');
+      speakText('SOS Emergency Activated. Live camera and audio feed are streaming to Admin Command Center.', 'en');
     }
 
-    let isSimulatedFeed = false;
-    let simulatedPacketSeq = 1;
-
-    function activateSimulatedEmergencyFeed() {
+    function activateSimulatedEmergencyFeed(keepLiveMic = false) {
       isSimulatedFeed = true;
       const video = document.getElementById('sos-video');
       const canvas = document.getElementById('sos-canvas');
@@ -1140,26 +1389,30 @@
 
       video.style.display = 'none';
       canvas.style.display = 'block';
-      if (label) label.textContent = '📹 Simulated Tactical Camera (Active)';
-      if (audioModeLabel) audioModeLabel.textContent = 'SIMULATED AUDIO RELAY ACTIVE';
+      if (label) label.textContent = '📹 Simulated Tactical Camera (15 FPS)';
+      if (audioModeLabel && !keepLiveMic && !hasPhysicalAudio) {
+        audioModeLabel.textContent = 'TELEMETRY AUDIO SIGNAL';
+      }
 
       startLiveFrameRelay();
-      showToast('⚡ Camera hardware unavailable: Simulated emergency tactical feed active.', 'warning');
+      if (!keepLiveMic) {
+        showToast('⚡ Camera hardware unavailable: Simulated emergency tactical feed active at 15 FPS.', 'warning');
+      }
     }
 
     function toggleSimulatedFeedMode() {
       if (isSimulatedFeed) {
-        if (sosStream) {
+        if (sosStream && hasPhysicalVideo) {
           isSimulatedFeed = false;
           document.getElementById('sos-video').style.display = 'block';
           document.getElementById('sos-canvas').style.display = 'none';
-          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed';
+          document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera Feed (15 FPS)';
           showToast('Switched to physical camera feed.', 'success');
         } else {
           showToast('Physical camera not available on this device. Retaining simulated tactical feed.', 'warning');
         }
       } else {
-        activateSimulatedEmergencyFeed();
+        activateSimulatedEmergencyFeed(hasPhysicalAudio);
       }
     }
 
@@ -1167,8 +1420,8 @@
       const canvas = document.getElementById('sos-canvas');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      const w = canvas.width || 320;
-      const h = canvas.height || 240;
+      const w = canvas.width || 480;
+      const h = canvas.height || 360;
 
       // Dark tactical slate background with night-vision grid
       ctx.fillStyle = '#090d16';
@@ -1177,13 +1430,13 @@
       // Radar scanlines
       ctx.strokeStyle = 'rgba(34, 197, 94, 0.12)';
       ctx.lineWidth = 1;
-      for (let y = 0; y < h; y += 16) {
+      for (let y = 0; y < h; y += 18) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
         ctx.stroke();
       }
-      for (let x = 0; x < w; x += 32) {
+      for (let x = 0; x < w; x += 36) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
@@ -1196,47 +1449,48 @@
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(cx, cy, 26, 0, Math.PI * 2);
-      ctx.moveTo(cx - 38, cy); ctx.lineTo(cx - 8, cy);
-      ctx.moveTo(cx + 8, cy); ctx.lineTo(cx + 38, cy);
-      ctx.moveTo(cx, cy - 38); ctx.lineTo(cx, cy - 8);
-      ctx.moveTo(cx, cy + 8); ctx.lineTo(cx, cy + 38);
+      ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+      ctx.moveTo(cx - 48, cy); ctx.lineTo(cx - 10, cy);
+      ctx.moveTo(cx + 10, cy); ctx.lineTo(cx + 48, cy);
+      ctx.moveTo(cx, cy - 48); ctx.lineTo(cx, cy - 10);
+      ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy + 48);
       ctx.stroke();
 
-      // Rotating radar beam
+      // Smooth rotating radar beam (15 FPS motion)
       const now = Date.now();
-      const angle = (now / 750) % (Math.PI * 2);
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.7)';
-      ctx.lineWidth = 2;
+      const angle = (now / 450) % (Math.PI * 2);
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.85)';
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(angle) * 48, cy + Math.sin(angle) * 48);
+      ctx.lineTo(cx + Math.cos(angle) * 64, cy + Math.sin(angle) * 64);
       ctx.stroke();
 
       // Top Alert Header
-      ctx.fillStyle = 'rgba(220, 38, 38, 0.9)';
-      ctx.fillRect(8, 8, w - 16, 22);
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.92)';
+      ctx.fillRect(10, 10, w - 20, 26);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px monospace';
+      ctx.font = 'bold 12px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText('🔴 LIVE CIVILIAN SOS — SIMULATED TACTICAL FEED', 14, 23);
+      ctx.fillText('🔴 LIVE CIVILIAN SOS — 15 FPS REAL-TIME FEED', 18, 27);
 
       // Telemetry HUD overlay
       ctx.fillStyle = '#4ade80';
-      ctx.font = '9px monospace';
+      ctx.font = '11px monospace';
       const timeStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      ctx.fillText(`TIME: ${timeStr} UTC`, 12, h - 38);
+      ctx.fillText(`TIME: ${timeStr} UTC`, 14, h - 46);
 
-      const lat = currentCoords ? currentCoords.latitude.toFixed(4) : '13.0827';
-      const lon = currentCoords ? currentCoords.longitude.toFixed(4) : '80.2707';
-      ctx.fillText(`GPS: ${lat}, ${lon} (±3.5m)`, 12, h - 26);
-      ctx.fillText(`SEQ: #${simulatedPacketSeq} · RES: 320x240 · QUALITY: HIGH`, 12, h - 14);
+      const lat = currentCoords ? currentCoords.latitude.toFixed(4) : '13.0604';
+      const lon = currentCoords ? currentCoords.longitude.toFixed(4) : '80.2496';
+      ctx.fillText(`GPS: ${lat}, ${lon} (±${currentCoords?.accuracy || 8}m)`, 14, h - 30);
+      ctx.fillText(`SEQ: #${simulatedPacketSeq} · ${w}x${h} @ 15 FPS · AUDIO: ${hasPhysicalAudio ? 'LIVE MIC' : 'TELEMETRY'}`, 14, h - 14);
 
-      // Simulated Audio Equalizer bars
-      ctx.fillStyle = '#ef4444';
+      // Equalizer bars
+      ctx.fillStyle = hasPhysicalAudio ? '#22c55e' : '#ef4444';
       for (let i = 0; i < 9; i++) {
-        const barH = Math.abs(Math.sin((now / 150) + i)) * 14 + 4;
-        ctx.fillRect(w - 65 + (i * 6), h - 14 - barH, 4, barH);
+        const amp = hasPhysicalAudio ? (liveAudioLevel / 100) * 20 : Math.abs(Math.sin((now / 150) + i)) * 16;
+        const barH = amp + 4;
+        ctx.fillRect(w - 76 + (i * 7), h - 14 - barH, 4, barH);
       }
     }
 
@@ -1246,52 +1500,76 @@
       const video = document.getElementById('sos-video');
       const ctx = canvas.getContext('2d');
 
+      // 66ms interval => ~15 FPS real-time video streaming
       streamInterval = setInterval(() => {
-        if (!currentSosAlertId) return;
+        if (!sosActiveFlag || !currentSosAlertId) return;
 
         try {
           let frameBase64 = null;
-          let vol = 35;
+          let vol = liveAudioLevel || 25;
 
-          if (isSimulatedFeed || !sosStream) {
-            canvas.width = 320;
-            canvas.height = 240;
+          if (isSimulatedFeed || !sosStream || !hasPhysicalVideo) {
+            canvas.width = 480;
+            canvas.height = 360;
             drawProceduralEmergencyFrame();
             simulatedPacketSeq++;
-            frameBase64 = canvas.toDataURL('image/jpeg', 0.6);
-
-            // Synthetic voice/ambient audio level oscillation
-            vol = Math.round(30 + Math.sin(Date.now() / 200) * 28 + Math.random() * 12);
-            const audioBar = document.getElementById('audio-bar');
-            if (audioBar) audioBar.style.width = Math.min(100, vol * 1.2) + '%';
-            const freqLabel = document.getElementById('sos-audio-freq-label');
-            if (freqLabel) freqLabel.textContent = `Live Level: ${vol}%`;
-          } else if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-            canvas.width = 320;
-            canvas.height = 240;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             frameBase64 = canvas.toDataURL('image/jpeg', 0.55);
 
-            if (audioAnalyser) {
-              const data = new Uint8Array(audioAnalyser.frequencyBinCount);
-              audioAnalyser.getByteFrequencyData(data);
-              vol = Math.round(data.reduce((a, b) => a + b) / data.length);
+            if (!hasPhysicalAudio) {
+              vol = Math.round(30 + Math.sin(Date.now() / 200) * 26 + Math.random() * 10);
+              const audioBar = document.getElementById('audio-bar');
+              if (audioBar) audioBar.style.width = Math.min(100, vol * 1.2) + '%';
+              const freqLabel = document.getElementById('sos-audio-freq-label');
+              if (freqLabel) freqLabel.textContent = `Telemetry Level: ${vol}%`;
             }
+          } else if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+            canvas.width = 480;
+            canvas.height = 360;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            frameBase64 = canvas.toDataURL('image/jpeg', 0.55);
           }
 
           if (frameBase64) {
-            rapidSync.streamSOSFrame(
-              currentSosAlertId,
-              frameBase64,
-              vol,
-              currentCoords,
-              currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org'
-            );
+            videoSeq++;
+            const userEmail = currentUser ? currentUser.email : 'civilian.demo@rapidresponse.org';
+            const wsOpen = sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN;
+
+            if (wsOpen) {
+              // Drop frame only if socket send queue backs up > 256KB
+              if (sosBroadcasterWs.bufferedAmount < 262144) {
+                sosBroadcasterWs.send(JSON.stringify({
+                  type: 'VIDEO_FRAME',
+                  sosId: currentSosAlertId,
+                  frameBase64,
+                  audioLevel: vol,
+                  hasRealAudio: hasPhysicalAudio && !userMicMuted,
+                  coords: currentCoords,
+                  email: userEmail,
+                  seq: videoSeq,
+                  ts: Date.now()
+                }));
+              }
+              // Periodic HTTP snapshot every ~15 frames (~1s) for late-joining viewers / live-feed REST snapshot
+              if (videoSeq % 15 === 1) {
+                rapidSync.streamSOSFrame(currentSosAlertId, frameBase64, vol, currentCoords, userEmail, {
+                  hasRealAudio: hasPhysicalAudio && !userMicMuted,
+                  seq: videoSeq
+                });
+              }
+            } else {
+              // HTTP fallback if WS disconnected (throttled ~4 FPS on HTTP to avoid flooding)
+              if (videoSeq % 4 === 1) {
+                rapidSync.streamSOSFrame(currentSosAlertId, frameBase64, vol, currentCoords, userEmail, {
+                  hasRealAudio: hasPhysicalAudio && !userMicMuted,
+                  seq: videoSeq
+                });
+              }
+            }
           }
         } catch (e) {
           console.warn('Frame relay step:', e);
         }
-      }, 900); // Send optimized frame every 900ms for smooth live updates
+      }, 66);
     }
 
     async function dispatchSOS(lat, lon, accuracy) {
@@ -1302,6 +1580,7 @@
         longitude: lon,
         accuracy: accuracy,
         active: true,
+        reportedRole: 'civilian',
         media: { hasVideo: true, hasAudio: true }
       };
 
@@ -1327,21 +1606,37 @@
     }
 
     function visualizeAudio() {
-      if (!audioAnalyser) return;
+      if (!audioAnalyser || !sosActiveFlag) return;
       const data = new Uint8Array(audioAnalyser.frequencyBinCount);
       audioAnalyser.getByteFrequencyData(data);
       const avg = data.reduce((a, b) => a + b) / data.length;
-      const level = Math.min(100, (avg / 128) * 100);
-      document.getElementById('audio-bar').style.width = level + '%';
+      const level = userMicMuted ? 0 : Math.min(100, Math.round((avg / 128) * 100));
+      const bar = document.getElementById('audio-bar');
+      if (bar) bar.style.width = level + '%';
+      const freqLabel = document.getElementById('sos-audio-freq-label');
+      if (freqLabel) {
+        freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `16kHz PCM · Level ${level}%`;
+      }
       audioAnimFrame = requestAnimationFrame(visualizeAudio);
     }
 
     async function deactivateSOS() {
+      sosActiveFlag = false;
+      userMicMuted = false;
+      hasPhysicalVideo = false;
+      hasPhysicalAudio = false;
+      clearTimeout(sosWsReconnectTimer);
+
       document.getElementById('sos-overlay').classList.add('hidden');
 
       if (streamInterval) {
         clearInterval(streamInterval);
         streamInterval = null;
+      }
+
+      if (sosBroadcasterWs) {
+        try { sosBroadcasterWs.close(); } catch (e) {}
+        sosBroadcasterWs = null;
       }
 
       if (currentSosAlertId) {
@@ -1351,12 +1646,20 @@
         currentSosAlertId = null;
       }
 
+      if (audioProcessorNode) {
+        try { audioProcessorNode.disconnect(); } catch (e) {}
+        audioProcessorNode = null;
+      }
+      if (audioMuteGain) {
+        try { audioMuteGain.disconnect(); } catch (e) {}
+        audioMuteGain = null;
+      }
       if (sosStream) {
         sosStream.getTracks().forEach(t => t.stop());
         sosStream = null;
       }
       if (audioContext) {
-        audioContext.close();
+        try { audioContext.close(); } catch (e) {}
         audioContext = null;
         audioAnalyser = null;
       }
@@ -1374,6 +1677,9 @@
     // CIVILIAN REAL-TIME EMERGENCY DISPATCH & ROUTE TRACKING MAP
     // ====================================================================
     let civilianTrackingMap = null;
+    let googleCivilianMap = null;
+    let usingGoogleCivMap = false;
+    let civMapInitPromise = null;
     let civLayers = {
       incidentMarker: null,
       incidentPerimeter: null,
@@ -1385,36 +1691,61 @@
     let activeDispatchedTeam = null;
     let activeDispatchedIncident = null;
 
-    function initCivilianTrackingMap() {
-      if (civilianTrackingMap) return;
+    async function initCivilianTrackingMap() {
+      if (civilianTrackingMap || googleCivilianMap) return civMapInitPromise;
+      if (civMapInitPromise) return civMapInitPromise;
+
       const mapEl = document.getElementById('civilian-tracking-map');
-      if (!mapEl || typeof L === 'undefined') return;
+      if (!mapEl) return null;
 
-      civilianTrackingMap = L.map('civilian-tracking-map', {
-        center: [13.0530, 80.2650],
-        zoom: 13,
-        scrollWheelZoom: true
-      });
+      civMapInitPromise = (async () => {
+        if (window.TacticalGoogleMap) {
+          googleCivilianMap = new window.TacticalGoogleMap('civilian-tracking-map', {
+            center: { lat: 13.0530, lng: 80.2650 },
+            zoom: 13,
+            gestureHandling: 'cooperative'
+          });
+          const ok = await googleCivilianMap.init();
+          if (ok) {
+            usingGoogleCivMap = true;
+            const attrEl = document.getElementById('civilian-map-attribution');
+            if (attrEl) attrEl.innerHTML = 'Google Maps Platform &bull; Routes &amp; Markers';
+            return true;
+          }
+          googleCivilianMap = null;
+        }
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
-      }).addTo(civilianTrackingMap);
+        if (typeof L !== 'undefined') {
+          civilianTrackingMap = L.map('civilian-tracking-map', {
+            center: [13.0530, 80.2650],
+            zoom: 13,
+            scrollWheelZoom: true
+          });
 
-      setTimeout(() => {
-        if (civilianTrackingMap) civilianTrackingMap.invalidateSize();
-      }, 500);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+          }).addTo(civilianTrackingMap);
+
+          setTimeout(() => {
+            if (civilianTrackingMap) civilianTrackingMap.invalidateSize();
+          }, 500);
+        }
+        return true;
+      })();
+
+      return civMapInitPromise;
     }
 
-    function updateCivilianTrackingDisplay(team, incident) {
+    async function updateCivilianTrackingDisplay(team, incident) {
       if (!team) return;
       activeDispatchedTeam = team;
       if (incident) activeDispatchedIncident = incident;
 
-      initCivilianTrackingMap();
-
       const trackingSection = document.getElementById('civilian-tracking-section');
       if (trackingSection) trackingSection.style.display = 'block';
+
+      await initCivilianTrackingMap();
 
       // Update telemetry stats
       const teamNameEl = document.getElementById('tracking-team-name');
@@ -1448,6 +1779,11 @@
           statusPill.className = 'team-status-pill status-dispatched';
           statusPill.textContent = '● EN ROUTE DISPATCH';
         }
+      }
+
+      if (usingGoogleCivMap && googleCivilianMap) {
+        await googleCivilianMap.renderCivilianDispatchTracking(team, activeDispatchedIncident);
+        return;
       }
 
       if (!civilianTrackingMap || typeof L === 'undefined') return;
@@ -1549,14 +1885,12 @@
     async function checkCivilianDispatches() {
       try {
         const teams = await rapidSync.fetchTeams();
-        const dispatched = teams.find(t => t.status === 'Dispatched') || teams[0];
-        if (dispatched) {
-          const matchedInc = userIncidents.find(i => String(i.id) === String(dispatched.assignedIncidentId)) || userIncidents[0] || {
-            title: 'Structural Risk & Water Surge Alert',
-            latitude: 13.0450,
-            longitude: 80.2824
-          };
-          updateCivilianTrackingDisplay(dispatched, matchedInc);
+        const dispatched = teams.find(t => t.status === 'Dispatched');
+        if (dispatched && userIncidents.length > 0) {
+          const matchedInc = userIncidents.find(i => String(i.id) === String(dispatched.assignedIncidentId)) || userIncidents[0];
+          if (matchedInc) {
+            updateCivilianTrackingDisplay(dispatched, matchedInc);
+          }
         }
       } catch (e) {
         console.warn('Failed to load teams for civilian tracking:', e);
@@ -1569,17 +1903,19 @@
         const res = await fetch('/api/demo/simulate-dispatch', { method: 'POST' });
         const data = await res.json();
         if (data.success && data.team) {
-          const matchedInc = userIncidents.find(i => String(i.id) === String(data.team.assignedIncidentId)) || userIncidents[0] || {
-            title: 'Structural Risk & Water Surge Alert',
-            latitude: 13.0450,
-            longitude: 80.2824
-          };
-          updateCivilianTrackingDisplay(data.team, matchedInc);
-          if (civilianTrackingMap) {
+          const matchedInc = userIncidents.find(i => String(i.id) === String(data.team.assignedIncidentId)) || userIncidents[0];
+          if (matchedInc) {
+            await updateCivilianTrackingDisplay(data.team, matchedInc);
+          }
+          if (usingGoogleCivMap && googleCivilianMap && data.team.latitude && data.team.longitude) {
+            googleCivilianMap.flyTo(data.team.latitude, data.team.longitude, 14);
+          } else if (civilianTrackingMap && data.team.latitude && data.team.longitude) {
             civilianTrackingMap.flyTo([data.team.latitude, data.team.longitude], 14, { duration: 1.2 });
           }
           showToast(`🚑 Dispatched ${data.team.name}! En route telemetry live.`, 'success');
           speakText(`Emergency dispatch simulation initiated. Responders are en route to your location.`, 'en');
+        } else {
+          showToast(data.error || 'Submit a civilian report first to simulate dispatch.', 'warning');
         }
       } catch (e) {
         showToast('Failed to start dispatch simulation: ' + e.message, 'error');
