@@ -4,11 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RapidResponse — Civilian Emergency Portal</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RapidResp" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
-  <link rel="apple-touch-icon" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
   <!-- Open-Source Leaflet GIS Engine -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
@@ -912,17 +918,21 @@
         source: 'form'
       };
 
+      let wasOfflineQueued = false;
       try {
         const createRes = await rapidSync.createIncident(newIncident);
         if (createRes && createRes.success === false) {
           showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
           return;
         }
+        wasOfflineQueued = Boolean(createRes && createRes.offlineQueued);
       } catch (err) {
         console.warn('Server incident post error:', err);
+        showToast(err.message || 'Unable to submit incident report.', 'error');
+        return;
       }
 
-      if (window.db) {
+      if (window.db && navigator.onLine) {
         try {
           window.db.collection('incidents').add({
             ...newIncident,
@@ -932,12 +942,23 @@
       }
 
       // Voice read-back confirmation using TTS
-      speakText(`Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`, currentAppLanguage || 'en');
+      speakText(
+        wasOfflineQueued
+          ? `Emergency saved offline. Will automatically dispatch to command center when connection returns.`
+          : `Emergency incident submitted. Severity level ${resolvedSeverity}. Emergency response teams notified.`,
+        currentAppLanguage || 'en'
+      );
 
       document.getElementById('incident-form').reset();
       updateDynamicSeverityMeter();
       autoDetectLocation(false);
-      showToast('✅ Emergency reported! GPS coordinates & broadcast sent to Command Center.', 'success');
+      await loadUserIncidents();
+      showToast(
+        wasOfflineQueued
+          ? '📴 Offline: Report saved locally and queued for auto-sync when reconnected!'
+          : '✅ Emergency reported! GPS coordinates & broadcast sent to Command Center.',
+        wasOfflineQueued ? 'warning' : 'success'
+      );
     }
 
     // ====================================================================
@@ -1272,17 +1293,25 @@
         showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
         return;
       }
+      const wasOfflineQueued = Boolean(createRes && createRes.offlineQueued);
 
-      if (window.db) {
+      if (window.db && navigator.onLine) {
         window.db.collection('incidents').add({
           ...newIncident,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).catch(console.warn);
       }
 
-      speakText(`Emergency confirmed. Dispatched to command center.`, currentAppLanguage || 'en');
+      speakText(
+        wasOfflineQueued ? 'Emergency voice report saved offline and queued for sync.' : 'Emergency confirmed. Dispatched to command center.',
+        currentAppLanguage || 'en'
+      );
       closeVoiceReport();
-      showToast('✅ Multilingual emergency broadcast submitted to Admin Command!', 'success');
+      await loadUserIncidents();
+      showToast(
+        wasOfflineQueued ? '📴 Voice report saved offline — will auto-sync on reconnect!' : '✅ Multilingual emergency broadcast submitted to Admin Command!',
+        wasOfflineQueued ? 'warning' : 'success'
+      );
     }
 
     // ====================================================================
@@ -2434,6 +2463,12 @@
       }
     });
 
+    rapidSync.on('OFFLINE_SYNCED', (info) => {
+      const count = info && info.syncedCount ? info.syncedCount : 1;
+      showToast(`✅ Reconnected! Synced ${count} queued offline emergency record(s) to Command Center.`, 'success');
+      loadUserIncidents();
+    });
+
     // Support direct deep-links from landing page (?action=sos|voice|report|track)
     window.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(window.location.search);
@@ -2453,5 +2488,6 @@
   <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
   <script src="js/google-maps-manager.js"></script>
   <script src="js/gemini-assistant.js"></script>
+  <script src="js/pwa-offline.js"></script>
 </body>
 </html>

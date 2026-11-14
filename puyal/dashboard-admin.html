@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RapidResponse — Admin Command Control</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RapidResp" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Open-Source Leaflet GIS & Mapping Engine -->
@@ -11,7 +17,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
-  <link rel="apple-touch-icon" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
   <style>
     .emergency-alert-banner {
@@ -3223,11 +3229,20 @@
       if (typeof updateAdvancedAnalytics === 'function') updateAdvancedAnalytics();
       if (typeof updateTacticalMap === 'function') updateTacticalMap();
     });
+
+    if (window.rapidSync) {
+      rapidSync.on('OFFLINE_SYNCED', (info) => {
+        const count = info && info.syncedCount ? info.syncedCount : 1;
+        if (typeof showToast === 'function') showToast(`✅ Reconnected! Synced ${count} queued offline action(s).`, 'success');
+        loadAllData();
+      });
+    }
   </script>
 
   <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
   <script src="js/google-maps-manager.js"></script>
   <script src="js/gemini-assistant.js"></script>
+  <script src="js/pwa-offline.js"></script>
 </body>
 </html>
 

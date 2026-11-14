@@ -403,13 +403,187 @@ function getCurrentOrCachedCoords() {
 window.getCurrentOrCachedCoords = getCurrentOrCachedCoords;
 
 // ----------------------------------------------------------------------------
-// Real-time Data Sync (SSE & REST API)
+// Offline Storage, Outbox Queue & Local Emergency Classifier Helpers
+// ----------------------------------------------------------------------------
+const RAPID_CACHE_KEYS = {
+  incidents: 'rapid_cache_incidents',
+  sos: 'rapid_cache_sos',
+  teams: 'rapid_cache_teams',
+  stations: 'rapid_cache_gov_stations',
+  outbox: 'rapid_offline_outbox'
+};
+
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {}
+}
+
+function notifyOfflineQueueChanged() {
+  try {
+    window.dispatchEvent(new CustomEvent('rapidOfflineQueueChanged'));
+  } catch (e) {}
+}
+
+function classifyEmergencyOffline(text, language = 'en') {
+  const lower = String(text || '').toLowerCase();
+  let category = 'Other';
+  let severity = 'Medium';
+  let severityScore = 55;
+  let firstAidGuidance = 'Move to a safe open area, stay calm, and conserve phone battery until responders arrive.';
+
+  if (/fire|burn|smoke|flame|gas|explod|ஆபத்து|தீ|आग/.test(lower)) {
+    category = 'Fire';
+    severity = 'Critical';
+    severityScore = 88;
+    firstAidGuidance = 'Evacuate immediately, stay low below smoke, cover nose/mouth with wet cloth, and avoid elevators.';
+  } else if (/flood|water|drown|cyclone|rain|surge|வெள்ளம்|बाढ़/.test(lower)) {
+    category = 'Flood';
+    severity = 'High';
+    severityScore = 80;
+    firstAidGuidance = 'Move to higher ground immediately, avoid walking or driving through moving floodwater, and avoid downed power lines.';
+  } else if (/collapse|trapped|building|debris|earthquake|நிலநடுக்கம்|मलबे/.test(lower)) {
+    category = 'Structural Collapse';
+    severity = 'Critical';
+    severityScore = 92;
+    firstAidGuidance = 'Do not re-enter damaged structures. Protect your head, tap on pipes/walls if trapped, and wait for rescue.';
+  } else if (/blood|bleed|heart|breath|injur|unconscious|medical|ambulance|மருத்துவ|घायल/.test(lower)) {
+    category = 'Medical Emergency';
+    severity = 'Critical';
+    severityScore = 86;
+    firstAidGuidance = 'Apply firm clean pressure to bleeding wounds, keep the injured person still and breathing comfortably, and prepare airway.';
+  } else if (/crash|accident|collision|car|bike|road|bus|விபத்து|हादसा/.test(lower)) {
+    category = 'Road Accident';
+    severity = 'High';
+    severityScore = 76;
+    firstAidGuidance = 'Turn on hazard lights, keep victims still if neck/spine injury is suspected, and move bystanders clear of traffic.';
+  } else if (/sos|help|urgent|emergency|danger|உதவி|बचाओ/.test(lower)) {
+    category = 'SOS Emergency';
+    severity = 'Critical';
+    severityScore = 90;
+    firstAidGuidance = 'Stay at a safe visible point if possible; your emergency report is queued offline and will dispatch on reconnect.';
+  }
+
+  return {
+    category,
+    severity,
+    severityScore,
+    affected: 1,
+    translatedText: text,
+    language,
+    firstAidGuidance
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Real-time Data Sync (SSE & REST API + Offline Cache & Outbox Sync)
 // ----------------------------------------------------------------------------
 class RapidSync {
   constructor() {
     this.eventSource = null;
     this.listeners = new Map();
+    this._flushingQueue = false;
     this.initSSE();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.flushOfflineQueue();
+      });
+      if (navigator.onLine && this.getOfflineQueueCount() > 0) {
+        setTimeout(() => this.flushOfflineQueue(), 1200);
+      }
+    }
+  }
+
+  getOfflineQueue() {
+    return readLocalJson(RAPID_CACHE_KEYS.outbox, []);
+  }
+
+  getOfflineQueueCount() {
+    return this.getOfflineQueue().length;
+  }
+
+  enqueueOfflineAction(type, payload) {
+    const outbox = this.getOfflineQueue();
+    outbox.push({
+      queueId: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      type,
+      payload,
+      createdAt: Date.now()
+    });
+    writeLocalJson(RAPID_CACHE_KEYS.outbox, outbox);
+    notifyOfflineQueueChanged();
+  }
+
+  async flushOfflineQueue() {
+    if (this._flushingQueue || (typeof navigator !== 'undefined' && !navigator.onLine)) return 0;
+    const outbox = this.getOfflineQueue();
+    if (!outbox.length) return 0;
+
+    this._flushingQueue = true;
+    let syncedCount = 0;
+    const remaining = [];
+
+    try {
+      for (let i = 0; i < outbox.length; i++) {
+        const item = outbox[i];
+        try {
+          if (item.type === 'CREATE_INCIDENT') {
+            const cleanPayload = { ...item.payload };
+            delete cleanPayload._offlineQueued;
+            const res = await fetch('/api/incidents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(cleanPayload)
+            });
+            if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            syncedCount++;
+          } else if (item.type === 'UPDATE_INCIDENT') {
+            const res = await fetch(`/api/incidents/${item.payload.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: item.payload.status })
+            });
+            if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            syncedCount++;
+          } else if (item.type === 'CREATE_SOS') {
+            const cleanSos = { ...item.payload };
+            delete cleanSos._offlineQueued;
+            delete cleanSos._tempId;
+            const res = await fetch('/api/sos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(cleanSos)
+            });
+            if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            syncedCount++;
+          } else if (item.type === 'RESOLVE_SOS') {
+            const res = await fetch(`/api/sos/${item.payload.id}/resolve`, { method: 'POST' });
+            if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            syncedCount++;
+          }
+        } catch (err) {
+          remaining.push(item);
+        }
+      }
+
+      writeLocalJson(RAPID_CACHE_KEYS.outbox, remaining);
+      notifyOfflineQueueChanged();
+      if (syncedCount > 0) {
+        this.emit('OFFLINE_SYNCED', { syncedCount });
+      }
+    } finally {
+      this._flushingQueue = false;
+    }
+    return syncedCount;
   }
 
   initSSE() {
@@ -422,10 +596,10 @@ class RapidSync {
         } catch (err) {}
       };
       this.eventSource.onerror = () => {
-        // Automatically reconnects, but can poll as fallback
+        // Automatically reconnects, offline cache/outbox remain active
       };
     } catch (e) {
-      console.warn('SSE not supported, running in polling mode');
+      console.warn('SSE not supported, running in polling/offline mode');
     }
   }
 
@@ -441,32 +615,102 @@ class RapidSync {
     handlers.forEach(fn => fn(data));
   }
 
+  _mergeQueuedIncidents(serverList) {
+    const list = Array.isArray(serverList) ? [...serverList] : [];
+    const seenIds = new Set(list.map(i => String(i.id)));
+    const outbox = this.getOfflineQueue();
+    outbox.forEach(q => {
+      if (q.type === 'CREATE_INCIDENT' && q.payload && !seenIds.has(String(q.payload.id))) {
+        list.unshift({ ...q.payload, _offlineQueued: true });
+        seenIds.add(String(q.payload.id));
+      }
+    });
+    return list;
+  }
+
+  _mergeQueuedSos(serverList) {
+    const list = Array.isArray(serverList) ? [...serverList] : [];
+    const seenIds = new Set(list.map(s => String(s.id)));
+    const outbox = this.getOfflineQueue();
+    outbox.forEach(q => {
+      if (q.type === 'CREATE_SOS' && q.payload) {
+        const tempId = String(q.payload._tempId || ('offline_sos_' + q.createdAt));
+        if (!seenIds.has(tempId)) {
+          list.unshift({ ...q.payload, id: tempId, active: q.payload.active !== false, _offlineQueued: true });
+          seenIds.add(tempId);
+        }
+      }
+    });
+    return list;
+  }
+
   async fetchIncidents() {
-    const res = await fetch('/api/incidents');
-    const data = await res.json();
-    return data.incidents || [];
+    try {
+      const res = await fetch('/api/incidents');
+      const data = await res.json();
+      if (data && data.offlineFallback) {
+        return this._mergeQueuedIncidents(readLocalJson(RAPID_CACHE_KEYS.incidents, []));
+      }
+      const list = Array.isArray(data.incidents) ? data.incidents : [];
+      writeLocalJson(RAPID_CACHE_KEYS.incidents, list);
+      return this._mergeQueuedIncidents(list);
+    } catch (err) {
+      return this._mergeQueuedIncidents(readLocalJson(RAPID_CACHE_KEYS.incidents, []));
+    }
   }
 
   async createIncident(incident) {
-    const res = await fetch('/api/incidents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(incident)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create incident');
-    return data;
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (!isOffline) {
+      try {
+        const res = await fetch('/api/incidents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(incident)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const cached = readLocalJson(RAPID_CACHE_KEYS.incidents, []);
+          writeLocalJson(RAPID_CACHE_KEYS.incidents, [data.incident || incident, ...cached].slice(0, 100));
+          return data;
+        }
+        if (res.status < 500) {
+          const clientErr = new Error(data.error || 'Failed to create incident');
+          clientErr._httpClientError = true;
+          throw clientErr;
+        }
+      } catch (err) {
+        if (err && err._httpClientError) throw err;
+      }
+    }
+
+    const queuedIncident = { ...incident, id: incident.id || Date.now(), _offlineQueued: true, status: incident.status || 'Queued Offline' };
+    this.enqueueOfflineAction('CREATE_INCIDENT', queuedIncident);
+    const cached = readLocalJson(RAPID_CACHE_KEYS.incidents, []);
+    writeLocalJson(RAPID_CACHE_KEYS.incidents, [queuedIncident, ...cached].slice(0, 100));
+    return { success: true, offlineQueued: true, incident: queuedIncident };
   }
 
   async updateIncident(id, status) {
-    const res = await fetch(`/api/incidents/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to update incident');
-    return data;
+    const cached = readLocalJson(RAPID_CACHE_KEYS.incidents, []);
+    writeLocalJson(RAPID_CACHE_KEYS.incidents, cached.map(i => String(i.id) === String(id) ? { ...i, status } : i));
+
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const res = await fetch(`/api/incidents/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        const data = await res.json();
+        if (res.ok) return data;
+        if (res.status < 500) throw new Error(data.error || 'Failed to update incident');
+      } catch (err) {
+        if (err.message && err.message.startsWith('Failed to update')) throw err;
+      }
+    }
+    this.enqueueOfflineAction('UPDATE_INCIDENT', { id, status });
+    return { success: true, offlineQueued: true };
   }
 
   async deleteIncident(id) {
@@ -479,38 +723,105 @@ class RapidSync {
   }
 
   async fetchSOS() {
-    const res = await fetch('/api/sos');
-    const data = await res.json();
-    return data.alerts || [];
+    try {
+      const res = await fetch('/api/sos');
+      const data = await res.json();
+      if (data && data.offlineFallback) {
+        return this._mergeQueuedSos(readLocalJson(RAPID_CACHE_KEYS.sos, []));
+      }
+      const list = Array.isArray(data.alerts) ? data.alerts : [];
+      writeLocalJson(RAPID_CACHE_KEYS.sos, list);
+      return this._mergeQueuedSos(list);
+    } catch (err) {
+      return this._mergeQueuedSos(readLocalJson(RAPID_CACHE_KEYS.sos, []));
+    }
   }
 
   async createSOS(sosData) {
-    const res = await fetch('/api/sos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sosData)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create SOS alert');
-    return data;
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      try {
+        const res = await fetch('/api/sos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sosData)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const cached = readLocalJson(RAPID_CACHE_KEYS.sos, []);
+          if (data.alert) writeLocalJson(RAPID_CACHE_KEYS.sos, [data.alert, ...cached].slice(0, 50));
+          return data;
+        }
+        if (res.status < 500) {
+          const clientErr = new Error(data.error || 'Failed to create SOS alert');
+          clientErr._httpClientError = true;
+          throw clientErr;
+        }
+      } catch (err) {
+        if (err && err._httpClientError) throw err;
+      }
+    }
+
+    const tempId = 'offline_sos_' + Date.now();
+    const localAlert = {
+      ...sosData,
+      id: tempId,
+      _tempId: tempId,
+      active: true,
+      _offlineQueued: true,
+      timestamp: Date.now(),
+      displayTime: new Date().toLocaleTimeString()
+    };
+    this.enqueueOfflineAction('CREATE_SOS', localAlert);
+    const cached = readLocalJson(RAPID_CACHE_KEYS.sos, []);
+    writeLocalJson(RAPID_CACHE_KEYS.sos, [localAlert, ...cached].slice(0, 50));
+    return { success: true, offlineQueued: true, alert: localAlert };
   }
 
   async resolveSOS(id) {
-    const res = await fetch(`/api/sos/${id}/resolve`, {
-      method: 'POST'
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to resolve SOS');
-    return data;
+    const cached = readLocalJson(RAPID_CACHE_KEYS.sos, []);
+    writeLocalJson(RAPID_CACHE_KEYS.sos, cached.map(a => String(a.id) === String(id) ? { ...a, active: false } : a));
+
+    if (String(id).startsWith('offline_sos_')) {
+      const outbox = this.getOfflineQueue().map(q =>
+        q.type === 'CREATE_SOS' && q.payload && String(q.payload._tempId) === String(id)
+          ? { ...q, payload: { ...q.payload, active: false } }
+          : q
+      );
+      writeLocalJson(RAPID_CACHE_KEYS.outbox, outbox);
+      notifyOfflineQueueChanged();
+      return { success: true, offlineQueued: true };
+    }
+
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      try {
+        const res = await fetch(`/api/sos/${id}/resolve`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) return data;
+        if (res.status < 500) throw new Error(data.error || 'Failed to resolve SOS');
+      } catch (err) {
+        if (err.message && err.message.startsWith('Failed to resolve')) throw err;
+      }
+    }
+    this.enqueueOfflineAction('RESOLVE_SOS', { id });
+    return { success: true, offlineQueued: true };
   }
 
   async processVoiceAI(text, language = 'en') {
-    const res = await fetch('/api/ai/process-voice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language })
-    });
-    return await res.json();
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      try {
+        const res = await fetch('/api/ai/process-voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, language })
+        });
+        if (res.ok) return await res.json();
+      } catch (err) {}
+    }
+    return {
+      success: true,
+      offlineFallback: true,
+      result: classifyEmergencyOffline(text, language)
+    };
   }
 
   async translateWithBhashini(textOrTexts, targetLanguage = 'ta', sourceLanguage = 'en') {
@@ -524,26 +835,47 @@ class RapidSync {
       payload.text = textOrTexts;
     }
 
-    const res = await fetch('/api/bhashini/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
+    try {
+      const res = await fetch('/api/bhashini/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) return await res.json();
+    } catch (err) {}
+
+    return typeof textOrTexts === 'object'
+      ? { success: true, offlineFallback: true, translatedTexts: textOrTexts }
+      : { success: true, offlineFallback: true, translatedText: textOrTexts };
   }
 
   async synthesizeWithBhashiniTTS(text, language = 'en', mode = 'tts') {
-    const res = await fetch('/api/bhashini/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language, mode })
-    });
-    return await res.json();
+    try {
+      const res = await fetch('/api/bhashini/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language, mode })
+      });
+      return await res.json();
+    } catch (err) {
+      return { success: false, offlineFallback: true };
+    }
   }
 
   async fetchGovStations() {
-    const res = await fetch('/api/government/stations');
-    return await res.json();
+    try {
+      const res = await fetch('/api/government/stations');
+      const data = await res.json();
+      if (data && data.offlineFallback) {
+        return readLocalJson(RAPID_CACHE_KEYS.stations, { success: true, stations: [] });
+      }
+      if (data && Array.isArray(data.stations)) {
+        writeLocalJson(RAPID_CACHE_KEYS.stations, data);
+      }
+      return data;
+    } catch (err) {
+      return readLocalJson(RAPID_CACHE_KEYS.stations, { success: true, stations: [] });
+    }
   }
 
   async groupDispatchGovFleet(dispatchParams) {
@@ -572,6 +904,7 @@ class RapidSync {
   }
 
   async streamSOSFrame(sosId, frameBase64, audioLevel, coords, email, extras = {}) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return { success: false, offline: true };
     try {
       const res = await fetch(`/api/sos/${sosId}/stream-frame`, {
         method: 'POST',
@@ -593,6 +926,7 @@ class RapidSync {
   }
 
   async streamSOSAudio(sosId, audioPcmBase64, sampleRate = 16000, audioLevel = 40, seq = 0) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return { success: false, offline: true };
     try {
       const res = await fetch(`/api/sos/${sosId}/stream-audio`, {
         method: 'POST',
@@ -611,6 +945,7 @@ class RapidSync {
   }
 
   async updateSOSLocation(sosId, coords) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return { success: false, offline: true };
     try {
       const res = await fetch(`/api/sos/${sosId}/location`, {
         method: 'POST',
@@ -625,9 +960,18 @@ class RapidSync {
 
   // Response Teams Management API
   async fetchTeams() {
-    const res = await fetch('/api/teams');
-    const data = await res.json();
-    return data.teams || [];
+    try {
+      const res = await fetch('/api/teams');
+      const data = await res.json();
+      if (data && data.offlineFallback) {
+        return readLocalJson(RAPID_CACHE_KEYS.teams, []);
+      }
+      const teams = Array.isArray(data.teams) ? data.teams : [];
+      writeLocalJson(RAPID_CACHE_KEYS.teams, teams);
+      return teams;
+    } catch (err) {
+      return readLocalJson(RAPID_CACHE_KEYS.teams, []);
+    }
   }
 
   async createTeam(teamData) {

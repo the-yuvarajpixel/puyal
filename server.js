@@ -2292,6 +2292,25 @@ app.post('/api/sos/:id/deactivate', (req, res) => {
 // Static Assets & Routing
 // ----------------------------------------------------------------------------
 
+app.get('/sw.js', (req, res) => {
+  res.sendFile(path.join(puyalDir, 'sw.js'), {
+    headers: {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Service-Worker-Allowed': '/'
+    }
+  });
+});
+
+app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
+  res.sendFile(path.join(puyalDir, 'manifest.webmanifest'), {
+    headers: {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      'Cache-Control': 'no-cache'
+    }
+  });
+});
+
 app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three')));
 app.use(express.static(puyalDir, { extensions: ['html'] }));
 app.use('/puyal', express.static(puyalDir, { extensions: ['html'] }));

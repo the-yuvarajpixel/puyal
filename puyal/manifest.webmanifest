@@ -1,0 +1,48 @@
+{
+  "id": "/",
+  "name": "RapidResponse Command",
+  "short_name": "RapidResp",
+  "description": "Emergency response and disaster management platform with offline SOS, voice reporting, and dispatch tracking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "SOS Live Stream",
+      "short_name": "SOS Stream",
+      "description": "Open Civilian SOS Live Stream Portal",
+      "url": "/dashboard-user.html?action=sos",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Report Emergency",
+      "short_name": "Report",
+      "description": "Report an emergency incident online or offline",
+      "url": "/dashboard-user.html?action=report",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
