@@ -2573,6 +2573,7 @@ tr.row-critical:hover {
 
 /* Custom Searchable Dropdown for Bhashini Languages */
 .bhashini-dropdown-btn {
+  position: relative;
   width: 100%;
   background: rgba(15, 23, 42, 0.95);
   color: #f8fafc;
@@ -2591,10 +2592,95 @@ tr.row-critical:hover {
   text-align: left;
 }
 
-.bhashini-dropdown-btn:hover {
+.bhashini-dropdown-btn:hover,
+#bhashini-dropdown-wrapper:hover #bhashini-dropdown-btn {
   border-color: #38bdf8;
   background-color: rgba(30, 41, 59, 0.95);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  animation: bhashiniVoiceControlPulse 2s ease-in-out infinite;
+}
+
+.bhashini-voice-control-hint {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.25px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px) scale(0.97);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 10px rgba(56, 189, 248, 0.16);
+}
+
+.bhashini-voice-control-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+  flex-shrink: 0;
+}
+
+#bhashini-dropdown-wrapper:hover #bhashini-dropdown-btn .bhashini-voice-control-hint,
+#bhashini-dropdown-btn:hover .bhashini-voice-control-hint {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  animation: bhashiniVoiceHintPulse 2s ease-in-out infinite;
+}
+
+#bhashini-dropdown-wrapper:hover #bhashini-dropdown-btn .bhashini-voice-control-dot,
+#bhashini-dropdown-btn:hover .bhashini-voice-control-dot {
+  animation: bhashiniVoiceDotPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes bhashiniVoiceControlPulse {
+  0%, 100% {
+    border-color: rgba(56, 189, 248, 0.78);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.32), 0 0 10px rgba(56, 189, 248, 0.2);
+  }
+  50% {
+    border-color: rgba(34, 211, 238, 0.98);
+    box-shadow: 0 0 0 5px rgba(56, 189, 248, 0), 0 0 16px rgba(34, 211, 238, 0.34);
+  }
+}
+
+@keyframes bhashiniVoiceHintPulse {
+  0%, 100% {
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 8px rgba(56, 189, 248, 0.16);
+  }
+  50% {
+    border-color: rgba(34, 211, 238, 0.85);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 14px rgba(56, 189, 248, 0.36);
+  }
+}
+
+@keyframes bhashiniVoiceDotPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    background: #38bdf8;
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.85);
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.65;
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.9);
+  }
 }
 
 .bhashini-dropdown-btn:focus-visible {

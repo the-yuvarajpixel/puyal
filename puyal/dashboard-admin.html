@@ -586,7 +586,12 @@
           <span id="stream-timer" style="font-family: monospace; font-size: 12px; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-weight: 700; color: #86efac;">00:00</span>
           <span id="stream-packet-badge" style="font-family: monospace; font-size: 11px; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Syncing WS...</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <label for="admin-audio-gain-slider" style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #cbd5e1; background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: var(--radius-sm);">
+            <span>🎚️ Gain</span>
+            <input id="admin-audio-gain-slider" type="range" min="0" max="200" value="120" oninput="setAdminAudioGain(this.value)" style="width: 68px; accent-color: #22c55e; cursor: pointer;" aria-label="Live audio monitor gain" />
+            <span id="admin-audio-gain-val" style="font-family: monospace; min-width: 34px; text-align: right;">120%</span>
+          </label>
           <button type="button" id="btn-toggle-audio-monitor" onclick="toggleAdminAudioMonitor()" class="btn" style="background: var(--success); color: #fff; font-size: 11px; padding: 4px 10px; border: 1px solid rgba(134, 239, 172, 0.4); border-radius: var(--radius-sm); cursor: pointer; font-weight: 700;">
             🔊 Audio: LIVE
           </button>
@@ -605,17 +610,20 @@
         </div>
 
         <!-- Live Audio Visualizer -->
-        <div class="audio-visualizer-wave">
-          <span style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-right: 6px;" id="admin-audio-source-label">🎙️ LIVE AUDIO FEED:</span>
-          <div class="audio-wave-bar" id="wave-1"></div>
-          <div class="audio-wave-bar" id="wave-2"></div>
-          <div class="audio-wave-bar" id="wave-3"></div>
-          <div class="audio-wave-bar" id="wave-4"></div>
-          <div class="audio-wave-bar" id="wave-5"></div>
-          <div class="audio-wave-bar" id="wave-6"></div>
-          <div class="audio-wave-bar" id="wave-7"></div>
-          <div class="audio-wave-bar" id="wave-8"></div>
-          <span style="font-size: 11px; font-weight: 800; color: var(--success); margin-left: 8px;" id="audio-db-level">Listening...</span>
+        <div class="audio-visualizer-wave" style="justify-content: space-between; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-right: 4px;" id="admin-audio-source-label">🎙️ LIVE AUDIO FEED:</span>
+            <div class="audio-wave-bar" id="wave-1"></div>
+            <div class="audio-wave-bar" id="wave-2"></div>
+            <div class="audio-wave-bar" id="wave-3"></div>
+            <div class="audio-wave-bar" id="wave-4"></div>
+            <div class="audio-wave-bar" id="wave-5"></div>
+            <div class="audio-wave-bar" id="wave-6"></div>
+            <div class="audio-wave-bar" id="wave-7"></div>
+            <div class="audio-wave-bar" id="wave-8"></div>
+          </div>
+          <canvas id="admin-live-audio-canvas" width="160" height="28" style="height: 28px; width: 160px; border-radius: 4px; background: rgba(15, 23, 42, 0.45);"></canvas>
+          <span style="font-size: 11px; font-weight: 800; color: var(--success); margin-left: 8px; font-family: monospace;" id="audio-db-level">Listening...</span>
         </div>
 
         <!-- Civilian Dispatch Info & Map Links -->
@@ -871,25 +879,26 @@
     // ====================================================================
     // AUTH CHECK — Admin Control Session
     // ====================================================================
+    const AUTHORIZED_ADMIN_EMAIL = 'admin@rapidresponse.org';
     let currentAdmin = null;
 
     function updateAdminNavDisplay(admin) {
       const el = document.getElementById('nav-admin-email');
       if (!el || !admin) return;
-      if (admin.email && admin.email.toLowerCase() === 'master.admin@rapidresponse.gov') {
-        el.innerHTML = `<span style="background: #dc2626; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; margin-right: 6px; letter-spacing: 0.5px;">MASTER COMMANDER</span> master.admin@rapidresponse.gov`;
-      } else {
-        el.textContent = admin.email || 'HQ Dispatcher';
-      }
+      el.innerHTML = `<span style="background: #dc2626; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; margin-right: 6px; letter-spacing: 0.5px;">COMMAND ADMIN</span> ${admin.email || AUTHORIZED_ADMIN_EMAIL}`;
     }
 
     const savedAdminStr = localStorage.getItem('currentUser');
     if (savedAdminStr) {
       try {
         const parsed = JSON.parse(savedAdminStr);
-        if (parsed && (parsed.role === 'admin' || localStorage.getItem('userRole') === 'admin')) {
+        const parsedEmail = (parsed && parsed.email ? String(parsed.email).trim().toLowerCase() : '');
+        if (parsed && parsed.role === 'admin' && parsedEmail === AUTHORIZED_ADMIN_EMAIL) {
           currentAdmin = parsed;
           updateAdminNavDisplay(parsed);
+        } else if (parsed && parsed.role === 'admin') {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('userRole');
         }
       } catch (e) {}
     }
@@ -901,13 +910,16 @@
     if (window.auth && window.auth.onAuthStateChanged) {
       window.auth.onAuthStateChanged((user) => {
         if (user) {
-          currentAdmin = {
-            uid: user.uid,
-            email: user.email,
-            role: 'admin',
-            displayName: user.displayName || user.email.split('@')[0]
-          };
-          updateAdminNavDisplay(currentAdmin);
+          const userEmail = (user.email || '').trim().toLowerCase();
+          if (userEmail === AUTHORIZED_ADMIN_EMAIL) {
+            currentAdmin = {
+              uid: user.uid,
+              email: AUTHORIZED_ADMIN_EMAIL,
+              role: 'admin',
+              displayName: user.displayName || 'Command Admin'
+            };
+            updateAdminNavDisplay(currentAdmin);
+          }
         }
       });
     }
@@ -1071,6 +1083,12 @@
       if (activeStreamSosId === data.sosId) {
         updateActiveStreamUI(data);
       }
+    });
+
+    // Real-time SOS GPS coordinates update
+    rapidSync.on('SOS_LOCATION_UPDATED', (data) => {
+      if (!data || !data.sosId) return;
+      applyIncomingSosCoords(data.sosId, data);
     });
 
     // ====================================================================
@@ -1248,20 +1266,70 @@
     let streamSeconds = 0;
     let adminStreamWs = null;
     let adminWsReconnectTimer = null;
+    let adminWsPingInterval = null;
+    let adminWsLatencyMs = null;
     let adminAudioMonitorActive = true;
+    let adminAudioGainValue = 1.2;
     let adminAudioCtx = null;
+    let adminCompressorNode = null;
     let adminGainNode = null;
     let adminNextAudioTime = 0;
+    let lastAdminAudioSeq = 0;
     let adminStreamPacketCount = 0;
     let adminFrameTimestamps = [];
+    let adminWaveHistory = new Array(28).fill(8);
+
+    function applyIncomingSosCoords(sosId, coords) {
+      if (!coords || coords.latitude === undefined || coords.longitude === undefined) return;
+      const lat = parseFloat(coords.latitude);
+      const lon = parseFloat(coords.longitude);
+      if (isNaN(lat) || isNaN(lon)) return;
+      const acc = coords.accuracy !== undefined ? parseFloat(coords.accuracy) : 10;
+      const speed = coords.speed !== undefined && coords.speed !== null ? parseFloat(coords.speed) : null;
+
+      let updatedAlert = false;
+      sosAlerts = sosAlerts.map(a => {
+        if (String(a.id) === String(sosId)) {
+          updatedAlert = true;
+          return { ...a, latitude: lat, longitude: lon, accuracy: acc, speed };
+        }
+        return a;
+      });
+
+      if (updatedAlert) {
+        renderSOSFeed();
+        updateTacticalMap();
+      }
+
+      if (String(activeStreamSosId) === String(sosId)) {
+        const speedStr = speed && speed > 0.4 ? ` · ${(speed * 3.6).toFixed(1)} km/h` : '';
+        const coordsEl = document.getElementById('stream-coords');
+        const mapLink = document.getElementById('stream-map-link');
+        if (coordsEl) {
+          coordsEl.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)} (±${acc}m${speedStr} · Live)`;
+        }
+        if (mapLink) {
+          mapLink.href = `https://www.google.com/maps?q=${lat},${lon}`;
+        }
+      }
+    }
 
     function initAdminAudioPlayback() {
       try {
         if (!adminAudioCtx) {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          adminAudioCtx = new AudioCtx();
+          adminAudioCtx = new AudioCtx({ latencyHint: 'interactive' });
+          adminCompressorNode = adminAudioCtx.createDynamicsCompressor();
+          adminCompressorNode.threshold.value = -20;
+          adminCompressorNode.knee.value = 16;
+          adminCompressorNode.ratio.value = 6;
+          adminCompressorNode.attack.value = 0.004;
+          adminCompressorNode.release.value = 0.1;
+
           adminGainNode = adminAudioCtx.createGain();
-          adminGainNode.gain.value = adminAudioMonitorActive ? 1.0 : 0.0;
+          adminGainNode.gain.value = adminAudioMonitorActive ? adminAudioGainValue : 0.0;
+
+          adminCompressorNode.connect(adminGainNode);
           adminGainNode.connect(adminAudioCtx.destination);
           adminNextAudioTime = adminAudioCtx.currentTime;
         }
@@ -1270,6 +1338,26 @@
         }
       } catch (e) {
         console.warn('Admin AudioContext init warning:', e);
+      }
+    }
+
+    function setAdminAudioGain(percentVal) {
+      const pct = Math.max(0, Math.min(200, Number(percentVal) || 0));
+      adminAudioGainValue = pct / 100;
+      const valLabel = document.getElementById('admin-audio-gain-val');
+      if (valLabel) valLabel.textContent = `${pct}%`;
+
+      if (pct === 0 && adminAudioMonitorActive) {
+        adminAudioMonitorActive = false;
+        updateAudioMonitorButtonUI();
+      } else if (pct > 0 && !adminAudioMonitorActive) {
+        adminAudioMonitorActive = true;
+        updateAudioMonitorButtonUI();
+      }
+
+      initAdminAudioPlayback();
+      if (adminGainNode && adminAudioCtx) {
+        adminGainNode.gain.setTargetAtTime(adminAudioMonitorActive ? adminAudioGainValue : 0.0, adminAudioCtx.currentTime, 0.02);
       }
     }
 
@@ -1289,16 +1377,23 @@
       adminAudioMonitorActive = !adminAudioMonitorActive;
       initAdminAudioPlayback();
       if (adminGainNode && adminAudioCtx) {
-        adminGainNode.gain.setTargetAtTime(adminAudioMonitorActive ? 1.0 : 0.0, adminAudioCtx.currentTime, 0.02);
+        adminGainNode.gain.setTargetAtTime(adminAudioMonitorActive ? adminAudioGainValue : 0.0, adminAudioCtx.currentTime, 0.02);
       }
       updateAudioMonitorButtonUI();
       showToast(adminAudioMonitorActive ? 'Live civilian microphone audio enabled.' : 'Live audio monitor muted.', adminAudioMonitorActive ? 'success' : 'info');
     }
 
-    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000) {
+    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
       if (!base64Pcm || !activeStreamSosId) return;
+      if (seq && seq <= lastAdminAudioSeq) return;
+      if (seq) lastAdminAudioSeq = seq;
+
       initAdminAudioPlayback();
-      if (!adminAudioCtx || !adminGainNode) return;
+      if (!adminAudioCtx || !adminCompressorNode) return;
+      if (adminAudioCtx.state !== 'running') {
+        adminAudioCtx.resume().catch(() => {});
+        return;
+      }
 
       try {
         const binary = atob(base64Pcm);
@@ -1317,14 +1412,14 @@
         }
 
         const now = adminAudioCtx.currentTime;
-        // Maintain tight 40ms-350ms jitter buffer so audio stays real-time without drift
-        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.35) {
-          adminNextAudioTime = now + 0.04;
+        // Maintain ultra-tight 25ms-220ms jitter buffer for instant voice monitor
+        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.22) {
+          adminNextAudioTime = now + 0.025;
         }
 
         const source = adminAudioCtx.createBufferSource();
         source.buffer = audioBuf;
-        source.connect(adminGainNode);
+        source.connect(adminCompressorNode);
         source.start(adminNextAudioTime);
         adminNextAudioTime += audioBuf.duration;
       } catch (e) {
@@ -1353,6 +1448,27 @@
           wave.style.height = `${h}px`;
         }
       }
+
+      // Update live scrolling waveform bars on canvas
+      adminWaveHistory.shift();
+      adminWaveHistory.push(clamped);
+      const canvas = document.getElementById('admin-live-audio-canvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        const cw = canvas.width;
+        const ch = canvas.height;
+        ctx.clearRect(0, 0, cw, ch);
+        const barW = Math.floor(cw / adminWaveHistory.length);
+        for (let i = 0; i < adminWaveHistory.length; i++) {
+          const val = adminWaveHistory[i];
+          const barH = Math.max(3, Math.round((val / 100) * (ch - 4)));
+          const y = Math.floor((ch - barH) / 2);
+          ctx.fillStyle = hasRealAudio
+            ? (adminAudioMonitorActive ? '#4ade80' : '#94a3b8')
+            : '#38bdf8';
+          ctx.fillRect(i * barW + 1, y, Math.max(2, barW - 2), barH);
+        }
+      }
     }
 
     function connectAdminStreamWs(sosId) {
@@ -1372,21 +1488,34 @@
             return;
           }
           ws.send(JSON.stringify({ type: 'SUBSCRIBE', role: 'viewer', sosId: String(sosId) }));
+          ws.send(JSON.stringify({ type: 'PING', ts: Date.now() }));
+          clearInterval(adminWsPingInterval);
+          adminWsPingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'PING', ts: Date.now() }));
+            }
+          }, 3000);
         };
 
         ws.onmessage = (evt) => {
           if (String(activeStreamSosId) !== String(sosId)) return;
           try {
             const msg = JSON.parse(evt.data);
-            if (msg.type === 'SOS_FRAME_UPDATE') {
+            if (msg.type === 'PONG' && msg.clientTs) {
+              adminWsLatencyMs = Math.max(1, Date.now() - msg.clientTs);
+            } else if (msg.type === 'SOS_FRAME_UPDATE') {
               updateActiveStreamUI(msg);
               if (msg.audioPcmBase64) {
-                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000);
+                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000, msg.seq || 0);
               }
             } else if (msg.type === 'SOS_AUDIO_CHUNK') {
               updateAudioVisualizer(msg.audioLevel, true);
               if (msg.audioPcmBase64) {
-                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000);
+                enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000, msg.seq || 0);
+              }
+            } else if (msg.type === 'SOS_LOCATION_UPDATE') {
+              if (msg.coords) {
+                applyIncomingSosCoords(msg.sosId || sosId, msg.coords);
               }
             } else if (msg.type === 'SOS_ENDED') {
               const pktBadge = document.getElementById('stream-packet-badge');
@@ -1401,9 +1530,10 @@
 
         ws.onclose = () => {
           if (adminStreamWs === ws) adminStreamWs = null;
+          clearInterval(adminWsPingInterval);
           if (String(activeStreamSosId) === String(sosId)) {
             clearTimeout(adminWsReconnectTimer);
-            adminWsReconnectTimer = setTimeout(() => connectAdminStreamWs(sosId), 1000);
+            adminWsReconnectTimer = setTimeout(() => connectAdminStreamWs(sosId), 900);
           }
         };
 
@@ -1418,15 +1548,23 @@
       streamSeconds = 0;
       adminStreamPacketCount = 0;
       adminFrameTimestamps = [];
+      adminWsLatencyMs = null;
+      lastAdminAudioSeq = 0;
       adminAudioMonitorActive = true;
+      adminWaveHistory = new Array(28).fill(8);
 
       document.getElementById('live-stream-modal').classList.remove('hidden');
       document.getElementById('stream-user-email').textContent = email || 'Civilian Device';
-      document.getElementById('stream-coords').textContent = lat && lon ? `${lat}, ${lon}` : 'Detecting GPS...';
+      document.getElementById('stream-coords').textContent = lat && lon ? `${lat}, ${lon} (GPS Live)` : 'Detecting GPS...';
       document.getElementById('stream-map-link').href = lat && lon ? `https://www.google.com/maps?q=${lat},${lon}` : '#';
       document.getElementById('admin-live-stream-img').style.display = 'none';
       document.getElementById('stream-waiting-indicator').style.display = 'block';
       document.getElementById('stream-packet-badge').textContent = 'Connecting WS...';
+
+      // Cancel any ongoing speech synthesis so it never talks over the live civilian microphone
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
 
       // Initialize & resume AudioContext synchronously inside user click handler
       initAdminAudioPlayback();
@@ -1444,15 +1582,20 @@
         document.getElementById('stream-timer').textContent = `${mins}:${secs}`;
       }, 1000);
 
-      // Fetch initial REST snapshot immediately
+      // Fetch initial REST snapshot immediately (including any recent buffered audio chunks)
       try {
         const feed = await rapidSync.fetchSOSLiveFeed(sosId);
         if (feed.stream) {
           updateActiveStreamUI(feed.stream);
+          if (Array.isArray(feed.stream.recentAudioChunks)) {
+            feed.stream.recentAudioChunks.forEach(c => {
+              enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 16000, c.seq || 0);
+            });
+          }
         }
       } catch (e) {}
 
-      // Fallback REST poll only when WS isn't OPEN
+      // Fallback REST poll when WS isn't OPEN
       if (streamPollInterval) clearInterval(streamPollInterval);
       streamPollInterval = setInterval(async () => {
         if (!activeStreamSosId) return;
@@ -1461,11 +1604,16 @@
           const feed = await rapidSync.fetchSOSLiveFeed(activeStreamSosId);
           if (feed.stream) {
             updateActiveStreamUI(feed.stream);
+            if (Array.isArray(feed.stream.recentAudioChunks)) {
+              feed.stream.recentAudioChunks.forEach(c => {
+                enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 16000, c.seq || 0);
+              });
+            }
           }
         } catch (e) {}
-      }, 2000);
+      }, 1200);
 
-      speakText(`Connected to live civilian stream for ${email}`, 'en');
+      showToast(`📹 Live stream connected: ${email || 'Civilian Device'}`, 'info');
     }
 
     function updateActiveStreamUI(data) {
@@ -1485,7 +1633,8 @@
         adminStreamPacketCount++;
         const pktBadge = document.getElementById('stream-packet-badge');
         if (pktBadge) {
-          pktBadge.textContent = `${currentFps} FPS · Pkt #${data.seq || adminStreamPacketCount}`;
+          const rttStr = adminWsLatencyMs !== null ? ` · ${adminWsLatencyMs}ms` : '';
+          pktBadge.textContent = `${currentFps} FPS${rttStr} · Pkt #${data.seq || adminStreamPacketCount}`;
           pktBadge.style.color = '#86efac';
           pktBadge.style.borderColor = '#86efac';
         }
@@ -1494,8 +1643,7 @@
       updateAudioVisualizer(data.audioLevel, Boolean(data.hasRealAudio));
 
       if (data.coords && data.coords.latitude && data.coords.longitude) {
-        document.getElementById('stream-coords').textContent = `${data.coords.latitude}, ${data.coords.longitude} (GPS Live)`;
-        document.getElementById('stream-map-link').href = `https://www.google.com/maps?q=${data.coords.latitude},${data.coords.longitude}`;
+        applyIncomingSosCoords(data.sosId || activeStreamSosId, data.coords);
       }
     }
 
@@ -1503,7 +1651,10 @@
       activeStreamSosId = null;
       adminStreamPacketCount = 0;
       adminFrameTimestamps = [];
+      adminWsLatencyMs = null;
+      lastAdminAudioSeq = 0;
       clearTimeout(adminWsReconnectTimer);
+      clearInterval(adminWsPingInterval);
 
       if (adminStreamWs) {
         try { adminStreamWs.close(); } catch (e) {}
@@ -1512,6 +1663,7 @@
       if (adminAudioCtx) {
         try { adminAudioCtx.close(); } catch (e) {}
         adminAudioCtx = null;
+        adminCompressorNode = null;
         adminGainNode = null;
         adminNextAudioTime = 0;
       }

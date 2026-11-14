@@ -1,28 +1,20 @@
 {
   "users": [
     {
+      "uid": "admin_primary_1",
+      "email": "admin@rapidresponse.org",
+      "password": "RapidResponse@1",
+      "role": "admin",
+      "displayName": "Command Admin",
+      "createdAt": "2026-11-10T07:16:31.240Z"
+    },
+    {
       "uid": "demo_user_1",
       "email": "civilian.demo@rapidresponse.org",
       "password": "demopassword123",
       "role": "user",
       "displayName": "Civilian Responder (Demo)",
       "createdAt": "2026-11-10T07:16:31.240Z"
-    },
-    {
-      "uid": "demo_admin_1",
-      "email": "admin.demo@rapidresponse.org",
-      "password": "demopassword123",
-      "role": "admin",
-      "displayName": "HQ Command Dispatcher",
-      "createdAt": "2026-11-10T07:16:31.240Z"
-    },
-    {
-      "uid": "master_admin_1",
-      "email": "master.admin@rapidresponse.gov",
-      "password": "MasterAdmin@2026!",
-      "role": "admin",
-      "displayName": "Supreme Master Commander",
-      "createdAt": "2026-11-10T10:37:56.104Z"
     }
   ],
   "incidents": [],

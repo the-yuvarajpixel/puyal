@@ -410,14 +410,17 @@ function calculateIncidentPriority(incident) {
 // ----------------------------------------------------------------------------
 // Initial Seed Data & Persistence
 // ----------------------------------------------------------------------------
+const AUTHORIZED_ADMIN_EMAIL = 'admin@rapidresponse.org';
+const AUTHORIZED_ADMIN_PASSWORD = 'RapidResponse@1';
+
 const defaultStore = {
   users: [
     {
-      uid: 'master_admin_1',
-      email: 'master.admin@rapidresponse.gov',
-      password: 'MasterAdmin@2026!',
+      uid: 'admin_primary_1',
+      email: AUTHORIZED_ADMIN_EMAIL,
+      password: AUTHORIZED_ADMIN_PASSWORD,
       role: 'admin',
-      displayName: 'Supreme Master Commander',
+      displayName: 'Command Admin',
       createdAt: new Date().toISOString()
     },
     {
@@ -426,14 +429,6 @@ const defaultStore = {
       password: 'demopassword123',
       role: 'user',
       displayName: 'Civilian Responder (Demo)',
-      createdAt: new Date().toISOString()
-    },
-    {
-      uid: 'demo_admin_1',
-      email: 'admin.demo@rapidresponse.org',
-      password: 'demopassword123',
-      role: 'admin',
-      displayName: 'HQ Command Dispatcher',
       createdAt: new Date().toISOString()
     }
   ],
@@ -450,7 +445,13 @@ const SEEDED_TEST_INCIDENT_IDS = new Set([1731195000001, 1731195000002]);
 function isAdminReporter(reportedBy, usersList = []) {
   if (!reportedBy) return false;
   const normalized = String(reportedBy).trim().toLowerCase();
-  if (normalized === 'admin' || normalized === 'system' || normalized === 'command' || normalized === 'demo_seed') {
+  if (
+    normalized === 'admin' ||
+    normalized === 'system' ||
+    normalized === 'command' ||
+    normalized === 'demo_seed' ||
+    normalized === AUTHORIZED_ADMIN_EMAIL
+  ) {
     return true;
   }
   return (usersList || []).some(
@@ -484,24 +485,31 @@ function loadStore() {
         parsed.teams = defaultTeams;
       }
       if (!parsed.users) parsed.users = [];
-      if (!parsed.users.some(u => u.email && u.email.toLowerCase() === 'master.admin@rapidresponse.gov')) {
-        parsed.users.push({
-          uid: 'master_admin_1',
-          email: 'master.admin@rapidresponse.gov',
-          password: 'MasterAdmin@2026!',
-          role: 'admin',
-          displayName: 'Supreme Master Commander',
-          createdAt: new Date().toISOString()
-        });
-      }
-      if (!parsed.users.some(u => u.email && u.email.toLowerCase() === 'admin.demo@rapidresponse.org')) {
-        parsed.users.push({
-          uid: 'demo_admin_1',
-          email: 'admin.demo@rapidresponse.org',
-          password: 'demopassword123',
-          role: 'admin',
-          displayName: 'HQ Command Dispatcher',
-          createdAt: new Date().toISOString()
+
+      // Keep only non-admin users plus the single authorized admin account
+      parsed.users = parsed.users.filter(u => {
+        if (!u || !u.email) return false;
+        const emailLower = u.email.trim().toLowerCase();
+        if (emailLower === AUTHORIZED_ADMIN_EMAIL) return false;
+        if (u.role === 'admin') return false;
+        return true;
+      });
+
+      parsed.users.unshift({
+        uid: 'admin_primary_1',
+        email: AUTHORIZED_ADMIN_EMAIL,
+        password: AUTHORIZED_ADMIN_PASSWORD,
+        role: 'admin',
+        displayName: 'Command Admin',
+        createdAt: new Date().toISOString()
+      });
+
+      // Remove any stale admin magic-link tokens
+      if (Array.isArray(parsed.emailTokens)) {
+        parsed.emailTokens = parsed.emailTokens.filter(t => {
+          if (!t) return false;
+          const emailLower = (t.email || '').trim().toLowerCase();
+          return t.role !== 'admin' && emailLower !== AUTHORIZED_ADMIN_EMAIL;
         });
       }
 
@@ -1485,8 +1493,104 @@ app.get('/api/teams/:id/nearest-incident', (req, res) => {
 
 // Track SSE throttle per SOS so high-FPS WebSocket video does not saturate SSE
 const lastSseFrameEmit = new Map();
+const lastSseLocationEmit = new Map();
 // Connected WebSocket clients for /ws/sos
 const sosWsClients = new Set();
+
+function syncSosCoordinates(sosId, coords) {
+  if (!coords) return null;
+  const lat = parseFloat(coords.latitude !== undefined ? coords.latitude : coords.lat);
+  const lon = parseFloat(coords.longitude !== undefined ? coords.longitude : coords.lon);
+  if (isNaN(lat) || isNaN(lon)) return null;
+
+  const acc = coords.accuracy !== undefined && coords.accuracy !== null ? parseFloat(coords.accuracy) : null;
+  const speed = coords.speed !== undefined && coords.speed !== null ? parseFloat(coords.speed) : null;
+  const heading = coords.heading !== undefined && coords.heading !== null ? parseFloat(coords.heading) : null;
+
+  const normalizedCoords = {
+    latitude: parseFloat(lat.toFixed(6)),
+    longitude: parseFloat(lon.toFixed(6)),
+    accuracy: acc && !isNaN(acc) ? parseFloat(acc.toFixed(1)) : 10,
+    speed: speed !== null && !isNaN(speed) ? parseFloat(speed.toFixed(1)) : null,
+    heading: heading !== null && !isNaN(heading) ? Math.round(heading) : null,
+    updatedAt: Date.now()
+  };
+
+  let changed = false;
+  const alert = (store.sos_alerts || []).find(a => String(a.id) === String(sosId));
+  if (alert) {
+    if (alert.latitude !== normalizedCoords.latitude || alert.longitude !== normalizedCoords.longitude || alert.accuracy !== normalizedCoords.accuracy) {
+      changed = true;
+    }
+    alert.latitude = normalizedCoords.latitude;
+    alert.longitude = normalizedCoords.longitude;
+    alert.accuracy = normalizedCoords.accuracy;
+    if (normalizedCoords.speed !== null) alert.speed = normalizedCoords.speed;
+    if (normalizedCoords.heading !== null) alert.heading = normalizedCoords.heading;
+    alert.locationUpdatedAt = new Date().toISOString();
+
+    const linkedInc = (store.incidents || []).find(
+      i => i.source === 'sos' && i.reportedBy === alert.email && i.status !== 'Resolved'
+    );
+    if (linkedInc) {
+      linkedInc.latitude = normalizedCoords.latitude;
+      linkedInc.longitude = normalizedCoords.longitude;
+      linkedInc.coords = { lat: normalizedCoords.latitude, lon: normalizedCoords.longitude };
+      linkedInc.location = `${normalizedCoords.latitude.toFixed(5)}, ${normalizedCoords.longitude.toFixed(5)} (GPS ±${normalizedCoords.accuracy}m)`;
+    }
+  }
+
+  const streamEntry = liveMediaStreams.get(String(sosId)) || { sosId: String(sosId) };
+  streamEntry.coords = normalizedCoords;
+  streamEntry.updatedAt = streamEntry.updatedAt || Date.now();
+  liveMediaStreams.set(String(sosId), streamEntry);
+
+  if (changed) {
+    const now = Date.now();
+    const lastLocEmit = lastSseLocationEmit.get(String(sosId)) || 0;
+    if (now - lastLocEmit >= 1500) {
+      lastSseLocationEmit.set(String(sosId), now);
+      broadcast('SOS_LOCATION_UPDATED', {
+        sosId: String(sosId),
+        ...normalizedCoords
+      });
+    }
+  }
+
+  return normalizedCoords;
+}
+
+function getViewerCountForSos(sosId) {
+  let count = 0;
+  for (const client of sosWsClients) {
+    if (
+      client.readyState === 1 &&
+      client.role === 'viewer' &&
+      (!client.sosId || client.sosId === 'all' || String(client.sosId) === String(sosId))
+    ) {
+      count++;
+    }
+  }
+  return count;
+}
+
+function notifyBroadcasterViewerCount(sosId) {
+  if (!sosId || sosId === 'all') return;
+  const viewerCount = getViewerCountForSos(sosId);
+  const raw = JSON.stringify({
+    type: 'VIEWER_STATUS',
+    sosId: String(sosId),
+    viewerCount,
+    ts: Date.now()
+  });
+  for (const client of sosWsClients) {
+    if (client.readyState === 1 && client.role === 'broadcaster' && String(client.sosId) === String(sosId)) {
+      try {
+        client.send(raw);
+      } catch (e) {}
+    }
+  }
+}
 
 function broadcastSosWs(sosId, payloadObj) {
   const raw = JSON.stringify(payloadObj);
@@ -1505,12 +1609,42 @@ function broadcastSosWs(sosId, payloadObj) {
   }
 }
 
+function pushAudioChunkToStream(streamObj, audioPcmBase64, sampleRate = 16000, seq = 0) {
+  if (!audioPcmBase64) return;
+  const now = Date.now();
+  const prev = Array.isArray(streamObj.recentAudioChunks) ? streamObj.recentAudioChunks : [];
+  // Keep only last 6 chunks (< 2.5s old) for seamless HTTP fallback or brief reconnects
+  const filtered = prev.filter(c => now - c.ts < 2500).slice(-5);
+  filtered.push({ audioPcmBase64, sampleRate, seq, ts: now });
+  streamObj.recentAudioChunks = filtered;
+}
+
+// Civilian pushes real-time GPS location update (HTTP fallback)
+app.post('/api/sos/:id/location', (req, res) => {
+  const sosId = String(req.params.id);
+  const normalized = syncSosCoordinates(sosId, req.body);
+  if (!normalized) {
+    return res.status(400).json({ success: false, error: 'Valid latitude and longitude are required' });
+  }
+
+  broadcastSosWs(sosId, {
+    type: 'SOS_LOCATION_UPDATE',
+    sosId,
+    coords: normalized,
+    ts: Date.now()
+  });
+
+  res.json({ success: true, coords: normalized });
+});
+
 // Civilian uploads live frame & optional audio chunk (HTTP fallback + initial snapshot)
 app.post('/api/sos/:id/stream-frame', (req, res) => {
   const sosId = String(req.params.id);
   const { frameBase64, audioLevel = 50, audioPcmBase64, sampleRate = 16000, coords, email, hasRealAudio = false, seq = 0 } = req.body;
 
   const existing = liveMediaStreams.get(sosId) || {};
+  const normalizedCoords = syncSosCoordinates(sosId, coords) || existing.coords || null;
+
   const streamData = {
     sosId,
     email: email || existing.email || 'Civilian',
@@ -1518,22 +1652,17 @@ app.post('/api/sos/:id/stream-frame', (req, res) => {
     audioLevel: parseFloat(audioLevel) || 30,
     hasRealAudio: Boolean(hasRealAudio || existing.hasRealAudio),
     sampleRate: sampleRate || 16000,
-    coords: coords || existing.coords || null,
+    coords: normalizedCoords,
+    recentAudioChunks: existing.recentAudioChunks || [],
     seq,
     updatedAt: Date.now()
   };
 
-  liveMediaStreams.set(sosId, streamData);
-
-  // Sync refined GPS coordinates back onto active alert if updated
-  if (coords && coords.latitude && coords.longitude) {
-    const alert = store.sos_alerts.find(a => String(a.id) === sosId);
-    if (alert) {
-      alert.latitude = parseFloat(coords.latitude);
-      alert.longitude = parseFloat(coords.longitude);
-      if (coords.accuracy) alert.accuracy = parseFloat(coords.accuracy);
-    }
+  if (audioPcmBase64) {
+    pushAudioChunkToStream(streamData, audioPcmBase64, streamData.sampleRate, seq);
   }
+
+  liveMediaStreams.set(sosId, streamData);
 
   // Relay immediately to WebSocket viewers
   broadcastSosWs(sosId, {
@@ -1581,6 +1710,7 @@ app.post('/api/sos/:id/stream-audio', (req, res) => {
   existing.hasRealAudio = true;
   existing.sampleRate = sampleRate;
   existing.updatedAt = Date.now();
+  pushAudioChunkToStream(existing, audioPcmBase64, sampleRate, seq);
   liveMediaStreams.set(sosId, existing);
 
   broadcastSosWs(sosId, {
@@ -1603,7 +1733,14 @@ app.get('/api/sos/:id/live-feed', (req, res) => {
   const streamData = liveMediaStreams.get(sosId);
 
   if (streamData) {
-    return res.json({ success: true, stream: streamData });
+    const now = Date.now();
+    return res.json({
+      success: true,
+      stream: {
+        ...streamData,
+        recentAudioChunks: (streamData.recentAudioChunks || []).filter(c => now - c.ts < 2500)
+      }
+    });
   }
 
   // Fallback if no frames yet uploaded
@@ -1616,7 +1753,8 @@ app.get('/api/sos/:id/live-feed', (req, res) => {
       lastFrame: null,
       audioLevel: 25,
       hasRealAudio: false,
-      coords: alert ? { latitude: alert.latitude, longitude: alert.longitude } : null,
+      recentAudioChunks: [],
+      coords: alert ? { latitude: alert.latitude, longitude: alert.longitude, accuracy: alert.accuracy || 10 } : null,
       updatedAt: Date.now()
     }
   });
@@ -1633,6 +1771,51 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Strict single-admin enforcement for Admin Portal & authorized admin email
+  if (role === 'admin' || normalizedEmail === AUTHORIZED_ADMIN_EMAIL) {
+    if (role && role !== 'admin') {
+      return res.status(403).json({
+        error: 'This account is reserved for Admin Command. Please use the Admin portal.'
+      });
+    }
+    if (normalizedEmail !== AUTHORIZED_ADMIN_EMAIL) {
+      return res.status(403).json({
+        error: 'Access denied. Only the authorized administrator can log into the Admin Portal.'
+      });
+    }
+    if (!password || password !== AUTHORIZED_ADMIN_PASSWORD) {
+      return res.status(401).json({
+        error: 'Invalid admin password.'
+      });
+    }
+
+    let adminUser = store.users.find(u => u.email.toLowerCase() === AUTHORIZED_ADMIN_EMAIL);
+    if (!adminUser) {
+      adminUser = {
+        uid: 'admin_primary_1',
+        email: AUTHORIZED_ADMIN_EMAIL,
+        password: AUTHORIZED_ADMIN_PASSWORD,
+        role: 'admin',
+        displayName: 'Command Admin',
+        createdAt: new Date().toISOString()
+      };
+      store.users.unshift(adminUser);
+      saveStore(store);
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        uid: adminUser.uid,
+        email: adminUser.email,
+        role: 'admin',
+        displayName: adminUser.displayName || 'Command Admin'
+      },
+      token: 'jwt_mock_' + Buffer.from(adminUser.email).toString('base64')
+    });
+  }
+
   let user = store.users.find(u => u.email.toLowerCase() === normalizedEmail);
 
   if (user) {
@@ -1673,6 +1856,13 @@ app.post('/api/auth/register', (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  if (role === 'admin' || normalizedEmail === AUTHORIZED_ADMIN_EMAIL) {
+    return res.status(403).json({
+      error: 'Admin account registration is disabled. Only the authorized administrator may access the Admin Portal.'
+    });
+  }
+
   let existing = store.users.find(u => u.email.toLowerCase() === normalizedEmail);
 
   if (existing) {
@@ -1721,14 +1911,21 @@ app.post('/api/auth/send-link', (req, res) => {
     return res.status(400).json({ error: 'Email is required' });
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+  if (role === 'admin' || normalizedEmail === AUTHORIZED_ADMIN_EMAIL) {
+    return res.status(403).json({
+      error: 'Passwordless sign-in is disabled for the Admin Portal.'
+    });
+  }
+
   const token = 'link_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-  const targetPage = role === 'admin' ? '/login-admin.html' : '/login-user.html';
+  const targetPage = '/login-user.html';
   const baseUrl = req.protocol + '://' + req.get('host');
   const magicUrl = `${baseUrl}${targetPage}?apiKey=rapidresponse-auth&mode=signIn&oobCode=${token}&email=${encodeURIComponent(email)}&role=${role || 'user'}`;
 
   const tokenRecord = {
     token,
-    email: email.trim().toLowerCase(),
+    email: normalizedEmail,
     role: role || 'user',
     expiresAt: Date.now() + 1000 * 60 * 30,
     createdAt: new Date().toISOString()
@@ -1756,13 +1953,19 @@ app.post('/api/auth/verify-link', (req, res) => {
   }
 
   const userRole = tokenRecord?.role || 'user';
+  if (userRole === 'admin' || normalizedEmail === AUTHORIZED_ADMIN_EMAIL || tokenRecord?.email === AUTHORIZED_ADMIN_EMAIL) {
+    return res.status(403).json({
+      error: 'Passwordless sign-in is disabled for the Admin Portal.'
+    });
+  }
+
   let user = store.users.find(u => u.email.toLowerCase() === (normalizedEmail || tokenRecord?.email));
 
   if (!user) {
     user = {
       uid: 'usr_link_' + Date.now(),
       email: normalizedEmail || tokenRecord?.email || 'verified.user@rapidresponse.local',
-      role: userRole,
+      role: 'user',
       displayName: (normalizedEmail || tokenRecord?.email || 'User').split('@')[0],
       createdAt: new Date().toISOString()
     };
@@ -2449,12 +2652,33 @@ wss.on('connection', (ws, req) => {
         }));
       } catch (e) {}
     }
+    notifyBroadcasterViewerCount(ws.sosId);
+  } else if (ws.role === 'broadcaster' && ws.sosId && ws.sosId !== 'all') {
+    try {
+      ws.send(JSON.stringify({
+        type: 'VIEWER_STATUS',
+        sosId: String(ws.sosId),
+        viewerCount: getViewerCountForSos(ws.sosId),
+        ts: Date.now()
+      }));
+    } catch (e) {}
   }
 
   ws.on('message', (rawMsg) => {
     try {
       const msg = JSON.parse(rawMsg.toString());
       if (!msg || !msg.type) return;
+
+      if (msg.type === 'PING') {
+        try {
+          ws.send(JSON.stringify({
+            type: 'PONG',
+            clientTs: msg.ts || Date.now(),
+            serverTs: Date.now()
+          }));
+        } catch (e) {}
+        return;
+      }
 
       if (msg.type === 'SUBSCRIBE') {
         ws.role = msg.role || ws.role;
@@ -2466,6 +2690,16 @@ wss.on('connection', (ws, req) => {
               ws.send(JSON.stringify({ type: 'SOS_FRAME_UPDATE', ...existing }));
             } catch (e) {}
           }
+          notifyBroadcasterViewerCount(ws.sosId);
+        } else if (ws.role === 'broadcaster' && ws.sosId && ws.sosId !== 'all') {
+          try {
+            ws.send(JSON.stringify({
+              type: 'VIEWER_STATUS',
+              sosId: String(ws.sosId),
+              viewerCount: getViewerCountForSos(ws.sosId),
+              ts: Date.now()
+            }));
+          } catch (e) {}
         }
         return;
       }
@@ -2474,8 +2708,22 @@ wss.on('connection', (ws, req) => {
       if (!rawTargetId || rawTargetId === 'all') return;
       const targetSosId = String(rawTargetId);
 
+      if (msg.type === 'LOCATION_UPDATE') {
+        const normalized = syncSosCoordinates(targetSosId, msg.coords || msg);
+        if (normalized) {
+          broadcastSosWs(targetSosId, {
+            type: 'SOS_LOCATION_UPDATE',
+            sosId: targetSosId,
+            coords: normalized,
+            ts: msg.ts || Date.now()
+          });
+        }
+        return;
+      }
+
       if (msg.type === 'VIDEO_FRAME') {
         const existing = liveMediaStreams.get(targetSosId) || {};
+        const syncedCoords = msg.coords ? syncSosCoordinates(targetSosId, msg.coords) : null;
         const updated = {
           sosId: targetSosId,
           email: msg.email || existing.email || 'Civilian',
@@ -2483,7 +2731,8 @@ wss.on('connection', (ws, req) => {
           audioLevel: msg.audioLevel !== undefined ? parseFloat(msg.audioLevel) : (existing.audioLevel || 30),
           hasRealAudio: Boolean(msg.hasRealAudio || existing.hasRealAudio),
           sampleRate: existing.sampleRate || 16000,
-          coords: msg.coords || existing.coords || null,
+          coords: syncedCoords || existing.coords || null,
+          recentAudioChunks: existing.recentAudioChunks || [],
           seq: msg.seq || 0,
           updatedAt: Date.now()
         };
@@ -2505,6 +2754,7 @@ wss.on('connection', (ws, req) => {
         existing.hasRealAudio = true;
         existing.sampleRate = msg.sampleRate || 16000;
         existing.updatedAt = Date.now();
+        pushAudioChunkToStream(existing, msg.audioPcmBase64, existing.sampleRate, msg.seq || 0);
         liveMediaStreams.set(targetSosId, existing);
 
         broadcastSosWs(targetSosId, {
@@ -2524,7 +2774,12 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
+    const prevRole = ws.role;
+    const prevSosId = ws.sosId;
     sosWsClients.delete(ws);
+    if (prevRole === 'viewer' && prevSosId && prevSosId !== 'all') {
+      notifyBroadcasterViewerCount(prevSosId);
+    }
   });
 
   ws.on('error', () => {

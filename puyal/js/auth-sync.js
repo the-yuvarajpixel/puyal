@@ -27,6 +27,9 @@ window.actionCodeSettings = actionCodeSettings;
  * Send sign-in link to email
  */
 async function sendSignInLinkToEmail(authInstance, email, settings) {
+  if (window._currentRole === 'admin') {
+    throw new Error('Passwordless sign-in is disabled for the Admin Portal.');
+  }
   var effectiveSettings = settings || window.actionCodeSettings;
   var effectiveAuth = authInstance || window.auth;
   window.localStorage.setItem('emailForSignIn', email);
@@ -180,7 +183,25 @@ async function universalLogin(email, password, role) {
   let user = null;
   var effectiveAuth = window.auth;
 
-  // 1. Try Firebase Auth
+  // For Admin Portal, ALWAYS verify strictly with the server first
+  if (role === 'admin') {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, role: 'admin' })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Access denied. Invalid admin credentials.');
+    }
+    user = data.user;
+
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    localStorage.setItem('userRole', 'admin');
+    return user;
+  }
+
+  // 1. Try Firebase Auth for civilian users
   if (effectiveAuth && effectiveAuth.signInWithEmailAndPassword) {
     try {
       const cred = await effectiveAuth.signInWithEmailAndPassword(email, password);
@@ -216,6 +237,10 @@ async function universalLogin(email, password, role) {
 }
 
 async function universalRegister(email, password, role, displayName) {
+  if (role === 'admin') {
+    throw new Error('Admin account registration is disabled. Only the authorized administrator may access the Admin Portal.');
+  }
+
   let user = null;
   var effectiveAuth = window.auth;
   var effectiveDb = window.db;
@@ -332,17 +357,26 @@ async function requestEmergencyPermissions() {
     localStorage.setItem('cachedCoords', JSON.stringify(result.coords));
   }
 
-  // 2. Camera & Microphone
+  // 2. Camera & Microphone (probe separately if combined fails so mic works without webcam)
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      result.camera = true;
-      result.microphone = true;
-      // Stop tracks immediately after granting so devices aren't locked
+      result.camera = stream.getVideoTracks().length > 0;
+      result.microphone = stream.getAudioTracks().length > 0;
       stream.getTracks().forEach(track => track.stop());
     } catch (mediaErr) {
-      console.warn('Camera/Mic permission notice:', mediaErr.message);
+      console.warn('Combined Camera/Mic permission notice, probing independently:', mediaErr.message);
       result.error = mediaErr.message;
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        result.camera = camStream.getVideoTracks().length > 0;
+        camStream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        result.microphone = micStream.getAudioTracks().length > 0;
+        micStream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
     }
   }
 
@@ -560,6 +594,19 @@ class RapidSync {
   async fetchSOSLiveFeed(sosId) {
     const res = await fetch(`/api/sos/${sosId}/live-feed`);
     return await res.json();
+  }
+
+  async updateSOSLocation(sosId, coords) {
+    try {
+      const res = await fetch(`/api/sos/${sosId}/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(coords || {})
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: false };
+    }
   }
 
   // Response Teams Management API

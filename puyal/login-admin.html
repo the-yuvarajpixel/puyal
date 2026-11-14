@@ -11,45 +11,41 @@
   <link rel="apple-touch-icon" href="favicon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
   <style>
-    .auth-tabs {
+    .password-input-wrap {
+      position: relative;
       display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      background: var(--subtle);
-      padding: 4px;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border);
+      align-items: center;
     }
-    .auth-tab {
-      flex: 1;
-      padding: 8px 12px;
-      border: none;
+    .password-input-wrap input {
+      width: 100%;
+      padding-right: 44px;
+    }
+    .password-toggle-btn {
+      position: absolute;
+      right: 10px;
       background: transparent;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 600;
+      border: none;
       color: var(--text-muted);
       cursor: pointer;
-      transition: all var(--transition);
-    }
-    .auth-tab.active {
-      background: #fff;
-      color: var(--navy);
-      box-shadow: var(--shadow-xs);
-    }
-    .magic-link-banner {
-      background: var(--info-soft);
-      border: 1px solid rgba(37, 99, 235, 0.25);
-      padding: 12px;
-      border-radius: var(--radius-md);
-      margin-top: 14px;
+      padding: 4px 6px;
       font-size: 13px;
-      text-align: left;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
     }
-    .magic-link-banner a {
-      color: var(--info);
-      font-weight: 700;
-      word-break: break-all;
+    .password-toggle-btn:hover {
+      color: var(--navy);
+      background: var(--subtle);
+    }
+    .admin-security-note {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      background: var(--subtle);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+      text-align: center;
     }
   </style>
 </head>
@@ -62,82 +58,33 @@
         <h1>RapidResponse</h1>
       </div>
       <span class="role-badge admin-badge">Admin Command Center</span>
-      <p class="login-subtitle">Authorized dispatch personnel — live incident tracking &amp; SOS feed</p>
+      <p class="login-subtitle">Restricted portal — authorized administrator authentication required</p>
 
       <div id="login-error" class="login-error"></div>
       <div id="login-success" class="toast success" style="position: static; margin-bottom: 16px; display: none;"></div>
 
-      <!-- Auth Method Tabs -->
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" id="tab-password" onclick="switchAuthTab('password')">
-          Password Sign In
-        </button>
-        <button type="button" class="auth-tab" id="tab-magic" onclick="switchAuthTab('magic')">
-          ✨ Passwordless Link
-        </button>
-      </div>
-
-      <!-- Password Auth Form -->
-      <form class="login-form" id="admin-login-form">
+      <!-- Admin Password Auth Form -->
+      <form class="login-form" id="admin-login-form" autocomplete="off">
         <div class="form-group">
           <label for="email">Admin Email Address</label>
-          <input type="email" id="email" placeholder="admin@rapidresponse.org" required value="admin.demo@rapidresponse.org" />
+          <input type="email" id="email" placeholder="admin@rapidresponse.org" required autocomplete="username" value="" />
         </div>
         <div class="form-group" id="pwd-group">
           <label for="password">Admin Password</label>
-          <input type="password" id="password" placeholder="Enter admin password" required value="demopassword123" />
+          <div class="password-input-wrap">
+            <input type="password" id="password" placeholder="Enter admin password" required autocomplete="current-password" value="" />
+            <button type="button" class="password-toggle-btn" id="toggle-password-visibility" aria-label="Show password">
+              Show
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn-login admin-btn" id="btn-submit">
           Sign In as Admin
         </button>
-        <div class="toggle-auth">
-          <span id="toggle-text">Need admin access?</span>
-          <a id="toggle-link" onclick="toggleAuthMode()">Register admin account</a>
-        </div>
       </form>
 
-      <!-- Passwordless Magic Link Form -->
-      <form class="login-form hidden" id="magic-link-form">
-        <div class="form-group">
-          <label for="magic-email">Admin Email Address</label>
-          <input type="email" id="magic-email" placeholder="admin@organization.com" required value="admin.demo@rapidresponse.org" />
-        </div>
-        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
-          A passwordless admin access link will be generated. Use it on any device to open Command Control.
-        </p>
-        <button type="submit" class="btn-login admin-btn" id="btn-magic-submit">
-          📧 Send Admin Access Link
-        </button>
-        <div id="magic-result" class="magic-link-banner hidden"></div>
-      </form>
-
-      <!-- Master Admin Credentials Card (Requested by User) -->
-      <div style="margin-top: 18px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; border: 1.5px solid #334155; border-radius: var(--radius-md); padding: 16px; text-align: left; box-shadow: 0 4px 16px rgba(15,23,42,0.25);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-          <span style="font-size: 11px; font-weight: 800; background: #dc2626; color: #fff; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.8px;">
-            MASTER ADMIN CREDENTIALS
-          </span>
-          <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">Supreme Access</span>
-        </div>
-        <div style="font-size: 12px; margin-bottom: 4px;">
-          <span style="color: #94a3b8;">Email:</span> <strong style="color: #38bdf8; font-family: monospace;">master.admin@rapidresponse.gov</strong>
-        </div>
-        <div style="font-size: 12px; margin-bottom: 12px;">
-          <span style="color: #94a3b8;">Password:</span> <strong style="color: #4ade80; font-family: monospace;">MasterAdmin@2026!</strong>
-        </div>
-        <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; padding: 11px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 800; cursor: pointer; border: none; box-shadow: 0 2px 8px rgba(37,99,235,0.4);" onclick="masterAdminLogin()">
-          🛡️ 1-Click Master Admin Sign In
-        </button>
-      </div>
-
-      <!-- Demo Sign-In Action (Cross-device linked) -->
-      <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-        <button type="button" class="btn" style="width: 100%; background: var(--subtle); color: var(--navy); border: 1.5px solid var(--border); padding: 10px; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer;" onclick="demoLogin()">
-          ⚡ Quick Demo Admin Sign In (admin.demo@rapidresponse.org)
-        </button>
-        <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
-          Cross-device linked to Demo Civilian account — receives all live SOS broadcasts &amp; emergency reports.
-        </p>
+      <div class="admin-security-note">
+        Access is restricted strictly to the authorized command administrator account.
       </div>
 
       <a href="index.html" class="back-link">← Back to role selection</a>
@@ -153,36 +100,21 @@
 
   <script>
     window._currentRole = 'admin';
-    let isSignUp = false;
+    const AUTHORIZED_ADMIN_EMAIL = 'admin@rapidresponse.org';
 
-    // Check if already signed in
+    // Check if authorized admin is already signed in
     const existing = localStorage.getItem('currentUser');
     if (existing) {
       try {
         const u = JSON.parse(existing);
-        if (u.role === 'admin') {
-          if (!window.location.search.includes('finishSignUp') && !window.location.search.includes('mode=signIn')) {
-            window.location.href = 'dashboard-admin.html';
-          }
+        const existingEmail = (u && u.email ? String(u.email).trim().toLowerCase() : '');
+        if (u && u.role === 'admin' && existingEmail === AUTHORIZED_ADMIN_EMAIL) {
+          window.location.href = 'dashboard-admin.html';
+        } else if (u && u.role === 'admin') {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('userRole');
         }
       } catch (e) {}
-    }
-
-    function switchAuthTab(tab) {
-      const isPwd = tab === 'password';
-      document.getElementById('tab-password').classList.toggle('active', isPwd);
-      document.getElementById('tab-magic').classList.toggle('active', !isPwd);
-      document.getElementById('admin-login-form').classList.toggle('hidden', !isPwd);
-      document.getElementById('magic-link-form').classList.toggle('hidden', isPwd);
-      document.getElementById('login-error').style.display = 'none';
-    }
-
-    function toggleAuthMode() {
-      isSignUp = !isSignUp;
-      document.getElementById('btn-submit').textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
-      document.getElementById('toggle-text').textContent = isSignUp ? 'Already have access?' : 'Need admin access?';
-      document.getElementById('toggle-link').textContent = isSignUp ? 'Sign in' : 'Register admin account';
-      document.getElementById('login-error').style.display = 'none';
     }
 
     function showError(msg) {
@@ -191,160 +123,45 @@
       el.style.display = 'block';
     }
 
-    function showSuccess(msg) {
-      const el = document.getElementById('login-success');
-      el.textContent = msg;
-      el.style.display = 'block';
-      setTimeout(() => el.style.display = 'none', 6000);
+    // Optional show/hide toggle for user-typed password
+    const toggleBtn = document.getElementById('toggle-password-visibility');
+    const pwdInput = document.getElementById('password');
+    if (toggleBtn && pwdInput) {
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = pwdInput.type === 'password';
+        pwdInput.type = isHidden ? 'text' : 'password';
+        toggleBtn.textContent = isHidden ? 'Hide' : 'Show';
+        toggleBtn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+      });
     }
 
-    // ------------------------------------------------------------------------
-    // Email Link Passwordless Sign-In Check on Page Load
-    // ------------------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', async () => {
-      const authRef = window.auth || (typeof auth !== 'undefined' ? auth : null);
-      const isEmailLinkFn = window.isSignInWithEmailLink || (typeof isSignInWithEmailLink === 'function' ? isSignInWithEmailLink : null);
-      const signInFn = window.signInWithEmailLink || (typeof signInWithEmailLink === 'function' ? signInWithEmailLink : null);
-
-      if (isEmailLinkFn && isEmailLinkFn(authRef, window.location.href)) {
-        let email = window.localStorage.getItem('emailForSignIn');
-        if (!email) {
-          const urlParams = new URLSearchParams(window.location.search);
-          email = urlParams.get('email');
-          if (!email) {
-            email = window.prompt('Please confirm your admin email address');
-          }
-        }
-
-        if (email && signInFn) {
-          try {
-            showSuccess('Verifying admin sign-in link...');
-            const user = await signInFn(authRef, email, window.location.href);
-            proceedToDashboard(user);
-          } catch (error) {
-            console.error('Email link admin sign in error:', error);
-            showError('Could not sign in with this link: ' + (error.message || 'Link expired or invalid'));
-          }
-        }
-      }
-    });
-
-    // ------------------------------------------------------------------------
-    // Password Form Submission
-    // ------------------------------------------------------------------------
+    // Admin Form Submission
     document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const btn = document.getElementById('btn-submit');
 
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Signing in...';
       document.getElementById('login-error').style.display = 'none';
 
-      try {
-        let user;
-        if (isSignUp) {
-          user = await universalRegister(email, password, 'admin', email.split('@')[0]);
-        } else {
-          user = await universalLogin(email, password, 'admin');
-        }
-        proceedToDashboard(user);
-      } catch (err) {
-        console.error('Sign-in error:', err);
-        showError(err.message || 'Authentication failed. Please verify admin credentials.');
-        btn.disabled = false;
-        btn.textContent = isSignUp ? 'Create Admin Account' : 'Sign In as Admin';
+      if (email.toLowerCase() !== AUTHORIZED_ADMIN_EMAIL) {
+        showError('Access denied. Only the authorized administrator can log into the Admin Portal.');
+        return;
       }
-    });
-
-    // ------------------------------------------------------------------------
-    // Magic Link Form Submission
-    // ------------------------------------------------------------------------
-    document.getElementById('magic-link-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('magic-email').value.trim();
-      const btn = document.getElementById('btn-magic-submit');
-      const banner = document.getElementById('magic-result');
 
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Generating admin link...';
+      btn.innerHTML = '<span class="spinner"></span> Verifying...';
 
       try {
-        const result = await sendSignInLinkToEmail(auth, email, {
-          url: window.location.origin + '/login-admin.html?finishSignUp=true',
-          handleCodeInApp: true
-        });
-
-        banner.classList.remove('hidden');
-        banner.innerHTML = `
-          <strong>✅ Admin link generated for ${email}!</strong><br>
-          <div style="margin: 8px 0; font-size: 12px; color: var(--text-secondary);">
-            Click the link below or copy it to any browser/device to open Admin Command:
-          </div>
-          <a href="${result.magicLink || '#'}" class="btn" style="display: inline-block; background: var(--primary); color: #fff; padding: 6px 14px; font-size: 12px; text-decoration: none; border-radius: var(--radius-sm); margin-top: 4px;">
-            🔗 Open Admin Command Dashboard →
-          </a>
-        `;
-        showSuccess('Admin access link ready! Click above to proceed.');
+        await universalLogin(email, password, 'admin');
+        window.location.href = 'dashboard-admin.html';
       } catch (err) {
-        showError('Could not send admin link: ' + err.message);
-      } finally {
+        console.error('Admin sign-in error:', err);
+        showError(err.message || 'Authentication failed. Please verify admin credentials.');
         btn.disabled = false;
-        btn.textContent = '📧 Send Admin Access Link';
+        btn.textContent = 'Sign In as Admin';
       }
     });
-
-    // ------------------------------------------------------------------------
-    // Master Admin Sign In (Supreme Access)
-    // ------------------------------------------------------------------------
-    async function masterAdminLogin() {
-      const emailField = document.getElementById('email');
-      const pwdField = document.getElementById('password');
-      if (emailField) emailField.value = 'master.admin@rapidresponse.gov';
-      if (pwdField) pwdField.value = 'MasterAdmin@2026!';
-
-      const masterAdmin = {
-        uid: 'master_admin_1',
-        email: 'master.admin@rapidresponse.gov',
-        role: 'admin',
-        displayName: 'Supreme Master Commander'
-      };
-      localStorage.setItem('currentUser', JSON.stringify(masterAdmin));
-      localStorage.setItem('userRole', 'admin');
-
-      try {
-        await universalLogin(masterAdmin.email, 'MasterAdmin@2026!', 'admin');
-      } catch (e) {
-        console.warn('Local session initialized:', e);
-      }
-
-      proceedToDashboard(masterAdmin);
-    }
-
-    // ------------------------------------------------------------------------
-    // Quick Demo Admin Sign In
-    // ------------------------------------------------------------------------
-    async function demoLogin() {
-      const demoAdmin = {
-        uid: 'demo_admin_1',
-        email: 'admin.demo@rapidresponse.org',
-        role: 'admin',
-        displayName: 'HQ Command Dispatcher'
-      };
-      localStorage.setItem('currentUser', JSON.stringify(demoAdmin));
-      localStorage.setItem('userRole', 'admin');
-
-      try {
-        await universalLogin(demoAdmin.email, 'demopassword123', 'admin');
-      } catch (e) {}
-
-      proceedToDashboard(demoAdmin);
-    }
-
-    function proceedToDashboard(user) {
-      window.location.href = 'dashboard-admin.html';
-    }
   </script>
 
 </body>
