@@ -568,12 +568,16 @@
         gmpClickable: true
       });
 
+      const safeSosId = escapeHtml(String(sos.id || '')).replace(/'/g, '');
       const infoHtml = `
         <div style="font-family:Inter,sans-serif; max-width:260px; padding:4px 2px;">
           <span style="background:#ef4444; color:#fff; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px;">LIVE SOS BEACON</span>
           <h4 style="margin:4px 0 6px 0; font-size:14px; font-weight:800; color:#dc2626;">Distress Alert Active</h4>
           <p style="margin:0 0 6px 0; font-size:12px; color:#334155;">User: ${escapeHtml(sos.userEmail || sos.email || 'Civilian')}</p>
-          <div style="font-size:11px; color:#64748b;">GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+          <div style="font-size:11px; color:#64748b;">GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+          <button type="button" onclick="window.openLiveStreamForSOS && window.openLiveStreamForSOS('${safeSosId}')" style="width:100%; background:#dc2626; color:#fff; border:none; padding:7px 10px; border-radius:6px; font-size:11px; font-weight:800; cursor:pointer; margin-top:8px;">
+            📹 Watch Live Camera &amp; Mic Stream
+          </button>
         </div>
       `;
 

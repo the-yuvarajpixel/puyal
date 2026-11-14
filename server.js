@@ -1122,7 +1122,8 @@ app.post('/api/teams', (req, res) => {
     stationId,
     latitude,
     longitude,
-    personnelCount = 6,
+    personnelCount,
+    personnel,
     vehicles = [],
     contact = '',
     status = 'Available'
@@ -1135,9 +1136,12 @@ app.post('/api/teams', (req, res) => {
   // Lookup station for name fallback
   const stations = store.government_stations || defaultStations;
   const station = stations.find(s => s.stationId === stationId) || stations[0];
+  const resolvedTeamId = teamId || ('TEAM-' + category.substring(0, 3).toUpperCase() + '-' + Date.now().toString().slice(-4));
+  const resolvedPersonnel = parseInt(personnelCount || personnel || 6, 10) || 6;
 
   const newTeam = {
-    teamId: teamId || ('TEAM-' + category.substring(0, 3).toUpperCase() + '-' + Date.now().toString().slice(-4)),
+    id: resolvedTeamId,
+    teamId: resolvedTeamId,
     name: name.trim(),
     category: category,
     expertise: expertise || `${category} Emergency Response`,
@@ -1145,7 +1149,8 @@ app.post('/api/teams', (req, res) => {
     stationName: station ? station.name : 'Central Depot',
     latitude: latitude ? parseFloat(latitude) : (station ? station.latitude : 13.0604),
     longitude: longitude ? parseFloat(longitude) : (station ? station.longitude : 80.2496),
-    personnelCount: parseInt(personnelCount || 6, 10),
+    personnelCount: resolvedPersonnel,
+    personnel: resolvedPersonnel,
     vehicles: Array.isArray(vehicles) ? vehicles : (typeof vehicles === 'string' ? vehicles.split(',').map(v => v.trim()).filter(Boolean) : ['Emergency Vehicle']),
     contact: contact || station?.contact || '+91 44 2859 3900',
     status: status || 'Available',
@@ -1259,11 +1264,19 @@ app.get('/api/incidents/:id/recommended-teams', (req, res) => {
   // Compute suitability for each team
   const scoredTeams = teams.map(team => {
     const suitability = computeTeamSuitability(incident, team);
+    const resolvedId = team.id || team.teamId;
+    const resolvedCrew = team.personnelCount || team.personnel || 6;
     return {
       ...team,
+      id: resolvedId,
+      teamId: team.teamId || resolvedId,
+      personnel: resolvedCrew,
+      personnelCount: resolvedCrew,
       distanceKm: suitability.distKm,
       matchScore: suitability.matchScore,
+      suitabilityScore: suitability.matchScore,
       matchReason: suitability.matchReason,
+      reason: suitability.matchReason,
       categoryScore: suitability.categoryScore,
       proximityScore: suitability.proximityScore,
       availScore: suitability.availScore,
@@ -2158,6 +2171,24 @@ app.post('/api/sos', (req, res) => {
   store.sos_alerts.unshift(newAlert);
   saveStore(store);
 
+  liveMediaStreams.set(alertId, {
+    sosId: alertId,
+    email: newAlert.email,
+    lastFrame: null,
+    audioLevel: 25,
+    hasRealAudio: false,
+    sampleRate: 16000,
+    coords: {
+      latitude: parsedLat,
+      longitude: parsedLon,
+      accuracy: parsedAcc,
+      updatedAt: Date.now()
+    },
+    recentAudioChunks: [],
+    seq: 0,
+    updatedAt: Date.now()
+  });
+
   const sosIncident = {
     id: Date.now(),
     title: '🚨 LIVE SOS ALERT — ' + (email || 'Civilian User'),
@@ -2213,6 +2244,7 @@ app.post('/api/sos/:id/deactivate', (req, res) => {
     lastSseFrameEmit.delete(id);
     broadcastSosWs(id, { type: 'SOS_ENDED', sosId: id, reason: 'deactivated' });
     broadcast('SOS_DEACTIVATED', { id });
+    broadcast('SOS_RESOLVED', { id });
     return res.json({ success: true, alert });
   }
   res.status(404).json({ error: 'Alert not found' });
@@ -2645,10 +2677,12 @@ wss.on('connection', (ws, req) => {
   if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
     const existing = liveMediaStreams.get(String(ws.sosId));
     if (existing) {
+      const now = Date.now();
       try {
         ws.send(JSON.stringify({
           type: 'SOS_FRAME_UPDATE',
-          ...existing
+          ...existing,
+          recentAudioChunks: (existing.recentAudioChunks || []).filter(c => now - c.ts < 2500)
         }));
       } catch (e) {}
     }
@@ -2686,8 +2720,13 @@ wss.on('connection', (ws, req) => {
         if (ws.role === 'viewer' && ws.sosId && ws.sosId !== 'all') {
           const existing = liveMediaStreams.get(ws.sosId);
           if (existing) {
+            const now = Date.now();
             try {
-              ws.send(JSON.stringify({ type: 'SOS_FRAME_UPDATE', ...existing }));
+              ws.send(JSON.stringify({
+                type: 'SOS_FRAME_UPDATE',
+                ...existing,
+                recentAudioChunks: (existing.recentAudioChunks || []).filter(c => now - c.ts < 2500)
+              }));
             } catch (e) {}
           }
           notifyBroadcasterViewerCount(ws.sosId);
@@ -2723,15 +2762,25 @@ wss.on('connection', (ws, req) => {
 
       if (msg.type === 'VIDEO_FRAME') {
         const existing = liveMediaStreams.get(targetSosId) || {};
-        const syncedCoords = msg.coords ? syncSosCoordinates(targetSosId, msg.coords) : null;
+        let syncedCoords = existing.coords || null;
+        if (msg.coords) {
+          const incomingLat = parseFloat(msg.coords.latitude !== undefined ? msg.coords.latitude : msg.coords.lat);
+          const incomingLon = parseFloat(msg.coords.longitude !== undefined ? msg.coords.longitude : msg.coords.lon);
+          const coordsChanged = !existing.coords ||
+            Math.abs((existing.coords.latitude || 0) - incomingLat) > 0.000005 ||
+            Math.abs((existing.coords.longitude || 0) - incomingLon) > 0.000005;
+          if (!isNaN(incomingLat) && !isNaN(incomingLon) && coordsChanged) {
+            syncedCoords = syncSosCoordinates(targetSosId, msg.coords) || existing.coords || null;
+          }
+        }
         const updated = {
           sosId: targetSosId,
           email: msg.email || existing.email || 'Civilian',
           lastFrame: msg.frameBase64 || existing.lastFrame || null,
           audioLevel: msg.audioLevel !== undefined ? parseFloat(msg.audioLevel) : (existing.audioLevel || 30),
-          hasRealAudio: Boolean(msg.hasRealAudio || existing.hasRealAudio),
+          hasRealAudio: msg.hasRealAudio !== undefined ? Boolean(msg.hasRealAudio) : Boolean(existing.hasRealAudio),
           sampleRate: existing.sampleRate || 16000,
-          coords: syncedCoords || existing.coords || null,
+          coords: syncedCoords,
           recentAudioChunks: existing.recentAudioChunks || [],
           seq: msg.seq || 0,
           updatedAt: Date.now()
@@ -2783,7 +2832,12 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('error', () => {
+    const prevRole = ws.role;
+    const prevSosId = ws.sosId;
     sosWsClients.delete(ws);
+    if (prevRole === 'viewer' && prevSosId && prevSosId !== 'all') {
+      notifyBroadcasterViewerCount(prevSosId);
+    }
   });
 });
 

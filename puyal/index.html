@@ -253,11 +253,11 @@
 
       <!-- Primary Role Options -->
       <div class="role-cards">
-        <!-- User / Civilian Card -->
-        <a href="login-user.html" class="role-card user-role" id="link-civilian-role">
+        <!-- User / Civilian Card (Direct Access to Civilian Emergency Portal) -->
+        <a href="dashboard-user.html" class="role-card user-role" id="link-civilian-role">
           <span class="role-icon" aria-hidden="true">🆘</span>
           <div class="role-name" data-i18n="role.user_title">Report Emergency</div>
-          <div class="role-desc" data-i18n="role.user_desc">Report an emergency, use voice or SOS for instant help</div>
+          <div class="role-desc" data-i18n="role.user_desc">Open Civilian Emergency Portal for SOS live streaming, voice &amp; reports</div>
         </a>
 
         <!-- Admin / Tactical Command Card -->
@@ -268,11 +268,29 @@
         </a>
       </div>
 
-      <!-- Quick Test Accounts -->
-      <div style="margin-top: 24px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
-        <a href="login-user.html" id="link-civilian-demo" style="text-decoration: none; font-size: 13px; color: #94a3b8; padding: 8px 18px; background: rgba(255,255,255,0.06); border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
-          <span data-i18n="role.demo_civilian">⚡ Test Civilian Demo Account</span>
-        </a>
+      <!-- Direct Civilian Emergency Portal & SOS Live Streaming Options -->
+      <div class="civilian-direct-bar" role="navigation" aria-label="Direct Civilian Emergency Portal Access">
+        <div class="civilian-direct-title">Direct Access — Civilian Emergency Portal Options</div>
+        <div class="civilian-direct-links">
+          <a href="dashboard-user.html?action=sos" id="link-direct-sos" class="civilian-quick-link sos-quick">
+            🚨 SOS Emergency Live Stream
+          </a>
+          <a href="dashboard-user.html?action=voice" id="link-direct-voice" class="civilian-quick-link">
+            🎙️ Bhashini Voice Report
+          </a>
+          <a href="dashboard-user.html?action=report" id="link-direct-report" class="civilian-quick-link">
+            📝 Report Incident
+          </a>
+          <a href="dashboard-user.html?action=track" id="link-direct-track" class="civilian-quick-link">
+            🚑 Live Responder Map
+          </a>
+          <a href="tactical-3d.html?role=user" id="link-direct-3d" class="civilian-quick-link">
+            🧊 3D Sector Twin
+          </a>
+          <a href="login-user.html?switch=1" id="link-civilian-demo" class="civilian-quick-link">
+            👤 Civilian Sign In / Demo
+          </a>
+        </div>
       </div>
     </div>
   </div>

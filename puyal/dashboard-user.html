@@ -40,8 +40,10 @@
           <span data-i18n="nav.translate_btn">🌐 Translate</span>
         </button>
       </div>
-      <span class="nav-user" id="nav-user-email">Loading...</span>
-      <button class="nav-btn btn-logout" onclick="logout()"><span data-i18n="nav.logout">Logout</span></button>
+      <span class="nav-user" id="nav-user-email">Civilian Portal</span>
+      <a href="index.html" class="nav-btn" style="background: rgba(255,255,255,0.12); color: #fff; text-decoration: none; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-sm); font-weight: 600;">🏠 Home</a>
+      <a href="login-user.html?switch=1" id="nav-signin-link" class="nav-btn" style="background: #2563eb; color: #fff; text-decoration: none; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-sm); font-weight: 700; display: none;">👤 Sign In</a>
+      <button class="nav-btn btn-logout" id="nav-logout-btn" onclick="logout()"><span data-i18n="nav.logout">Logout</span></button>
     </div>
   </nav>
 
@@ -66,22 +68,37 @@
       </button>
     </div>
 
-    <!-- ── Quick Action Buttons ── -->
+    <!-- ── Quick Action Options (Direct Access to All Civilian Tools) ── -->
     <div class="quick-actions">
-      <div class="action-card" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
-        <span class="action-icon">🎙️</span>
-        <div class="action-label" data-i18n="action.bhashini_title">Bhashini Multilingual Voice</div>
-        <div class="action-desc" data-i18n="action.bhashini_desc">Speak in Tamil, Hindi, Telugu, English &amp; more — Gemini AI classified</div>
-      </div>
-      <div class="action-card" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
+      <div class="action-card" id="card-sos-launch" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
         <span class="action-icon">🚨</span>
         <div class="action-label" data-i18n="action.sos_title">SOS Emergency Live Stream</div>
         <div class="action-desc" data-i18n="action.sos_desc">Streams live camera &amp; audio directly to Admin Command Console</div>
       </div>
+      <div class="action-card" id="card-voice-launch" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; cursor: pointer;" onclick="openVoiceReport()">
+        <span class="action-icon">🎙️</span>
+        <div class="action-label" data-i18n="action.bhashini_title">Bhashini Multilingual Voice</div>
+        <div class="action-desc" data-i18n="action.bhashini_desc">Speak in Tamil, Hindi, Telugu, English &amp; more — Gemini AI classified</div>
+      </div>
+      <div class="action-card" id="card-report-launch" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; cursor: pointer;" onclick="focusCivilianReportForm()">
+        <span class="action-icon">📝</span>
+        <div class="action-label">Report Incident Form</div>
+        <div class="action-desc">Submit structured disaster details with Auto GPS &amp; AI Severity Gauge</div>
+      </div>
+      <div class="action-card" id="card-tracking-launch" style="background: linear-gradient(135deg, #059669, #047857); color: #fff; cursor: pointer;" onclick="focusCivilianTracking()">
+        <span class="action-icon">🚑</span>
+        <div class="action-label">Live Responder Map</div>
+        <div class="action-desc">Track dispatched emergency vehicles &amp; live ETA route to your site</div>
+      </div>
+      <a href="tactical-3d.html?role=user" class="action-card" id="card-3d-launch" style="background: linear-gradient(135deg, #0f172a, #1e293b); color: #38bdf8; cursor: pointer; text-decoration: none; border: 1px solid rgba(56, 189, 248, 0.35);">
+        <span class="action-icon">🧊</span>
+        <div class="action-label" style="color: #f8fafc;">3D Sector Twin</div>
+        <div class="action-desc" style="color: #cbd5e1;">Explore real-time 3D operational sector beacons &amp; active units</div>
+      </a>
     </div>
 
     <!-- ── Report Form ── -->
-    <section class="card" style="max-width: 720px; margin: 0 auto;">
+    <section class="card" id="civilian-report-section" style="max-width: 720px; margin: 0 auto;">
       <h2 class="section-title" data-i18n="form.heading">Report an Emergency Incident</h2>
       <p class="section-subtitle" data-i18n="form.subheading">Provide accurate details so response teams can prioritize and dispatch help.</p>
 
@@ -411,28 +428,111 @@
   <script src="js/translations.js"></script>
 
   <script>
-    // Initialize GPS coordinates early
+    // Initialize GPS coordinates & shared portal state early (avoid Temporal Dead Zone)
     let currentCoords = window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496, accuracy: 10 };
     window._currentCoords = currentCoords;
+    let liveGeoWatchId = null;
+    let lastLocationPushTs = 0;
+
+    let sosStream = null;
+    let audioContext = null;
+    let audioAnalyser = null;
+    let audioProcessorNode = null;
+    let audioMuteGain = null;
+    let audioAnimFrame = null;
+    let currentSosAlertId = null;
+    let streamInterval = null;
+    let sosBroadcasterWs = null;
+    let sosWsReconnectTimer = null;
+    let sosWsPingInterval = null;
+    let sosWsLatencyMs = null;
+    let sosCommandViewers = 0;
+    let sosActiveFlag = false;
+    let userMicMuted = false;
+    let hasPhysicalVideo = false;
+    let hasPhysicalAudio = false;
+    let liveAudioLevel = 0;
+    let videoSeq = 0;
+    let audioSeq = 0;
+    let currentFpsActual = 0;
+    let broadcasterFrameTimestamps = [];
+    let httpFrameInFlight = false;
+    let sosFacingMode = 'environment';
+    let sosCaptureCanvas = null;
+    let sosCaptureCtx = null;
+    let isSimulatedFeed = false;
+    let simulatedPacketSeq = 1;
+    let geoWatchStartedBySos = false;
+
+    let civilianTrackingMap = null;
+    let googleCivilianMap = null;
+    let usingGoogleCivMap = false;
+    let civMapInitPromise = null;
+    let civLayers = {
+      incidentMarker: null,
+      incidentPerimeter: null,
+      stationMarker: null,
+      vehicleMarker: null,
+      routeTraveled: null,
+      routeAhead: null
+    };
+    let activeDispatchedTeam = null;
+    let activeDispatchedIncident = null;
+
     // ====================================================================
-    // AUTH CHECK — Session persistence across devices
+    // AUTH & DIRECT GUEST ACCESS — Zero-friction Civilian Emergency Portal
     // ====================================================================
     let currentUser = null;
 
     const savedUserStr = localStorage.getItem('currentUser');
+    let hasAdminSession = false;
     if (savedUserStr) {
       try {
         const parsed = JSON.parse(savedUserStr);
-        if (parsed && (parsed.role === 'user' || localStorage.getItem('userRole') === 'user')) {
+        if (parsed && parsed.role === 'admin') {
+          hasAdminSession = true;
+        } else if (parsed && (parsed.role === 'user' || localStorage.getItem('userRole') === 'user')) {
           currentUser = parsed;
-          document.getElementById('nav-user-email').textContent = parsed.email || 'Civilian User';
         }
       } catch (e) {}
     }
 
     if (!currentUser) {
-      window.location.href = 'login-user.html';
+      let guestUid = localStorage.getItem('guestCivilianUid');
+      if (!guestUid) {
+        guestUid = 'guest_civilian_' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem('guestCivilianUid', guestUid);
+      }
+      currentUser = {
+        uid: guestUid,
+        email: 'guest.civilian@rapidresponse.org',
+        role: 'user',
+        displayName: 'Civilian Guest',
+        isGuest: true
+      };
+      if (!hasAdminSession) {
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        localStorage.setItem('userRole', 'user');
+      }
     }
+
+    function updateCivilianNavUserUI() {
+      const navEmailEl = document.getElementById('nav-user-email');
+      const signInLink = document.getElementById('nav-signin-link');
+      const logoutBtn = document.getElementById('nav-logout-btn');
+      if (navEmailEl) {
+        navEmailEl.textContent = currentUser && currentUser.isGuest
+          ? 'Civilian Guest Mode'
+          : (currentUser?.email || 'Civilian User');
+      }
+      if (signInLink) {
+        signInLink.style.display = currentUser && currentUser.isGuest ? 'inline-flex' : 'none';
+      }
+      if (logoutBtn) {
+        logoutBtn.style.display = currentUser && currentUser.isGuest ? 'none' : 'inline-flex';
+      }
+    }
+    updateCivilianNavUserUI();
 
     if (window.auth && window.auth.onAuthStateChanged) {
       window.auth.onAuthStateChanged((user) => {
@@ -441,15 +541,30 @@
             uid: user.uid,
             email: user.email,
             role: 'user',
-            displayName: user.displayName || user.email.split('@')[0]
+            displayName: user.displayName || user.email.split('@')[0],
+            isGuest: false
           };
-          document.getElementById('nav-user-email').textContent = user.email;
+          localStorage.setItem('currentUser', JSON.stringify(currentUser));
+          localStorage.setItem('userRole', 'user');
+          updateCivilianNavUserUI();
         }
       });
     }
 
     function logout() {
       universalLogout();
+    }
+
+    function focusCivilianReportForm() {
+      const sec = document.getElementById('civilian-report-section');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const titleInput = document.getElementById('title');
+      if (titleInput) setTimeout(() => titleInput.focus(), 250);
+    }
+
+    function focusCivilianTracking() {
+      const sec = document.getElementById('civilian-tracking-section');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // ====================================================================
@@ -827,9 +942,6 @@
     // ====================================================================
     // AUTO-DETECT & CONTINUOUS LIVE GPS LOCATION WATCH
     // ====================================================================
-    let liveGeoWatchId = null;
-    let lastLocationPushTs = 0;
-
     function applyDetectedCoords(lat, lon, acc = 10, source = 'GPS', extras = {}) {
       const normalized = {
         latitude: parseFloat(Number(lat).toFixed(6)),
@@ -1175,35 +1287,6 @@
     // ====================================================================
     // SOS — REAL-TIME 20 FPS ADAPTIVE VIDEO & 64ms 16kHz PCM AUDIO STREAM
     // ====================================================================
-    let sosStream = null;
-    let audioContext = null;
-    let audioAnalyser = null;
-    let audioProcessorNode = null;
-    let audioMuteGain = null;
-    let audioAnimFrame = null;
-    let currentSosAlertId = null;
-    let streamInterval = null;
-    let sosBroadcasterWs = null;
-    let sosWsReconnectTimer = null;
-    let sosWsPingInterval = null;
-    let sosWsLatencyMs = null;
-    let sosCommandViewers = 0;
-    let sosActiveFlag = false;
-    let userMicMuted = false;
-    let hasPhysicalVideo = false;
-    let hasPhysicalAudio = false;
-    let liveAudioLevel = 0;
-    let videoSeq = 0;
-    let audioSeq = 0;
-    let currentFpsActual = 0;
-    let broadcasterFrameTimestamps = [];
-    let httpFrameInFlight = false;
-    let sosFacingMode = 'environment';
-    let sosCaptureCanvas = null;
-    let sosCaptureCtx = null;
-    let isSimulatedFeed = false;
-    let simulatedPacketSeq = 1;
-
     function updateBroadcasterStatusBadge() {
       const statusEl = document.getElementById('sos-status-label');
       if (!statusEl) return;
@@ -1319,12 +1402,36 @@
       }
     }
 
-    function setupAudioStreamer(stream) {
+    function ensureBroadcasterAudioContext() {
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioCtx({ latencyHint: 'interactive' });
+        if (!AudioCtx) return null;
+        if (!audioContext || audioContext.state === 'closed') {
+          audioContext = new AudioCtx({ latencyHint: 'interactive' });
+        }
         if (audioContext.state === 'suspended') {
           audioContext.resume().catch(() => {});
+        }
+        return audioContext;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function setupAudioStreamer(stream) {
+      try {
+        const ctx = ensureBroadcasterAudioContext();
+        if (!ctx) {
+          hasPhysicalAudio = false;
+          return;
+        }
+        if (audioProcessorNode) {
+          try { audioProcessorNode.disconnect(); } catch (e) {}
+          audioProcessorNode = null;
+        }
+        if (audioMuteGain) {
+          try { audioMuteGain.disconnect(); } catch (e) {}
+          audioMuteGain = null;
         }
         const source = audioContext.createMediaStreamSource(stream);
 
@@ -1451,6 +1558,11 @@
     }
 
     async function activateSOS() {
+      if (sosActiveFlag) {
+        document.getElementById('sos-overlay').classList.remove('hidden');
+        return;
+      }
+
       sosActiveFlag = true;
       userMicMuted = false;
       hasPhysicalVideo = false;
@@ -1461,6 +1573,20 @@
       sosWsLatencyMs = null;
       sosCommandViewers = 0;
       broadcasterFrameTimestamps = [];
+
+      // Synchronously create/resume AudioContext inside user-click gesture so browser autoplay/capture policy allows mic PCM streaming
+      ensureBroadcasterAudioContext();
+
+      // Reset mic button & audio label to clean initial state
+      const micBtn = document.getElementById('btn-toggle-user-mic');
+      if (micBtn) {
+        micBtn.textContent = '🎙️ Mic: LIVE';
+        micBtn.style.background = 'rgba(16, 185, 129, 0.25)';
+        micBtn.style.color = '#86efac';
+        micBtn.style.borderColor = 'rgba(134, 239, 172, 0.45)';
+      }
+      const audioModeLabel = document.getElementById('sos-audio-mode-label');
+      if (audioModeLabel) audioModeLabel.textContent = 'AUDIO RELAY ACTIVE';
 
       document.getElementById('sos-overlay').classList.remove('hidden');
       document.getElementById('sos-time').textContent = new Date().toLocaleTimeString();
@@ -1474,7 +1600,9 @@
 
       // 1. Dispatch SOS IMMEDIATELY + start continuous watchPosition GPS tracking + WebSocket
       await dispatchSOS(fallbackCoords.latitude, fallbackCoords.longitude, fallbackCoords.accuracy || 10);
+      if (!sosActiveFlag) return;
       connectSosBroadcasterWs();
+      geoWatchStartedBySos = liveGeoWatchId === null;
       startLiveGeoWatch();
 
       // Immediate GPS fix attempt on top of continuous watchPosition
@@ -1504,11 +1632,18 @@
             video: { facingMode: sosFacingMode, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } },
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
           });
+          if (!sosActiveFlag) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
           sosStream = stream;
           hasPhysicalVideo = stream.getVideoTracks().length > 0;
           const video = document.getElementById('sos-video');
+          video.muted = true;
+          video.playsInline = true;
           video.srcObject = stream;
           video.style.display = 'block';
+          video.play().catch(() => {});
           document.getElementById('sos-canvas').style.display = 'none';
           document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera (20 FPS)';
 
@@ -1519,17 +1654,23 @@
           isSimulatedFeed = false;
           startLiveFrameRelay();
         } catch (err) {
+          if (!sosActiveFlag) return;
           console.warn('Camera+Mic unavailable, trying Microphone-only stream:', err.message);
           try {
             const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
               audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
             });
+            if (!sosActiveFlag) {
+              audioOnlyStream.getTracks().forEach(t => t.stop());
+              return;
+            }
             sosStream = audioOnlyStream;
             hasPhysicalVideo = false;
             setupAudioStreamer(audioOnlyStream);
             activateSimulatedEmergencyFeed(true);
             showToast('🎙️ Live microphone audio connected! Using tactical video canvas.', 'info');
           } catch (audioErr) {
+            if (!sosActiveFlag) return;
             console.warn('Physical camera/mic hardware inaccessible. Engaging Simulated Tactical Emergency Feed Fallback:', audioErr);
             activateSimulatedEmergencyFeed(false);
           }
@@ -1572,8 +1713,11 @@
         hasPhysicalVideo = true;
         isSimulatedFeed = false;
         const video = document.getElementById('sos-video');
+        video.muted = true;
+        video.playsInline = true;
         video.srcObject = sosStream;
         video.style.display = 'block';
+        video.play().catch(() => {});
         document.getElementById('sos-canvas').style.display = 'none';
         document.getElementById('sos-camera-label').textContent = `📹 Live Camera (${nextFacing === 'user' ? 'Front' : 'Rear'} · 20 FPS)`;
         showToast(`Switched to ${nextFacing === 'user' ? 'front' : 'rear'} camera.`, 'success');
@@ -1618,7 +1762,7 @@
       }
     }
 
-    function drawProceduralEmergencyFrame() {
+    function drawProceduralEmergencyFrame(bannerText) {
       const canvas = document.getElementById('sos-canvas');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -1674,7 +1818,7 @@
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 12px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText('🔴 LIVE CIVILIAN SOS — 20 FPS REAL-TIME FEED', 18, 27);
+      ctx.fillText(bannerText || '🔴 LIVE CIVILIAN SOS — 20 FPS REAL-TIME FEED', 18, 27);
 
       // Telemetry HUD overlay
       ctx.fillStyle = '#4ade80';
@@ -1733,15 +1877,23 @@
             frameBase64 = canvas.toDataURL('image/jpeg', jpegQuality);
 
             if (!hasPhysicalAudio) {
-              vol = Math.round(30 + Math.sin(Date.now() / 200) * 26 + Math.random() * 10);
+              vol = userMicMuted ? 0 : Math.round(30 + Math.sin(Date.now() / 200) * 26 + Math.random() * 10);
               const audioBar = document.getElementById('audio-bar');
               if (audioBar) audioBar.style.width = Math.min(100, vol * 1.2) + '%';
               const freqLabel = document.getElementById('sos-audio-freq-label');
-              if (freqLabel) freqLabel.textContent = `Telemetry Signal: ${vol}%`;
+              if (freqLabel) freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `Telemetry Signal: ${vol}%`;
+              drawSimulatedUserWaveform(vol);
             }
           } else if (video && video.videoWidth > 0 && video.videoHeight > 0 && sosCaptureCtx) {
             sosCaptureCtx.drawImage(video, 0, 0, 480, 360);
             frameBase64 = sosCaptureCanvas.toDataURL('image/jpeg', jpegQuality);
+          } else {
+            // Camera hardware still initializing its first decoded frame: stream HUD frame instead of dropping
+            canvas.width = 480;
+            canvas.height = 360;
+            drawProceduralEmergencyFrame('🔴 LIVE SOS — INITIALIZING CAMERA FEED...');
+            simulatedPacketSeq++;
+            frameBase64 = canvas.toDataURL('image/jpeg', jpegQuality);
           }
 
           if (frameBase64) {
@@ -1867,16 +2019,48 @@
       audioAnimFrame = requestAnimationFrame(visualizeAudio);
     }
 
-    async function deactivateSOS() {
+    function drawSimulatedUserWaveform(level) {
+      const waveCanvas = document.getElementById('sos-user-waveform-canvas');
+      if (!waveCanvas) return;
+      const wCtx = waveCanvas.getContext('2d');
+      const cw = waveCanvas.width;
+      const ch = waveCanvas.height;
+      wCtx.clearRect(0, 0, cw, ch);
+      wCtx.lineWidth = 2;
+      wCtx.strokeStyle = userMicMuted ? '#64748b' : '#38bdf8';
+      wCtx.beginPath();
+      const now = Date.now() / 120;
+      const amp = userMicMuted ? 0 : Math.max(2, (level / 100) * (ch * 0.38));
+      for (let x = 0; x <= cw; x += 6) {
+        const y = (ch / 2) + Math.sin(x * 0.08 + now) * amp * Math.cos(x * 0.03 - now * 0.5);
+        if (x === 0) wCtx.moveTo(x, y);
+        else wCtx.lineTo(x, y);
+      }
+      wCtx.stroke();
+    }
+
+    async function deactivateSOS(skipRemoteResolve = false) {
       sosActiveFlag = false;
       userMicMuted = false;
       hasPhysicalVideo = false;
       hasPhysicalAudio = false;
       httpFrameInFlight = false;
+      sosCommandViewers = 0;
+      sosWsLatencyMs = null;
       clearTimeout(sosWsReconnectTimer);
       clearInterval(sosWsPingInterval);
 
+      if (geoWatchStartedBySos) {
+        geoWatchStartedBySos = false;
+        stopLiveGeoWatch();
+      }
+
       document.getElementById('sos-overlay').classList.add('hidden');
+      const video = document.getElementById('sos-video');
+      if (video) {
+        try { video.pause(); } catch (e) {}
+        video.srcObject = null;
+      }
 
       if (streamInterval) {
         clearInterval(streamInterval);
@@ -1889,10 +2073,13 @@
       }
 
       if (currentSosAlertId) {
-        try {
-          await rapidSync.resolveSOS(currentSosAlertId);
-        } catch (e) {}
+        const alertToResolve = currentSosAlertId;
         currentSosAlertId = null;
+        if (!skipRemoteResolve) {
+          try {
+            await rapidSync.resolveSOS(alertToResolve);
+          } catch (e) {}
+        }
       }
 
       if (audioProcessorNode) {
@@ -1918,28 +2105,15 @@
       }
 
       isSimulatedFeed = false;
-      speakText('SOS Emergency session ended.', 'en');
-      showToast('SOS broadcast ended.', 'warning');
+      if (!skipRemoteResolve) {
+        speakText('SOS Emergency session ended.', 'en');
+        showToast('SOS broadcast ended.', 'warning');
+      }
     }
 
     // ====================================================================
     // CIVILIAN REAL-TIME EMERGENCY DISPATCH & ROUTE TRACKING MAP
     // ====================================================================
-    let civilianTrackingMap = null;
-    let googleCivilianMap = null;
-    let usingGoogleCivMap = false;
-    let civMapInitPromise = null;
-    let civLayers = {
-      incidentMarker: null,
-      incidentPerimeter: null,
-      stationMarker: null,
-      vehicleMarker: null,
-      routeTraveled: null,
-      routeAhead: null
-    };
-    let activeDispatchedTeam = null;
-    let activeDispatchedIncident = null;
-
     async function initCivilianTrackingMap() {
       if (civilianTrackingMap || googleCivilianMap) return civMapInitPromise;
       if (civMapInitPromise) return civMapInitPromise;
@@ -2204,12 +2378,33 @@
     });
 
     rapidSync.on('SOS_RESOLVED', (data) => {
-      if (currentSosAlertId === data.id) {
+      if (sosActiveFlag && currentSosAlertId && data && String(currentSosAlertId) === String(data.id)) {
         showToast('✅ Admin Command has dispatched responders & marked your SOS as resolved.', 'success');
         speakText('Emergency responders have been dispatched to your location.', 'en');
-        deactivateSOS();
+        deactivateSOS(true);
       }
       loadUserIncidents();
+    });
+
+    rapidSync.on('SOS_DEACTIVATED', (data) => {
+      if (sosActiveFlag && currentSosAlertId && data && String(currentSosAlertId) === String(data.id)) {
+        deactivateSOS(true);
+      }
+    });
+
+    // Support direct deep-links from landing page (?action=sos|voice|report|track)
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const action = (params.get('action') || '').toLowerCase();
+      if (action === 'sos') {
+        setTimeout(() => activateSOS(), 250);
+      } else if (action === 'voice') {
+        setTimeout(() => openVoiceReport(), 200);
+      } else if (action === 'report') {
+        setTimeout(() => focusCivilianReportForm(), 200);
+      } else if (action === 'track') {
+        setTimeout(() => focusCivilianTracking(), 250);
+      }
     });
   </script>
 

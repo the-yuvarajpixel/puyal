@@ -453,7 +453,9 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(incident)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create incident');
+    return data;
   }
 
   async updateIncident(id, status) {
@@ -462,14 +464,18 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update incident');
+    return data;
   }
 
   async deleteIncident(id) {
     const res = await fetch(`/api/incidents/${id}`, {
       method: 'DELETE'
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete incident');
+    return data;
   }
 
   async fetchSOS() {
@@ -484,14 +490,18 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sosData)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create SOS alert');
+    return data;
   }
 
   async resolveSOS(id) {
     const res = await fetch(`/api/sos/${id}/resolve`, {
       method: 'POST'
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to resolve SOS');
+    return data;
   }
 
   async processVoiceAI(text, language = 'en') {
@@ -542,14 +552,18 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dispatchParams)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Group dispatch failed');
+    return data;
   }
 
   async resetGovFleet() {
     const res = await fetch('/api/government/reset-fleet', {
       method: 'POST'
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Fleet reset failed');
+    return data;
   }
 
   getSosWebSocketUrl(role, sosId) {
@@ -622,7 +636,9 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(teamData)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create team');
+    return data;
   }
 
   async updateTeam(teamId, patchData) {
@@ -631,14 +647,18 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patchData)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update team');
+    return data;
   }
 
   async deleteTeam(teamId) {
     const res = await fetch(`/api/teams/${teamId}`, {
       method: 'DELETE'
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete team');
+    return data;
   }
 
   async createStation(stationData) {
@@ -647,13 +667,17 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stationData)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create station');
+    return data;
   }
 
   // AI Smart Team Recommendation & Assignment
   async fetchRecommendedTeams(incidentId) {
     const res = await fetch(`/api/incidents/${incidentId}/recommended-teams`);
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch recommendations');
+    return data;
   }
 
   async assignTeamToIncident(incidentId, teamId) {
@@ -662,19 +686,25 @@ class RapidSync {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId })
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to assign team');
+    return data;
   }
 
   async releaseTeam(teamId) {
     const res = await fetch(`/api/teams/${teamId}/release`, {
       method: 'POST'
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to release team');
+    return data;
   }
 
   async fetchNearestIncidentForTeam(teamId) {
     const res = await fetch(`/api/teams/${teamId}/nearest-incident`);
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to locate nearest incident');
+    return data;
   }
 }
 

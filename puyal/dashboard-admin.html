@@ -1015,15 +1015,33 @@
     // ====================================================================
     rapidSync.on('SOS_ACTIVATED', (alert) => {
       playEmergencyAlertChime();
-      sosAlerts.unshift(alert);
+      if (!sosAlerts.some(a => String(a.id) === String(alert.id))) {
+        sosAlerts.unshift(alert);
+      }
       renderSOSFeed();
+      updateTacticalMap();
       showToast(`🚨 INCOMING SOS ALERT from ${alert.email}!`, 'error');
       speakText(`Incoming SOS emergency from civilian. Immediate dispatch required.`, 'en');
     });
 
     rapidSync.on('SOS_RESOLVED', (data) => {
-      sosAlerts = sosAlerts.map(a => a.id === data.id ? { ...a, active: false } : a);
+      sosAlerts = sosAlerts.map(a => String(a.id) === String(data.id) ? { ...a, active: false } : a);
       renderSOSFeed();
+      updateTacticalMap();
+      if (activeStreamSosId && String(activeStreamSosId) === String(data.id)) {
+        const pktBadge = document.getElementById('stream-packet-badge');
+        if (pktBadge) {
+          pktBadge.textContent = 'SOS Resolved';
+          pktBadge.style.color = '#fca5a5';
+          pktBadge.style.borderColor = '#fca5a5';
+        }
+      }
+    });
+
+    rapidSync.on('SOS_DEACTIVATED', (data) => {
+      sosAlerts = sosAlerts.map(a => String(a.id) === String(data.id) ? { ...a, active: false } : a);
+      renderSOSFeed();
+      updateTacticalMap();
     });
 
     rapidSync.on('INCIDENT_CREATED', (inc) => {
@@ -1080,7 +1098,7 @@
 
     // Handle incoming video frame from civilian during live streaming
     rapidSync.on('SOS_FRAME_UPDATE', (data) => {
-      if (activeStreamSosId === data.sosId) {
+      if (activeStreamSosId && data && String(activeStreamSosId) === String(data.sosId)) {
         updateActiveStreamUI(data);
       }
     });
@@ -1224,10 +1242,10 @@
               ● Live Camera Video &amp; Mic Audio Feed Active
             </div>
             <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
-              <button class="btn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; padding: 7px 14px; font-size: 12px; font-weight: 800; border: none; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openLiveStreamModal('${d.id}', '${d.email}', '${d.latitude || ''}', '${d.longitude || ''}')">
+              <button class="btn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; padding: 7px 14px; font-size: 12px; font-weight: 800; border: none; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openLiveStreamForSOS('${String(d.id).replace(/'/g, '')}')">
                 📹 Watch Live Camera &amp; Mic Stream
               </button>
-              <button class="btn btn-confirm" style="padding: 7px 14px; font-size: 12px;" onclick="resolveSOSAlert('${d.id}')">
+              <button class="btn btn-confirm" style="padding: 7px 14px; font-size: 12px;" onclick="resolveSOSAlert('${String(d.id).replace(/'/g, '')}')">
                 ✅ Dispatch &amp; Resolve
               </button>
               ${d.latitude ? `<a href="https://www.google.com/maps?q=${d.latitude},${d.longitude}" target="_blank" class="btn" style="background: var(--info); color: #fff; padding: 7px 14px; font-size: 12px; text-decoration: none;">🗺️ Satellite Map</a>` : ''}
@@ -1275,6 +1293,8 @@
     let adminGainNode = null;
     let adminNextAudioTime = 0;
     let lastAdminAudioSeq = 0;
+    let lastAdminAudioSosId = null;
+    let pendingAdminPcmQueue = [];
     let adminStreamPacketCount = 0;
     let adminFrameTimestamps = [];
     let adminWaveHistory = new Array(28).fill(8);
@@ -1316,8 +1336,9 @@
 
     function initAdminAudioPlayback() {
       try {
-        if (!adminAudioCtx) {
+        if (!adminAudioCtx || adminAudioCtx.state === 'closed') {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
           adminAudioCtx = new AudioCtx({ latencyHint: 'interactive' });
           adminCompressorNode = adminAudioCtx.createDynamicsCompressor();
           adminCompressorNode.threshold.value = -20;
@@ -1334,11 +1355,24 @@
           adminNextAudioTime = adminAudioCtx.currentTime;
         }
         if (adminAudioCtx.state === 'suspended') {
-          adminAudioCtx.resume().catch(() => {});
+          adminAudioCtx.resume().then(() => {
+            updateAudioMonitorButtonUI();
+            flushPendingAdminPcmQueue();
+          }).catch(() => {
+            updateAudioMonitorButtonUI();
+          });
         }
       } catch (e) {
         console.warn('Admin AudioContext init warning:', e);
       }
+    }
+
+    function flushPendingAdminPcmQueue() {
+      if (!adminAudioCtx || adminAudioCtx.state !== 'running' || pendingAdminPcmQueue.length === 0) return;
+      const queued = pendingAdminPcmQueue.splice(0, pendingAdminPcmQueue.length);
+      queued.forEach(item => {
+        playDecodedPcmChunk(item.base64Pcm, item.sampleRate);
+      });
     }
 
     function setAdminAudioGain(percentVal) {
@@ -1349,22 +1383,25 @@
 
       if (pct === 0 && adminAudioMonitorActive) {
         adminAudioMonitorActive = false;
-        updateAudioMonitorButtonUI();
       } else if (pct > 0 && !adminAudioMonitorActive) {
         adminAudioMonitorActive = true;
-        updateAudioMonitorButtonUI();
       }
 
       initAdminAudioPlayback();
       if (adminGainNode && adminAudioCtx) {
         adminGainNode.gain.setTargetAtTime(adminAudioMonitorActive ? adminAudioGainValue : 0.0, adminAudioCtx.currentTime, 0.02);
       }
+      updateAudioMonitorButtonUI();
     }
 
     function updateAudioMonitorButtonUI() {
       const btn = document.getElementById('btn-toggle-audio-monitor');
       if (!btn) return;
-      if (adminAudioMonitorActive) {
+      const needsResume = adminAudioMonitorActive && adminAudioCtx && adminAudioCtx.state === 'suspended';
+      if (needsResume) {
+        btn.textContent = '🔇 Tap to Enable Audio';
+        btn.style.background = '#d97706';
+      } else if (adminAudioMonitorActive) {
         btn.textContent = '🔊 Audio: LIVE';
         btn.style.background = 'var(--success)';
       } else {
@@ -1374,6 +1411,13 @@
     }
 
     function toggleAdminAudioMonitor() {
+      // If context was suspended by browser autoplay policy, clicking enables/resumes without accidentally muting
+      if (adminAudioMonitorActive && adminAudioCtx && adminAudioCtx.state === 'suspended') {
+        initAdminAudioPlayback();
+        updateAudioMonitorButtonUI();
+        showToast('Resuming live civilian microphone audio...', 'info');
+        return;
+      }
       adminAudioMonitorActive = !adminAudioMonitorActive;
       initAdminAudioPlayback();
       if (adminGainNode && adminAudioCtx) {
@@ -1383,18 +1427,8 @@
       showToast(adminAudioMonitorActive ? 'Live civilian microphone audio enabled.' : 'Live audio monitor muted.', adminAudioMonitorActive ? 'success' : 'info');
     }
 
-    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
-      if (!base64Pcm || !activeStreamSosId) return;
-      if (seq && seq <= lastAdminAudioSeq) return;
-      if (seq) lastAdminAudioSeq = seq;
-
-      initAdminAudioPlayback();
-      if (!adminAudioCtx || !adminCompressorNode) return;
-      if (adminAudioCtx.state !== 'running') {
-        adminAudioCtx.resume().catch(() => {});
-        return;
-      }
-
+    function playDecodedPcmChunk(base64Pcm, sampleRate = 16000) {
+      if (!base64Pcm || !adminAudioCtx || !adminCompressorNode || adminAudioCtx.state !== 'running') return;
       try {
         const binary = atob(base64Pcm);
         const len = binary.length;
@@ -1425,6 +1459,27 @@
       } catch (e) {
         console.warn('PCM audio chunk decode warning:', e);
       }
+    }
+
+    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
+      if (!base64Pcm || !activeStreamSosId) return;
+      if (lastAdminAudioSosId !== activeStreamSosId) {
+        lastAdminAudioSosId = activeStreamSosId;
+        lastAdminAudioSeq = 0;
+      }
+      if (seq && lastAdminAudioSeq && seq <= lastAdminAudioSeq && (lastAdminAudioSeq - seq) < 10) return;
+      if (seq) lastAdminAudioSeq = seq;
+
+      initAdminAudioPlayback();
+      if (!adminAudioCtx || !adminCompressorNode) return;
+      if (adminAudioCtx.state !== 'running') {
+        pendingAdminPcmQueue.push({ base64Pcm, sampleRate });
+        if (pendingAdminPcmQueue.length > 4) pendingAdminPcmQueue.shift();
+        updateAudioMonitorButtonUI();
+        return;
+      }
+
+      playDecodedPcmChunk(base64Pcm, sampleRate);
     }
 
     function updateAudioVisualizer(level, hasRealAudio) {
@@ -1505,6 +1560,11 @@
               adminWsLatencyMs = Math.max(1, Date.now() - msg.clientTs);
             } else if (msg.type === 'SOS_FRAME_UPDATE') {
               updateActiveStreamUI(msg);
+              if (Array.isArray(msg.recentAudioChunks)) {
+                msg.recentAudioChunks.forEach(c => {
+                  enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 16000, c.seq || 0);
+                });
+              }
               if (msg.audioPcmBase64) {
                 enqueuePcmAudioChunk(msg.audioPcmBase64, msg.sampleRate || 16000, msg.seq || 0);
               }
@@ -1543,23 +1603,56 @@
       }
     }
 
+    function openLiveStreamForSOS(sosId) {
+      const match = (sosAlerts || []).find(a => String(a.id) === String(sosId));
+      return openLiveStreamModal(
+        sosId,
+        match ? match.email : 'Civilian Device',
+        match ? match.latitude : '',
+        match ? match.longitude : ''
+      );
+    }
+
     async function openLiveStreamModal(sosId, email, lat, lon) {
+      // Tear down any existing stream subscription & timers cleanly when switching SOS feeds
+      clearTimeout(adminWsReconnectTimer);
+      clearInterval(adminWsPingInterval);
+      if (streamPollInterval) clearInterval(streamPollInterval);
+      if (streamTimerInterval) clearInterval(streamTimerInterval);
+      if (adminStreamWs) {
+        try {
+          adminStreamWs.onclose = null;
+          adminStreamWs.close();
+        } catch (e) {}
+        adminStreamWs = null;
+      }
+
       activeStreamSosId = String(sosId);
       streamSeconds = 0;
       adminStreamPacketCount = 0;
       adminFrameTimestamps = [];
       adminWsLatencyMs = null;
       lastAdminAudioSeq = 0;
+      lastAdminAudioSosId = activeStreamSosId;
+      pendingAdminPcmQueue = [];
       adminAudioMonitorActive = true;
       adminWaveHistory = new Array(28).fill(8);
 
       document.getElementById('live-stream-modal').classList.remove('hidden');
       document.getElementById('stream-user-email').textContent = email || 'Civilian Device';
+      document.getElementById('stream-timer').textContent = '00:00';
       document.getElementById('stream-coords').textContent = lat && lon ? `${lat}, ${lon} (GPS Live)` : 'Detecting GPS...';
       document.getElementById('stream-map-link').href = lat && lon ? `https://www.google.com/maps?q=${lat},${lon}` : '#';
-      document.getElementById('admin-live-stream-img').style.display = 'none';
+      const streamImg = document.getElementById('admin-live-stream-img');
+      streamImg.src = '';
+      streamImg.style.display = 'none';
       document.getElementById('stream-waiting-indicator').style.display = 'block';
-      document.getElementById('stream-packet-badge').textContent = 'Connecting WS...';
+      const pktBadge = document.getElementById('stream-packet-badge');
+      pktBadge.textContent = 'Connecting WS...';
+      pktBadge.style.color = '#38bdf8';
+      pktBadge.style.borderColor = '#38bdf8';
+      document.getElementById('admin-audio-source-label').textContent = '🎙️ LIVE AUDIO FEED:';
+      document.getElementById('audio-db-level').textContent = 'Listening...';
 
       // Cancel any ongoing speech synthesis so it never talks over the live civilian microphone
       if ('speechSynthesis' in window) {
@@ -1676,8 +1769,13 @@
       }
       if (streamPollInterval) clearInterval(streamPollInterval);
       if (streamTimerInterval) clearInterval(streamTimerInterval);
+      pendingAdminPcmQueue = [];
+      lastAdminAudioSosId = null;
       document.getElementById('live-stream-modal').classList.add('hidden');
     }
+
+    window.openLiveStreamForSOS = openLiveStreamForSOS;
+    window.openLiveStreamModal = openLiveStreamModal;
 
     async function resolveCurrentStreamSOS() {
       if (activeStreamSosId) {
@@ -1847,7 +1945,7 @@
 
             <div class="team-meta-row" style="margin-top: 8px;">
               <div class="team-meta-item">
-                <div class="team-meta-val">👥 ${team.personnel || 8} Responders</div>
+                <div class="team-meta-val">👥 ${team.personnelCount || team.personnel || 8} Responders</div>
                 <div class="team-meta-lbl">Specialized Crew</div>
               </div>
               <div class="team-meta-item">
@@ -1978,25 +2076,25 @@
                 </div>
                 <div style="text-align: right;">
                   <span class="rec-distance">📍 ${rec.distanceKm} km away</span>
-                  <div style="font-size: 12px; font-weight: 800; color: ${rec.suitabilityScore >= 75 ? '#059669' : '#d97706'}; margin-top: 3px;">
-                    Suitability: ${rec.suitabilityScore}/100
+                  <div style="font-size: 12px; font-weight: 800; color: ${(rec.suitabilityScore ?? rec.matchScore ?? 0) >= 75 ? '#059669' : '#d97706'}; margin-top: 3px;">
+                    Suitability: ${rec.suitabilityScore ?? rec.matchScore ?? 0}/100
                   </div>
                 </div>
               </div>
 
               <div class="rec-reason">
-                💡 <strong>AI Dispatch Match Analysis:</strong> ${rec.reason}
+                💡 <strong>AI Dispatch Match Analysis:</strong> ${rec.reason || rec.matchReason || 'Matched by proximity and availability'}
               </div>
 
               <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 11px; color: var(--text-secondary);">
-                <span>👥 ${rec.personnel} crew &bull; Readiness: <strong>${rec.status}</strong></span>
+                <span>👥 ${rec.personnelCount || rec.personnel || 8} crew &bull; Readiness: <strong>${rec.status}</strong></span>
                 <div>
                   ${isCurrentlyAssigned ? `
                     <span style="color: #059669; font-weight: 800; font-size: 12px;">
                       ● Currently Deployed Here
                     </span>
                   ` : `
-                    <button type="button" class="btn-dispatch-now" onclick="dispatchTeamToIncident('${incidentId}', '${rec.id}')">
+                    <button type="button" class="btn-dispatch-now" onclick="dispatchTeamToIncident('${incidentId}', '${rec.teamId || rec.id}')">
                       ⚡ One-Click Dispatch Team
                     </button>
                   `}
@@ -2066,29 +2164,55 @@
     // ====================================================================
     // CREATE TEAM & STATION MODALS
     // ====================================================================
+    function onTeamCategoryChange(category) {
+      const expertiseEl = document.getElementById('new-team-expertise');
+      const vehiclesEl = document.getElementById('new-team-vehicles');
+      const defaults = {
+        'Fire': { exp: 'Thermal Fire Suppression & Smoke Extraction', veh: 'Heavy Water Tender, Foam Cannon Unit' },
+        'Medical Emergency': { exp: 'Advanced Life Support & Trauma Stabilization', veh: 'ALS Cardiac Ambulance, MedEvac Van' },
+        'Structural Collapse': { exp: 'Heavy Debris Extraction & K9 Search', veh: 'Heavy Rescue Crane, Acoustic Listening Van' },
+        'Flood': { exp: 'Swift-Water Rescue & Coastal Evacuation', veh: 'Inflatable Rescue Boat, Amphibious Carrier' },
+        'Road Accident': { exp: 'Highway Extrication & Rapid Triage', veh: 'Hydraulic Cutter ERV, Trauma Support Unit' },
+        'Natural Disaster': { exp: 'Cyclone Relief & Multi-Hazard Response', veh: 'All-Terrain Command Truck, Mobile Generator' },
+        'Other': { exp: 'HAZMAT Containment & Chemical Decontamination', veh: 'HAZMAT Containment Truck, Decon Unit' }
+      };
+      const preset = defaults[category] || { exp: `${category} Emergency Response`, veh: 'Rapid Response Vehicle' };
+      if (expertiseEl && !expertiseEl.value.trim()) expertiseEl.placeholder = preset.exp;
+      if (vehiclesEl && !vehiclesEl.value.trim()) vehiclesEl.placeholder = preset.veh;
+    }
+
+    function onStationSelectionChange(stationId) {
+      const stationSelect = document.getElementById('new-team-station');
+      if (!stationSelect) return;
+      const opt = stationSelect.selectedOptions && stationSelect.selectedOptions[0];
+      if (opt) {
+        const lat = opt.getAttribute('data-lat');
+        const lon = opt.getAttribute('data-lon');
+        if (lat) document.getElementById('new-team-lat').value = lat;
+        if (lon) document.getElementById('new-team-lon').value = lon;
+      }
+    }
+
     function openCreateTeamModal() {
       // Populate stations dropdown
       const stationSelect = document.getElementById('new-team-station');
       if (stationSelect && governmentStations.length > 0) {
-        stationSelect.innerHTML = governmentStations.map(s => `
-          <option value="${s.id}" data-lat="${s.latitude || 13.0604}" data-lon="${s.longitude || 80.2496}" data-name="${s.name}">
-            ${s.name} (${s.zone})
-          </option>
-        `).join('');
+        stationSelect.innerHTML = governmentStations.map(s => {
+          const stnId = s.stationId || s.id || '';
+          return `
+            <option value="${stnId}" data-lat="${s.latitude || 13.0604}" data-lon="${s.longitude || 80.2496}" data-name="${s.name}">
+              ${s.name} (${s.zone})
+            </option>
+          `;
+        }).join('');
 
         // Pre-fill coords from first station
         const first = governmentStations[0];
         document.getElementById('new-team-lat').value = first.latitude || 13.0604;
         document.getElementById('new-team-lon').value = first.longitude || 80.2496;
-
-        stationSelect.onchange = function() {
-          const opt = stationSelect.selectedOptions[0];
-          if (opt) {
-            document.getElementById('new-team-lat').value = opt.getAttribute('data-lat');
-            document.getElementById('new-team-lon').value = opt.getAttribute('data-lon');
-          }
-        };
       }
+      const catEl = document.getElementById('new-team-category');
+      if (catEl) onTeamCategoryChange(catEl.value);
       document.getElementById('create-team-modal').classList.remove('hidden');
     }
 
@@ -2100,15 +2224,19 @@
       event.preventDefault();
       const stationSelect = document.getElementById('new-team-station');
       const selectedOption = stationSelect ? stationSelect.selectedOptions[0] : null;
+      const crewSize = parseInt(document.getElementById('new-team-personnel').value, 10) || 8;
+      const expertiseVal = document.getElementById('new-team-expertise')?.value.trim();
 
       const payload = {
         name: document.getElementById('new-team-name').value.trim(),
         category: document.getElementById('new-team-category').value,
-        stationId: stationSelect ? stationSelect.value : 'STN-CENTRAL-01',
+        expertise: expertiseVal || undefined,
+        stationId: stationSelect ? stationSelect.value : 'STN-CEN-01',
         stationName: selectedOption ? selectedOption.getAttribute('data-name') : 'Emergency Depot',
         latitude: parseFloat(document.getElementById('new-team-lat').value) || 13.0604,
         longitude: parseFloat(document.getElementById('new-team-lon').value) || 80.2496,
-        personnel: parseInt(document.getElementById('new-team-personnel').value, 10) || 8,
+        personnelCount: crewSize,
+        personnel: crewSize,
         status: document.getElementById('new-team-status').value || 'Available',
         vehicles: document.getElementById('new-team-vehicles').value
           .split(',')

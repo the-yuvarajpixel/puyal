@@ -57,7 +57,11 @@
   // --------------------------------------------------------------------------
   async function startRecording(onComplete, onStateChange) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      alert('Microphone access is not supported in this browser.');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Microphone access is not supported in this browser.', 'error');
+      } else {
+        console.warn('Microphone access is not supported in this browser.');
+      }
       return null;
     }
 
@@ -90,7 +94,9 @@
       return recorder;
     } catch (err) {
       console.error('Microphone error:', err);
-      alert('Microphone permission was denied or not available.');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Microphone permission was denied or not available.', 'error');
+      }
       return null;
     }
   }

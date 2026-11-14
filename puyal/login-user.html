@@ -174,17 +174,20 @@
         <div id="magic-result" class="magic-link-banner hidden"></div>
       </form>
 
-      <!-- Demo Sign-In Action (Cross-device linked) -->
-      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+      <!-- Instant Guest & Demo Sign-In Actions -->
+      <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; padding: 12px; border-radius: var(--radius-md); font-size: 14px; font-weight: 800; cursor: pointer; border: none; box-shadow: 0 2px 10px rgba(220,38,38,0.35);" onclick="enterAsGuestCivilian(true)">
+          🚨 Instant SOS Live Stream &amp; Guest Portal
+        </button>
         <button type="button" class="btn" style="width: 100%; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; padding: 12px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; cursor: pointer; border: none; box-shadow: 0 2px 8px rgba(37,99,235,0.3);" onclick="demoLogin()">
           ⚡ Quick Demo Civilian Sign In
         </button>
-        <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
-          Linked to Demo Admin account — alerts &amp; SOS will appear live on admin dashboard.
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+          Zero-barrier emergency access — reports, voice, &amp; SOS streams appear live on the Admin Command dashboard.
         </p>
       </div>
 
-      <a href="index.html" class="back-link">← Back to role selection</a>
+      <a href="index.html" class="back-link">← Back to portal home</a>
     </div>
   </div>
 
@@ -248,12 +251,12 @@
     window._currentRole = 'user';
     let isSignUp = false;
 
-    // Check if already signed in
+    // Check if already signed in (skip auto-redirect when user explicitly opened Sign In to switch accounts)
     const existing = localStorage.getItem('currentUser');
-    if (existing) {
+    if (existing && !window.location.search.includes('switch=1')) {
       try {
         const u = JSON.parse(existing);
-        if (u.role === 'user') {
+        if (u.role === 'user' && !u.isGuest) {
           // If already signed in, check if URL has no special params
           if (!window.location.search.includes('finishSignUp') && !window.location.search.includes('mode=signIn')) {
             window.location.href = 'dashboard-user.html';
@@ -306,7 +309,7 @@
           const urlParams = new URLSearchParams(window.location.search);
           email = urlParams.get('email');
           if (!email) {
-            email = window.prompt('Please provide your email for confirmation');
+            showError('Please enter your email address below or reopen the full sign-in link.');
           }
         }
 
@@ -390,8 +393,26 @@
     });
 
     // ------------------------------------------------------------------------
-    // Quick Demo Sign In
+    // Instant Guest Civilian Access & Quick Demo Sign In
     // ------------------------------------------------------------------------
+    function enterAsGuestCivilian(launchSos = false) {
+      let guestUid = localStorage.getItem('guestCivilianUid');
+      if (!guestUid) {
+        guestUid = 'guest_civilian_' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem('guestCivilianUid', guestUid);
+      }
+      const guestUser = {
+        uid: guestUid,
+        email: 'guest.civilian@rapidresponse.org',
+        role: 'user',
+        displayName: 'Civilian Guest',
+        isGuest: true
+      };
+      localStorage.setItem('currentUser', JSON.stringify(guestUser));
+      localStorage.setItem('userRole', 'user');
+      window.location.href = launchSos ? 'dashboard-user.html?action=sos' : 'dashboard-user.html';
+    }
+
     async function demoLogin() {
       const demoUser = {
         uid: 'demo_user_1',

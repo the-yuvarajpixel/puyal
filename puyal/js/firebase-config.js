@@ -65,7 +65,7 @@ function requireAuth(role) {
             if (doc.exists) {
               const data = doc.data();
               if (data.role && data.role !== role) {
-                alert('Access denied. You do not have ' + role + ' privileges.');
+                console.warn('Access denied. Account does not have ' + role + ' privileges.');
                 logout();
                 reject('Wrong role');
                 return;

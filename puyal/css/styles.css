@@ -612,8 +612,8 @@ body {
 /* ---------- Quick Actions Grid (User Dashboard) ---------- */
 .quick-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+  gap: 14px;
   margin-bottom: 24px;
 }
 
@@ -623,8 +623,75 @@ body {
 
 .action-card {
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 20px 16px;
   text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- Landing Page Direct Civilian Access Bar ---------- */
+.civilian-direct-bar {
+  margin-top: 26px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.civilian-direct-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.civilian-direct-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.civilian-quick-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: all 0.2s ease;
+}
+
+.civilian-quick-link:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.civilian-quick-link.sos-quick {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+  border-color: rgba(248, 113, 113, 0.55);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+
+.civilian-quick-link.sos-quick:hover {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.5);
 }
 
 .action-card .action-icon {
