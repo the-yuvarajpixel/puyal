@@ -629,7 +629,7 @@
     if (popOfflineReady) {
       const ready = swControlled || swStatusState === 'active';
       popOfflineReady.textContent = ready
-        ? '✅ Full Site & Maps Ready'
+        ? '✅ Website & App Open Without Network'
         : swStatusState === 'unsupported'
           ? '⚠️ Local Cache Only'
           : '⏳ Priming Offline Cache';
@@ -945,10 +945,10 @@
       return;
     }
 
-    const swReady = 'serviceWorker' in navigator && Boolean(navigator.serviceWorker.controller);
+    const swReady = 'serviceWorker' in navigator && (Boolean(navigator.serviceWorker.controller) || swStatusState === 'active');
     showInstallGuideModal(
-      'PUYAL Offline App Ready',
-      `${swReady ? '✅ Offline cache is active on this device.' : '⏳ Activating offline cache...'}<br><br>To install as a standalone app, use your browser menu <strong>Install PUYAL</strong> (or <strong>Add to Home Screen</strong>).<br><br>While offline, you can open all portals, view cached incidents/teams, use offline tactical maps, analyze voice reports locally, and queue SOS or incident submissions for automatic sync when reconnected.`
+      'PUYAL Offline App & Website Ready',
+      `${swReady ? '✅ Full offline cache is active on this device.' : '⏳ Activating offline cache...'}<br><br>Both the <strong>website</strong> and the <strong>installed standalone app</strong> open without internet.<br><br>To install as a standalone app, use your browser menu <strong>Install PUYAL</strong> (or <strong>Add to Home Screen</strong>).<br><br>Without a network connection, you can still open all portals, view cached incidents/teams, use offline tactical maps, analyze voice reports locally, and queue SOS or incident submissions for automatic Firebase sync when reconnected.`
     );
   }
 
@@ -1037,24 +1037,93 @@
     }
   }
 
+  function requestWarmOfflineShell(workerTarget) {
+    try {
+      if (workerTarget && typeof workerTarget.postMessage === 'function') {
+        workerTarget.postMessage({ type: 'WARM_OFFLINE_SHELL' });
+      }
+    } catch (e) {}
+  }
+
+  async function ensureOfflinePortalCacheFallback() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (typeof caches === 'undefined') return;
+    const criticalPages = [
+      '/',
+      '/index.html',
+      '/dashboard-user.html',
+      '/dashboard-admin.html',
+      '/login-user.html',
+      '/login-admin.html',
+      '/tactical-3d.html',
+      '/manifest.webmanifest'
+    ];
+    try {
+      const staticCache = await caches.open('puyal-static-v11');
+      await Promise.allSettled(
+        criticalPages.map(async (pagePath) => {
+          const hit = await staticCache.match(pagePath, { ignoreSearch: true });
+          if (!hit) {
+            const res = await fetch(pagePath, { cache: 'reload' });
+            if (res && res.ok && !res.redirected) {
+              await staticCache.put(pagePath, res);
+            }
+          }
+        })
+      );
+    } catch (e) {}
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
       detectServiceWorkerStatus();
       return;
     }
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event && event.data && event.data.type === 'OFFLINE_SHELL_READY') {
+        swStatusState = 'active';
+        swStatusDetail = 'Active & Offline Ready';
+        renderConnectivityIndicator();
+      }
+    });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       detectServiceWorkerStatus();
+      requestWarmOfflineShell(navigator.serviceWorker.controller);
     });
     if (navigator.serviceWorker.ready && typeof navigator.serviceWorker.ready.then === 'function') {
-      navigator.serviceWorker.ready.then(() => detectServiceWorkerStatus()).catch(() => {});
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          detectServiceWorkerStatus();
+          requestWarmOfflineShell((reg && reg.active) || navigator.serviceWorker.controller);
+        })
+        .catch(() => {});
     }
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {
+        if (reg && reg.waiting) {
+          try {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          } catch (e) {}
+        }
         if (reg && reg.addEventListener) {
-          reg.addEventListener('updatefound', () => detectServiceWorkerStatus());
+          reg.addEventListener('updatefound', () => {
+            const installing = reg.installing;
+            if (installing) {
+              installing.addEventListener('statechange', () => {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  try { installing.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
+                }
+                detectServiceWorkerStatus();
+              });
+            }
+            detectServiceWorkerStatus();
+          });
         }
         detectServiceWorkerStatus();
+        if (reg && reg.active) {
+          requestWarmOfflineShell(reg.active);
+        }
         if (reg && reg.update) {
           reg.update().catch(() => {});
         }
@@ -1075,6 +1144,7 @@
     detectServiceWorkerStatus();
     initBatteryMonitor();
     warmOfflineOperationalCaches();
+    setTimeout(ensureOfflinePortalCacheFallback, 700);
   }
 
   window.addEventListener('beforeinstallprompt', (e) => {

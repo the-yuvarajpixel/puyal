@@ -1,9 +1,10 @@
 // ============================================================================
 // PUYAL — Offline-First Emergency Service Worker
-// Caches all portal pages, scripts, icons, Leaflet GIS, 3D assets, & APIs
+// Guarantees all portals, scripts, icons, Leaflet GIS, 3D assets, & APIs open
+// instantaneously with or without network (website + installed standalone PWA)
 // ============================================================================
 
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const STATIC_CACHE = `puyal-static-${CACHE_VERSION}`;
 const API_CACHE = `puyal-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `puyal-runtime-${CACHE_VERSION}`;
@@ -62,7 +63,8 @@ const PREWARM_API_URLS = [
   '/api/sos',
   '/api/teams',
   '/api/government/stations',
-  '/api/bhashini/languages'
+  '/api/bhashini/languages',
+  '/api/health'
 ];
 
 const PREWARM_EXTERNAL_URLS = [
@@ -71,48 +73,66 @@ const PREWARM_EXTERNAL_URLS = [
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    (async () => {
-      const staticCache = await caches.open(STATIC_CACHE);
-      await Promise.allSettled(
-        CORE_ASSETS.map(async (url) => {
-          try {
-            const res = await fetch(url, { cache: 'reload' });
-            if (res && res.ok) {
-              await staticCache.put(url, res);
-            }
-          } catch (e) {
-            // Skip unreachable asset during install
+async function stripRedirectFlag(response) {
+  if (!response || !response.redirected) return response;
+  const body = await response.clone().arrayBuffer();
+  const headers = new Headers(response.headers);
+  return new Response(body, {
+    status: response.status || 200,
+    statusText: response.statusText || 'OK',
+    headers
+  });
+}
+
+async function cacheCoreAssets() {
+  const staticCache = await caches.open(STATIC_CACHE);
+  await Promise.allSettled(
+    CORE_ASSETS.map(async (url) => {
+      try {
+        const res = await fetch(url, { cache: 'reload' });
+        if (res && res.ok) {
+          const cleanRes = res.redirected ? await stripRedirectFlag(res) : res;
+          await staticCache.put(url, cleanRes);
+        }
+      } catch (e) {
+        // Skip unreachable asset during install
+      }
+    })
+  );
+}
+
+async function warmOperationalCachesInBackground() {
+  try {
+    const apiCache = await caches.open(API_CACHE);
+    await Promise.allSettled(
+      PREWARM_API_URLS.map(async (apiUrl) => {
+        try {
+          const res = await fetchWithTimeout(apiUrl, 2500);
+          if (res && res.ok && !res.redirected) {
+            await apiCache.put(apiUrl, res);
           }
-        })
-      );
+        } catch (e) {}
+      })
+    );
 
-      // Best-effort pre-warm of operational read APIs & external Firebase SDKs
-      const apiCache = await caches.open(API_CACHE);
-      await Promise.allSettled(
-        PREWARM_API_URLS.map(async (apiUrl) => {
-          try {
-            const res = await fetch(apiUrl, { cache: 'no-store' });
-            if (res && res.ok) {
-              await apiCache.put(apiUrl, res);
-            }
-          } catch (e) {}
-        })
-      );
+    const runtimeCache = await caches.open(RUNTIME_CACHE);
+    await Promise.allSettled(
+      PREWARM_EXTERNAL_URLS.map(async (extUrl) => {
+        try {
+          const res = await fetchWithTimeout(new Request(extUrl, { mode: 'cors' }), 2500);
+          if (res && (res.ok || res.type === 'opaque')) {
+            await runtimeCache.put(extUrl, res);
+          }
+        } catch (e) {}
+      })
+    );
+  } catch (e) {}
+}
 
-      const runtimeCache = await caches.open(RUNTIME_CACHE);
-      await Promise.allSettled(
-        PREWARM_EXTERNAL_URLS.map(async (extUrl) => {
-          try {
-            const res = await fetch(extUrl, { mode: 'cors' });
-            if (res && (res.ok || res.type === 'opaque')) {
-              await runtimeCache.put(extUrl, res);
-            }
-          } catch (e) {}
-        })
-      );
-    })().then(() => self.skipWaiting())
+self.addEventListener('install', (event) => {
+  // Fast local install only — never block skipWaiting() on external CDNs or APIs
+  event.waitUntil(
+    cacheCoreAssets().then(() => self.skipWaiting())
   );
 });
 
@@ -122,12 +142,55 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => !expectedCaches.has(k)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => {
+        // Fire-and-forget pre-warming once SW already owns all open clients
+        warmOperationalCachesInBackground();
+      })
   );
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (!event.data) return;
+  if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+    return;
+  }
+  if (event.data.type === 'WARM_OFFLINE_SHELL') {
+    const promise = (async () => {
+      const staticCache = await caches.open(STATIC_CACHE);
+      const missing = [];
+      for (const asset of CORE_ASSETS) {
+        const hit = await staticCache.match(asset, { ignoreSearch: true });
+        if (!hit) missing.push(asset);
+      }
+      if (missing.length > 0 && !isKnownOffline()) {
+        await Promise.allSettled(
+          missing.map(async (asset) => {
+            try {
+              const res = await fetchWithTimeout(asset, 2500);
+              if (res && res.ok) {
+                const cleanRes = res.redirected ? await stripRedirectFlag(res) : res;
+                await staticCache.put(asset, cleanRes);
+              }
+            } catch (e) {}
+          })
+        );
+      }
+      if (!isKnownOffline()) {
+        await warmOperationalCachesInBackground();
+      }
+      if (event.source && typeof event.source.postMessage === 'function') {
+        const verified = await staticCache.match('/index.html', { ignoreSearch: true });
+        event.source.postMessage({
+          type: 'OFFLINE_SHELL_READY',
+          cacheVersion: CACHE_VERSION,
+          ready: Boolean(verified)
+        });
+      }
+    })();
+    if (typeof event.waitUntil === 'function') {
+      event.waitUntil(promise);
+    }
   }
 });
 
@@ -166,30 +229,49 @@ function isHtmlOrNavigationRequest(request, url) {
   return !norm.includes('.');
 }
 
+function isUsableHtmlResponse(res) {
+  if (!res || !res.ok || res.redirected) return false;
+  const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+  return !ct || ct.includes('text/html') || ct.includes('application/xhtml+xml');
+}
+
 async function matchStaticWithFallback(request, url) {
-  const direct = await caches.match(request, { ignoreSearch: true });
+  const staticCache = await caches.open(STATIC_CACHE);
+  const normPath = normalizeAppPathname(url.pathname);
+
+  const direct = await staticCache.match(request, { ignoreSearch: true });
   if (direct) return direct;
 
-  const normPath = normalizeAppPathname(url.pathname);
   if (normPath !== url.pathname) {
-    const normalizedMatch = await caches.match(url.origin + normPath, { ignoreSearch: true });
+    const normalizedMatch = await staticCache.match(url.origin + normPath, { ignoreSearch: true });
     if (normalizedMatch) return normalizedMatch;
   }
 
+  const byNormPath = await staticCache.match(normPath, { ignoreSearch: true });
+  if (byNormPath) return byNormPath;
+
   if (!normPath.includes('.') && normPath !== '/') {
-    const htmlMatch = await caches.match(url.origin + normPath + '.html', { ignoreSearch: true });
+    const htmlMatch =
+      (await staticCache.match(normPath + '.html', { ignoreSearch: true })) ||
+      (await staticCache.match(url.origin + normPath + '.html', { ignoreSearch: true }));
     if (htmlMatch) return htmlMatch;
   }
 
   if (normPath === '/') {
     const rootMatch =
-      (await caches.match('/index.html', { ignoreSearch: true })) ||
-      (await caches.match('/', { ignoreSearch: true }));
+      (await staticCache.match('/index.html', { ignoreSearch: true })) ||
+      (await staticCache.match('/', { ignoreSearch: true }));
     if (rootMatch) return rootMatch;
   }
 
+  // Fallback across any versioned cache just in case of first-load race
+  const anyDirect = await caches.match(request, { ignoreSearch: true });
+  if (anyDirect) return anyDirect;
+
   if (request.mode === 'navigate' || request.destination === 'document') {
     return (
+      (await staticCache.match('/index.html', { ignoreSearch: true })) ||
+      (await staticCache.match('/', { ignoreSearch: true })) ||
       (await caches.match('/index.html', { ignoreSearch: true })) ||
       (await caches.match('/', { ignoreSearch: true }))
     );
@@ -233,6 +315,42 @@ function buildOfflineExternalStub(url, request) {
   return new Response('', { status: 204 });
 }
 
+function buildOfflineFallbackHtml() {
+  return new Response(
+    `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUYAL — Offline Portal Ready</title>
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { max-width: 440px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 20px 44px rgba(0,0,0,0.45); }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p { margin: 0 0 18px; color: #cbd5e1; font-size: 14px; line-height: 1.5; }
+    .links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    a { background: #2563eb; color: #fff; text-decoration: none; padding: 9px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>PUYAL Offline Emergency Shell</h1>
+    <p>You are currently offline. Open one of your locally cached portals below:</p>
+    <div class="links">
+      <a href="/index.html">Home Portal</a>
+      <a href="/dashboard-user.html">Civilian Emergency &amp; SOS</a>
+      <a href="/dashboard-admin.html">Admin Command</a>
+    </div>
+  </div>
+</body>
+</html>`,
+    {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'X-PUYAL-Offline': '1' }
+    }
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -259,9 +377,10 @@ self.addEventListener('fetch', (event) => {
       const apiCache = await caches.open(API_CACHE);
       try {
         const networkRes = await fetchWithTimeout(request, 1200);
-        if (networkRes && networkRes.ok) {
-          apiCache.put(request, networkRes.clone()).catch(() => {});
+        if (!networkRes || !networkRes.ok || networkRes.redirected) {
+          throw new Error('API upstream unavailable');
         }
+        apiCache.put(request, networkRes.clone()).catch(() => {});
         return networkRes;
       } catch (err) {
         const cached = await apiCache.match(request, { ignoreSearch: true });
@@ -276,59 +395,82 @@ self.addEventListener('fetch', (event) => {
     const isHtmlNav = isHtmlOrNavigationRequest(request, url);
 
     if (isHtmlNav) {
-      // HTML Documents: instant cache when offline; fast 900ms network-first when online
+      // HTML App Shell: Cache-First / Stale-While-Revalidate so website & PWA always open
+      // instantaneously without waiting for network, dead Wi-Fi, or upstream proxy errors.
       event.respondWith((async () => {
         const staticCache = await caches.open(STATIC_CACHE);
-        if (isKnownOffline()) {
-          const cachedOffline = await matchStaticWithFallback(request, url);
-          if (cachedOffline) return cachedOffline;
-        }
-        try {
-          const networkRes = await fetchWithTimeout(request, 900);
-          if (networkRes && networkRes.ok) {
-            const normPath = normalizeAppPathname(url.pathname);
-            staticCache.put(normPath + url.search, networkRes.clone()).catch(() => {});
-            if (url.search) {
-              staticCache.put(normPath, networkRes.clone()).catch(() => {});
+        const normPath = normalizeAppPathname(url.pathname);
+        const cacheKeyPath = !normPath.includes('.') && normPath !== '/'
+          ? `${normPath}.html`
+          : normPath;
+
+        const cached = await matchStaticWithFallback(request, url);
+        if (cached) {
+          if (!isKnownOffline()) {
+            const refreshPromise = fetchWithTimeout(request, 2500)
+              .then(async (networkRes) => {
+                if (isUsableHtmlResponse(networkRes)) {
+                  await staticCache.put(cacheKeyPath, networkRes.clone());
+                  if (normPath !== cacheKeyPath) {
+                    await staticCache.put(normPath, networkRes.clone());
+                  }
+                }
+              })
+              .catch(() => {});
+            if (typeof event.waitUntil === 'function') {
+              event.waitUntil(refreshPromise);
             }
           }
-          return networkRes;
+          return stripRedirectFlag(cached);
+        }
+
+        // First-time uncached route: try network cleanly, falling back to cached shell on any error/5xx
+        try {
+          const networkRes = await fetchWithTimeout(request, 1200);
+          if (!isUsableHtmlResponse(networkRes)) {
+            throw new Error('Upstream HTML unavailable');
+          }
+          staticCache.put(cacheKeyPath, networkRes.clone()).catch(() => {});
+          if (normPath !== cacheKeyPath) {
+            staticCache.put(normPath, networkRes.clone()).catch(() => {});
+          }
+          return stripRedirectFlag(networkRes);
         } catch (err) {
-          const cached = await matchStaticWithFallback(request, url);
-          if (cached) return cached;
-          return new Response('PUYAL Offline — page not cached yet.', {
-            status: 503,
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          });
+          const fallbackCached = await matchStaticWithFallback(request, url);
+          if (fallbackCached) return stripRedirectFlag(fallbackCached);
+          return buildOfflineFallbackHtml();
         }
       })());
       return;
     }
 
-    // Same-origin JS, CSS, Icons, Vendor Leaflet & Three.js: Stale-While-Revalidate (instant offline & dead-Wi-Fi)
+    // Same-origin JS, CSS, Icons, Vendor Leaflet & Three.js: Stale-While-Revalidate
     event.respondWith((async () => {
       const staticCache = await caches.open(STATIC_CACHE);
+      const normPath = normalizeAppPathname(url.pathname);
       const cached = await matchStaticWithFallback(request, url);
       if (cached) {
         if (!isKnownOffline()) {
-          fetchWithTimeout(request, 2500)
+          const refreshAsset = fetchWithTimeout(request, 2500)
             .then((networkRes) => {
-              if (networkRes && networkRes.ok) {
-                const normPath = normalizeAppPathname(url.pathname);
+              if (networkRes && networkRes.ok && !networkRes.redirected) {
                 staticCache.put(normPath, networkRes.clone()).catch(() => {});
               }
             })
             .catch(() => {});
+          if (typeof event.waitUntil === 'function') {
+            event.waitUntil(refreshAsset);
+          }
         }
         return cached;
       }
 
       try {
         const networkRes = await fetchWithTimeout(request, 1200);
-        if (networkRes && networkRes.ok) {
-          const normPath = normalizeAppPathname(url.pathname);
-          staticCache.put(normPath, networkRes.clone()).catch(() => {});
+        if (!networkRes || !networkRes.ok || networkRes.redirected) {
+          throw new Error('Asset upstream unavailable');
         }
+        staticCache.put(normPath, networkRes.clone()).catch(() => {});
         return networkRes;
       } catch (err) {
         return new Response('', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
@@ -337,7 +479,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // External CDN assets (Firebase, Fonts, OSM Tiles, Maps): CacheFirst / SWR + fast 850ms offline stub
+  // External CDN assets (Firebase, Fonts, OSM Tiles, Maps): CacheFirst / SWR + fast 700ms offline stub
   if (
     url.hostname.includes('gstatic.com') ||
     url.hostname.includes('googleapis.com') ||
@@ -346,16 +488,19 @@ self.addEventListener('fetch', (event) => {
   ) {
     event.respondWith((async () => {
       const runtimeCache = await caches.open(RUNTIME_CACHE);
-      const cached = await runtimeCache.match(request);
+      const cached = await runtimeCache.match(request, { ignoreSearch: true });
       if (cached) {
         if (!isKnownOffline()) {
-          fetchWithTimeout(request, 2500)
+          const refreshExt = fetchWithTimeout(request, 2500)
             .then((res) => {
               if (res && (res.ok || res.type === 'opaque')) {
                 runtimeCache.put(request, res.clone()).catch(() => {});
               }
             })
             .catch(() => {});
+          if (typeof event.waitUntil === 'function') {
+            event.waitUntil(refreshExt);
+          }
         }
         return cached;
       }
@@ -363,10 +508,11 @@ self.addEventListener('fetch', (event) => {
         return buildOfflineExternalStub(url, request);
       }
       try {
-        const netRes = await fetchWithTimeout(request, 850);
-        if (netRes && (netRes.ok || netRes.type === 'opaque')) {
-          runtimeCache.put(request, netRes.clone()).catch(() => {});
+        const netRes = await fetchWithTimeout(request, 700);
+        if (!netRes || (!netRes.ok && netRes.type !== 'opaque')) {
+          return buildOfflineExternalStub(url, request);
         }
+        runtimeCache.put(request, netRes.clone()).catch(() => {});
         return netRes;
       } catch (e) {
         return buildOfflineExternalStub(url, request);

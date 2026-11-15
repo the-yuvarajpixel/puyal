@@ -2314,6 +2314,9 @@ app.get(['/manifest.webmanifest', '/manifest.json'], (req, res) => {
 
 app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three')));
 app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules/leaflet/dist')));
+app.get('/puyal', (req, res) => {
+  res.sendFile(path.join(puyalDir, 'index.html'));
+});
 app.use(express.static(puyalDir, { extensions: ['html'] }));
 app.use('/puyal', express.static(puyalDir, { extensions: ['html'] }));
 
