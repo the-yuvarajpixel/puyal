@@ -14,6 +14,9 @@
   // Battery live state (Web Battery Status API)
   let batterySupported = typeof navigator !== 'undefined' && typeof navigator.getBattery === 'function';
   let batteryRef = null;
+  let lowBatteryAlertedBelow15 = false;
+  let pendingLowBatteryChime = false;
+  let batteryAlertAudioCtx = null;
   let batteryState = {
     available: false,
     level: null,
@@ -134,12 +137,85 @@
         font-variant-numeric: tabular-nums;
       }
       .nav-battery-pct.low {
-        color: #fca5a5;
-        animation: pwaPulse 1.1s infinite ease-in-out;
+        color: #fde68a;
+        animation: pwaPulse 1.3s infinite ease-in-out;
+      }
+      .nav-battery-pct.critical {
+        color: #fecaca;
+        font-weight: 800;
+        animation: pwaCriticalBatteryPulse 0.9s infinite ease-in-out;
       }
       .nav-battery-pct.charging {
         color: #6ee7b7;
       }
+      .pwa-telemetry-btn.battery-critical {
+        background: rgba(220, 38, 38, 0.32);
+        border: 1px solid rgba(248, 113, 113, 0.78);
+        color: #fecaca;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+        animation: pwaCriticalBatteryPulse 1s infinite ease-in-out;
+      }
+      .pwa-telemetry-btn.battery-critical:hover {
+        background: rgba(220, 38, 38, 0.45);
+      }
+      .pwa-nav-telemetry.has-critical-battery {
+        border-color: rgba(239, 68, 68, 0.78);
+        box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
+      }
+      @keyframes pwaCriticalBatteryPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.78; transform: scale(1.03); }
+      }
+      .nav-pending-sync-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(148, 163, 184, 0.14);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        color: #cbd5e1;
+        border-radius: 6px;
+        padding: 2px 7px;
+        font-size: 11px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      }
+      .nav-pending-sync-btn:hover {
+        background: rgba(148, 163, 184, 0.25);
+      }
+      .nav-pending-sync-btn.has-pending {
+        background: rgba(245, 158, 11, 0.22);
+        border-color: rgba(251, 191, 36, 0.58);
+        color: #fde68a;
+      }
+      .nav-pending-sync-btn.has-pending:hover {
+        background: rgba(245, 158, 11, 0.34);
+      }
+      .nav-pending-sync-count {
+        font-weight: 800;
+      }
+      .pwa-battery-toast {
+        position: fixed;
+        top: 72px;
+        right: 16px;
+        z-index: 1600;
+        max-width: 340px;
+        background: #991b1b;
+        color: #ffffff;
+        border: 1px solid rgba(254, 202, 202, 0.55);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.4;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pwa-battery-toast.hidden { display: none !important; }
       .nav-telemetry-popover {
         position: absolute;
         top: calc(100% + 8px);
@@ -339,6 +415,29 @@
     `;
   }
 
+  function getPendingSyncStats() {
+    let pendingIncidents = 0;
+    let totalQueued = 0;
+    try {
+      if (window.rapidSync && typeof window.rapidSync.getPendingIncidentSyncCount === 'function') {
+        pendingIncidents = Number(window.rapidSync.getPendingIncidentSyncCount()) || 0;
+        totalQueued = Number(window.rapidSync.getOfflineQueueCount()) || 0;
+        return { pendingIncidents, totalQueued };
+      }
+    } catch (e) {}
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('rapid_offline_outbox') : null;
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          totalQueued = list.length;
+          pendingIncidents = list.filter((item) => item && item.type === 'CREATE_INCIDENT').length;
+        }
+      }
+    } catch (e) {}
+    return { pendingIncidents, totalQueued };
+  }
+
   function ensureNavbarTelemetryUI() {
     let cluster = document.getElementById('nav-status-telemetry');
     if (cluster) return cluster;
@@ -352,11 +451,17 @@
         <span id="nav-connectivity-label">Checking…</span>
       </button>
       <span class="pwa-telemetry-divider" aria-hidden="true"></span>
+      <button type="button" id="nav-pending-sync-counter" class="nav-pending-sync-btn" aria-label="Data Pending Sync: 0 incident reports waiting for Firebase sync" aria-live="polite" title="Locally stored incident reports waiting to push to Firebase when online" data-pending-count="0">
+        <span aria-hidden="true">⏳</span>
+        <span>Data Pending Sync:</span>
+        <span id="nav-pending-sync-value" class="nav-pending-sync-count">0</span>
+      </button>
+      <span class="pwa-telemetry-divider" aria-hidden="true"></span>
       <button type="button" id="nav-battery-indicator" class="pwa-telemetry-btn" aria-label="Device battery power level" title="Checking device battery power">
         <span id="nav-battery-icon"></span>
         <span id="nav-battery-label" class="nav-battery-pct">--%</span>
       </button>
-      <div id="nav-telemetry-popover" class="nav-telemetry-popover hidden" role="dialog" aria-label="Connectivity, Service Worker, and Device Power Status">
+      <div id="nav-telemetry-popover" class="nav-telemetry-popover hidden" role="dialog" aria-label="Connectivity, Service Worker, Pending Sync, and Device Power Status">
         <div style="font-weight:800; font-size:12px; color:#38bdf8; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
           <span>📡 Device &amp; Offline Telemetry</span>
           <button type="button" id="nav-telemetry-close" style="background:none;border:none;color:#94a3b8;font-size:15px;cursor:pointer;line-height:1;" aria-label="Close telemetry">&times;</button>
@@ -370,8 +475,12 @@
           <span class="nav-telemetry-val" id="pop-sw-val">—</span>
         </div>
         <div class="nav-telemetry-row">
-          <span class="nav-telemetry-key">Offline Queue</span>
-          <span class="nav-telemetry-val" id="pop-queue-val">0 pending</span>
+          <span class="nav-telemetry-key">Offline Access</span>
+          <span class="nav-telemetry-val" id="pop-offline-ready-val">Checking…</span>
+        </div>
+        <div class="nav-telemetry-row">
+          <span class="nav-telemetry-key">Data Pending Sync</span>
+          <span class="nav-telemetry-val" id="pop-queue-val">0 incidents</span>
         </div>
         <div class="nav-telemetry-row">
           <span class="nav-telemetry-key">Battery Level</span>
@@ -382,7 +491,7 @@
           <span class="nav-telemetry-val" id="pop-power-val">—</span>
         </div>
         <div id="pop-sync-actions" style="margin-top:8px; display:none;">
-          <button type="button" id="pop-sync-btn" style="width:100%; padding:6px 10px; border:none; border-radius:6px; background:#059669; color:#fff; font-weight:700; font-size:11px; cursor:pointer;">🔄 Sync Queued Records</button>
+          <button type="button" id="pop-sync-btn" style="width:100%; padding:6px 10px; border:none; border-radius:6px; background:#059669; color:#fff; font-weight:700; font-size:11px; cursor:pointer;">🔄 Push Pending Data to Firebase</button>
         </div>
       </div>
     `;
@@ -418,6 +527,7 @@
     };
 
     document.getElementById('nav-connectivity-indicator').addEventListener('click', togglePopover);
+    document.getElementById('nav-pending-sync-counter').addEventListener('click', togglePopover);
     document.getElementById('nav-battery-indicator').addEventListener('click', togglePopover);
     document.getElementById('nav-telemetry-close').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -453,15 +563,15 @@
     const dot = document.getElementById('nav-connectivity-dot');
     const label = document.getElementById('nav-connectivity-label');
     const btn = document.getElementById('nav-connectivity-indicator');
+    const pendingBtn = document.getElementById('nav-pending-sync-counter');
+    const pendingValEl = document.getElementById('nav-pending-sync-value');
     const popNet = document.getElementById('pop-network-val');
     const popSw = document.getElementById('pop-sw-val');
+    const popOfflineReady = document.getElementById('pop-offline-ready-val');
     const popQueue = document.getElementById('pop-queue-val');
     const popSyncActions = document.getElementById('pop-sync-actions');
 
-    const queuedCount =
-      window.rapidSync && typeof window.rapidSync.getOfflineQueueCount === 'function'
-        ? window.rapidSync.getOfflineQueueCount()
-        : 0;
+    const { pendingIncidents, totalQueued } = getPendingSyncStats();
 
     const swControlled =
       typeof navigator !== 'undefined' &&
@@ -494,6 +604,20 @@
     if (label) label.textContent = shortText;
     if (btn) btn.title = titleMsg;
 
+    if (pendingValEl) pendingValEl.textContent = String(pendingIncidents);
+    if (pendingBtn) {
+      pendingBtn.classList.toggle('has-pending', pendingIncidents > 0);
+      pendingBtn.setAttribute('data-pending-count', String(pendingIncidents));
+      pendingBtn.setAttribute(
+        'aria-label',
+        `Data Pending Sync: ${pendingIncidents} incident report${pendingIncidents === 1 ? '' : 's'} stored locally waiting for Firebase sync`
+      );
+      pendingBtn.title =
+        pendingIncidents > 0
+          ? `${pendingIncidents} locally saved incident report(s) waiting to be pushed to Firebase when connectivity is restored`
+          : 'Data Pending Sync: 0 — All local incident reports are synced with Firebase';
+    }
+
     if (popNet) {
       popNet.textContent = online ? '🟢 Connected (Online)' : '🟠 Disconnected (Offline)';
       popNet.style.color = online ? '#6ee7b7' : '#fcd34d';
@@ -502,17 +626,142 @@
       popSw.textContent = swStatusDetail;
       popSw.style.color = swControlled ? '#6ee7b7' : '#cbd5e1';
     }
+    if (popOfflineReady) {
+      const ready = swControlled || swStatusState === 'active';
+      popOfflineReady.textContent = ready
+        ? '✅ Full Site & Maps Ready'
+        : swStatusState === 'unsupported'
+          ? '⚠️ Local Cache Only'
+          : '⏳ Priming Offline Cache';
+      popOfflineReady.style.color = ready ? '#6ee7b7' : '#fcd34d';
+    }
     if (popQueue) {
-      popQueue.textContent = queuedCount > 0 ? `${queuedCount} queued` : '0 pending';
-      popQueue.style.color = queuedCount > 0 ? '#fcd34d' : '#cbd5e1';
+      const extraActions = totalQueued > pendingIncidents ? ` (+${totalQueued - pendingIncidents} ops)` : '';
+      popQueue.textContent = `${pendingIncidents} incident${pendingIncidents === 1 ? '' : 's'} pending Firebase${extraActions}`;
+      popQueue.style.color = pendingIncidents > 0 || totalQueued > 0 ? '#fcd34d' : '#cbd5e1';
     }
     if (popSyncActions) {
-      popSyncActions.style.display = online && queuedCount > 0 ? 'block' : 'none';
+      popSyncActions.style.display = online && totalQueued > 0 ? 'block' : 'none';
+    }
+  }
+
+  function showLowBatteryToast(pct) {
+    const msg = `🪫 Critical Battery (${pct}%): Power below 15% — connect charger immediately!`;
+    if (typeof window.showToast === 'function') {
+      try {
+        window.showToast(msg, 'error');
+        return;
+      } catch (e) {}
+    }
+
+    let toast = document.getElementById('pwa-battery-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'pwa-battery-toast';
+      toast.className = 'pwa-battery-toast hidden';
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'assertive');
+      toast.innerHTML = `
+        <span id="pwa-battery-toast-msg"></span>
+        <button type="button" id="pwa-battery-toast-close" style="background:none;border:none;color:#fecaca;font-size:15px;font-weight:800;cursor:pointer;line-height:1;" aria-label="Dismiss battery alert">&times;</button>
+      `;
+      document.body.appendChild(toast);
+      const closeBtn = document.getElementById('pwa-battery-toast-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => toast.classList.add('hidden'));
+      }
+    }
+    const msgEl = document.getElementById('pwa-battery-toast-msg');
+    if (msgEl) msgEl.textContent = msg;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+      if (toast) toast.classList.add('hidden');
+    }, 5500);
+  }
+
+  function scheduleLowBatteryAudioUnlock() {
+    if (pendingLowBatteryChime) return;
+    pendingLowBatteryChime = true;
+    const unlockAndPlay = () => {
+      window.removeEventListener('pointerdown', unlockAndPlay);
+      window.removeEventListener('keydown', unlockAndPlay);
+      if (!pendingLowBatteryChime) return;
+      pendingLowBatteryChime = false;
+      if (batteryState.available && !batteryState.charging && batteryState.level != null && batteryState.level < 0.15) {
+        playLowBatteryAlertSound(true);
+      }
+    };
+    window.addEventListener('pointerdown', unlockAndPlay, { once: true, passive: true });
+    window.addEventListener('keydown', unlockAndPlay, { once: true, passive: true });
+  }
+
+  function playLowBatteryAlertSound(fromUserGesture) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return false;
+      if (!batteryAlertAudioCtx || batteryAlertAudioCtx.state === 'closed') {
+        batteryAlertAudioCtx = new AudioCtx();
+      }
+      const ctx = batteryAlertAudioCtx;
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          if (ctx.state === 'running') {
+            triggerSoftBatteryChime(ctx);
+          } else if (!fromUserGesture) {
+            scheduleLowBatteryAudioUnlock();
+          }
+        }).catch(() => {
+          if (!fromUserGesture) scheduleLowBatteryAudioUnlock();
+        });
+        return true;
+      }
+      triggerSoftBatteryChime(ctx);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function triggerSoftBatteryChime(ctx) {
+    try {
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 784, start: 0, dur: 0.11, peak: 0.08 },
+        { freq: 587.33, start: 0.14, dur: 0.17, peak: 0.07 }
+      ];
+      notes.forEach((n) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(n.freq, now + n.start);
+        gain.gain.setValueAtTime(0.0001, now + n.start);
+        gain.gain.exponentialRampToValueAtTime(n.peak, now + n.start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + n.start + n.dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + n.start);
+        osc.stop(now + n.start + n.dur + 0.02);
+      });
+    } catch (e) {}
+  }
+
+  function evaluateLowBatteryThreshold(pct, charging) {
+    const below15 = !charging && pct < 15;
+    if (below15) {
+      if (!lowBatteryAlertedBelow15) {
+        lowBatteryAlertedBelow15 = true;
+        showLowBatteryToast(pct);
+        playLowBatteryAlertSound(false);
+      }
+    } else {
+      lowBatteryAlertedBelow15 = false;
+      pendingLowBatteryChime = false;
     }
   }
 
   function renderBatteryIndicator() {
     ensureNavbarTelemetryUI();
+    const cluster = document.getElementById('nav-status-telemetry');
     const iconEl = document.getElementById('nav-battery-icon');
     const labelEl = document.getElementById('nav-battery-label');
     const btnEl = document.getElementById('nav-battery-indicator');
@@ -520,6 +769,8 @@
     const popPow = document.getElementById('pop-power-val');
 
     if (!batteryState.available || batteryState.level == null) {
+      if (cluster) cluster.classList.remove('has-critical-battery');
+      if (btnEl) btnEl.classList.remove('battery-critical');
       if (iconEl) iconEl.innerHTML = buildBatterySvg(0, false, false);
       if (labelEl) {
         labelEl.textContent = batterySupported ? 'Power …' : 'Power N/A';
@@ -536,12 +787,19 @@
     }
 
     const pct = Math.round(batteryState.level * 100);
+    const isCritical = !batteryState.charging && pct < 15;
     const isLow = !batteryState.charging && pct <= 20;
 
     if (iconEl) iconEl.innerHTML = buildBatterySvg(pct, batteryState.charging, true);
     if (labelEl) {
       labelEl.textContent = batteryState.charging ? `⚡ ${pct}%` : `${pct}%`;
-      labelEl.className = `nav-battery-pct${isLow ? ' low' : ''}${batteryState.charging ? ' charging' : ''}`;
+      labelEl.className = `nav-battery-pct${isCritical ? ' critical' : isLow ? ' low' : ''}${batteryState.charging ? ' charging' : ''}`;
+    }
+    if (btnEl) {
+      btnEl.classList.toggle('battery-critical', isCritical);
+    }
+    if (cluster) {
+      cluster.classList.toggle('has-critical-battery', isCritical);
     }
 
     let timeNote = '';
@@ -552,16 +810,19 @@
     }
 
     if (btnEl) {
-      btnEl.title = `Device Battery: ${pct}% (${batteryState.charging ? 'Charging' : 'On Battery'})${timeNote ? ' • ' + timeNote : ''}${isLow ? ' — LOW POWER WARNING' : ''}`;
+      const warnText = isCritical ? ' — CRITICAL BATTERY (<15%)' : isLow ? ' — LOW POWER WARNING' : '';
+      btnEl.title = `Device Battery: ${pct}% (${batteryState.charging ? 'Charging' : 'On Battery'})${timeNote ? ' • ' + timeNote : ''}${warnText}`;
     }
     if (popBat) {
-      popBat.textContent = `${pct}%${isLow ? ' (Low Power!)' : ''}`;
-      popBat.style.color = isLow ? '#fca5a5' : pct > 50 || batteryState.charging ? '#6ee7b7' : '#fcd34d';
+      popBat.textContent = `${pct}%${isCritical ? ' (CRITICAL <15%!)' : isLow ? ' (Low Power!)' : ''}`;
+      popBat.style.color = isCritical ? '#fca5a5' : isLow ? '#fde68a' : pct > 50 || batteryState.charging ? '#6ee7b7' : '#fcd34d';
     }
     if (popPow) {
       const sourceText = batteryState.charging ? '⚡ Charging / AC' : '🔋 On Battery';
       popPow.textContent = timeNote ? `${sourceText} (${timeNote})` : sourceText;
     }
+
+    evaluateLowBatteryThreshold(pct, batteryState.charging);
   }
 
   async function detectServiceWorkerStatus() {
@@ -750,6 +1011,32 @@
     renderConnectivityIndicator();
   }
 
+  function warmOfflineOperationalCaches() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (!window.rapidSync) return;
+    const run = () => {
+      try {
+        if (!localStorage.getItem('rapid_cache_incidents') && typeof window.rapidSync.fetchIncidents === 'function') {
+          window.rapidSync.fetchIncidents().catch(() => {});
+        }
+        if (!localStorage.getItem('rapid_cache_sos') && typeof window.rapidSync.fetchSOS === 'function') {
+          window.rapidSync.fetchSOS().catch(() => {});
+        }
+        if (!localStorage.getItem('rapid_cache_teams') && typeof window.rapidSync.fetchTeams === 'function') {
+          window.rapidSync.fetchTeams().catch(() => {});
+        }
+        if (!localStorage.getItem('rapid_cache_gov_stations') && typeof window.rapidSync.fetchGovStations === 'function') {
+          window.rapidSync.fetchGovStations().catch(() => {});
+        }
+      } catch (e) {}
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      setTimeout(run, 900);
+    }
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
       detectServiceWorkerStatus();
@@ -758,9 +1045,15 @@
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       detectServiceWorkerStatus();
     });
+    if (navigator.serviceWorker.ready && typeof navigator.serviceWorker.ready.then === 'function') {
+      navigator.serviceWorker.ready.then(() => detectServiceWorkerStatus()).catch(() => {});
+    }
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {
+        if (reg && reg.addEventListener) {
+          reg.addEventListener('updatefound', () => detectServiceWorkerStatus());
+        }
         detectServiceWorkerStatus();
         if (reg && reg.update) {
           reg.update().catch(() => {});
@@ -781,6 +1074,7 @@
     registerServiceWorker();
     detectServiceWorkerStatus();
     initBatteryMonitor();
+    warmOfflineOperationalCaches();
   }
 
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -817,6 +1111,11 @@
   });
 
   window.addEventListener('rapidOfflineQueueChanged', updateConnectivityBanner);
+  window.addEventListener('storage', (e) => {
+    if (!e || !e.key || e.key === 'rapid_offline_outbox') {
+      updateConnectivityBanner();
+    }
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPwaOfflineSupport);

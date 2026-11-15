@@ -1646,7 +1646,8 @@ function buildStreamSnapshot(streamData) {
     streamData.lastFrameBuffer &&
     (!lastFrame || (streamData.lastFrameBufferSeq || 0) > (streamData.lastFrameBase64Seq || 0))
   ) {
-    lastFrame = 'data:image/jpeg;base64,' + streamData.lastFrameBuffer.toString('base64');
+    const mime = streamData.lastFrameMime || 'image/jpeg';
+    lastFrame = `data:${mime};base64,` + streamData.lastFrameBuffer.toString('base64');
     streamData.lastFrame = lastFrame;
     streamData.lastFrameBase64Seq = streamData.lastFrameBufferSeq || streamData.seq || 0;
   }
@@ -1656,7 +1657,7 @@ function buildStreamSnapshot(streamData) {
     lastFrame,
     audioLevel: streamData.audioLevel || 30,
     hasRealAudio: Boolean(streamData.hasRealAudio),
-    sampleRate: streamData.sampleRate || 16000,
+    sampleRate: streamData.sampleRate || 24000,
     coords: streamData.coords || null,
     recentAudioChunks: (streamData.recentAudioChunks || []).filter(c => now - c.ts < 2500),
     seq: streamData.seq || 0,
@@ -2717,7 +2718,12 @@ Speak calmly and clearly. Language requested: ${lang}.`;
 // ----------------------------------------------------------------------------
 // WebSocket Live Camera & Audio Relay (/ws/sos)
 // ----------------------------------------------------------------------------
-const wss = new WebSocketServer({ server, path: '/ws/sos', maxPayload: 4 * 1024 * 1024 });
+const wss = new WebSocketServer({
+  server,
+  path: '/ws/sos',
+  maxPayload: 4 * 1024 * 1024,
+  perMessageDeflate: false
+});
 
 wss.on('connection', (ws, req) => {
   try {
@@ -2771,35 +2777,43 @@ wss.on('connection', (ws, req) => {
           broadcastSosWsBinary(targetSosId, binBuf);
           const flags = binBuf.readUInt8(6);
           const hasRealAudio = (flags & 0x01) === 0x01;
-          const existing = liveMediaStreams.get(targetSosId) || {};
-          liveMediaStreams.set(targetSosId, {
-            sosId: targetSosId,
-            email: existing.email || 'Civilian',
-            lastFrame: existing.lastFrame || null,
-            lastFrameBuffer: Buffer.from(binBuf.subarray(8)),
-            lastFrameBufferSeq: seq,
-            lastFrameBase64Seq: existing.lastFrameBase64Seq || 0,
-            audioLevel: audioLevel || existing.audioLevel || 30,
-            hasRealAudio: Boolean(hasRealAudio || existing.hasRealAudio),
-            sampleRate: existing.sampleRate || 16000,
-            coords: existing.coords || null,
-            recentAudioChunks: existing.recentAudioChunks || [],
-            seq,
-            updatedAt: Date.now()
-          });
+          const isWebP = (flags & 0x02) === 0x02;
+          let existing = liveMediaStreams.get(targetSosId);
+          if (!existing) {
+            existing = {
+              sosId: targetSosId,
+              email: 'Civilian',
+              lastFrame: null,
+              lastFrameBase64Seq: 0,
+              sampleRate: 24000,
+              coords: null,
+              recentAudioChunks: []
+            };
+            liveMediaStreams.set(targetSosId, existing);
+          }
+          existing.lastFrameBuffer = Buffer.from(binBuf.subarray(8));
+          existing.lastFrameMime = isWebP ? 'image/webp' : 'image/jpeg';
+          existing.lastFrameBufferSeq = seq;
+          existing.audioLevel = audioLevel || existing.audioLevel || 30;
+          existing.hasRealAudio = Boolean(hasRealAudio || existing.hasRealAudio);
+          existing.seq = seq;
+          existing.updatedAt = Date.now();
         } else if (pktType === 0x02) {
           broadcastSosWsBinary(targetSosId, binBuf);
-          const sampleRate = binBuf.readUInt16LE(6) || 16000;
-          const existing = liveMediaStreams.get(targetSosId) || { sosId: targetSosId };
+          const sampleRate = binBuf.readUInt16LE(6) || 24000;
+          let existing = liveMediaStreams.get(targetSosId);
+          if (!existing) {
+            existing = { sosId: targetSosId, recentAudioChunks: [] };
+            liveMediaStreams.set(targetSosId, existing);
+          }
           existing.audioLevel = audioLevel || existing.audioLevel || 35;
           existing.hasRealAudio = true;
           existing.sampleRate = sampleRate;
           existing.updatedAt = Date.now();
-          // Cache recent PCM snapshot only every 4th chunk (or when empty) to keep 31Hz relay zero-alloc
-          if (!existing.recentAudioChunks || existing.recentAudioChunks.length === 0 || seq % 4 === 1) {
+          // Cache recent PCM snapshot only every 6th chunk (or when empty) to keep 46Hz relay zero-alloc
+          if (!existing.recentAudioChunks || existing.recentAudioChunks.length === 0 || seq % 6 === 1) {
             pushAudioChunkToStream(existing, binBuf.subarray(8).toString('base64'), sampleRate, seq);
           }
-          liveMediaStreams.set(targetSosId, existing);
         }
         return;
       }

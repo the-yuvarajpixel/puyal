@@ -318,8 +318,28 @@
         </div>
       </div>
 
-      <!-- Leaflet Map Canvas Container -->
-      <div id="tactical-map"></div>
+      <!-- Leaflet / Google Maps Canvas Container with Floating Center Map Control -->
+      <div class="tactical-map-frame">
+        <div id="tactical-map"></div>
+        <button
+          type="button"
+          id="btn-floating-center-map"
+          class="floating-center-map-btn"
+          onclick="centerTacticalMapOnEmergency()"
+          title="Reset map view to current emergency location"
+          aria-label="Center map on current emergency location"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="7"></circle>
+            <circle cx="12" cy="12" r="2.2" fill="currentColor"></circle>
+            <line x1="12" y1="2" x2="12" y2="5"></line>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="5" y2="12"></line>
+            <line x1="19" y1="12" x2="22" y2="12"></line>
+          </svg>
+          <span>Center Map</span>
+        </button>
+      </div>
 
       <!-- Map Legend Bar -->
       <div class="map-legend-bar">
@@ -607,11 +627,12 @@
       <div class="stream-body">
         <!-- Live Video Container -->
         <div class="video-stream-container">
+          <canvas id="admin-live-stream-canvas" style="width: 100%; height: 100%; object-fit: cover; display: none;"></canvas>
           <img id="admin-live-stream-img" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
           <div id="stream-waiting-indicator" style="text-align: center; color: #94a3b8; padding: 20px;">
             <div style="font-size: 40px; margin-bottom: 8px;">📹</div>
             <div style="font-weight: 800; font-size: 15px; color: #fff;">Connecting to Civilian Camera Feed...</div>
-            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Establishing low-latency WebSocket video &amp; audio stream</div>
+            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Establishing low-latency WebSocket HD video &amp; 24kHz audio stream</div>
           </div>
         </div>
 
@@ -1295,11 +1316,14 @@
     let adminAudioMonitorActive = true;
     let adminAudioGainValue = 1.2;
     let adminAudioCtx = null;
+    let adminHighpassNode = null;
+    let adminLowpassNode = null;
     let adminCompressorNode = null;
     let adminGainNode = null;
     let adminNextAudioTime = 0;
     let lastAdminAudioSeq = 0;
     let lastAdminAudioSosId = null;
+    let lastAdminAudioSampleRate = 24000;
     let pendingAdminPcmQueue = [];
     let adminStreamPacketCount = 0;
     let adminFrameTimestamps = [];
@@ -1307,6 +1331,9 @@
     let activeFrameObjectUrl = null;
     let lastAdminVizTs = 0;
     let lastAdminBadgeTs = 0;
+    let lastAdminFrameRes = '';
+    let decodingBitmapInFlight = false;
+    let pendingBitmapPayload = null;
 
     function revokeActiveFrameUrl(urlToRevoke) {
       if (urlToRevoke && typeof urlToRevoke === 'string' && urlToRevoke.startsWith('blob:')) {
@@ -1355,16 +1382,29 @@
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
           if (!AudioCtx) return;
           adminAudioCtx = new AudioCtx({ latencyHint: 'interactive' });
+
+          adminHighpassNode = adminAudioCtx.createBiquadFilter();
+          adminHighpassNode.type = 'highpass';
+          adminHighpassNode.frequency.value = 75;
+          adminHighpassNode.Q.value = 0.7;
+
+          adminLowpassNode = adminAudioCtx.createBiquadFilter();
+          adminLowpassNode.type = 'lowpass';
+          adminLowpassNode.frequency.value = 11500;
+          adminLowpassNode.Q.value = 0.7;
+
           adminCompressorNode = adminAudioCtx.createDynamicsCompressor();
           adminCompressorNode.threshold.value = -20;
           adminCompressorNode.knee.value = 16;
-          adminCompressorNode.ratio.value = 6;
-          adminCompressorNode.attack.value = 0.004;
+          adminCompressorNode.ratio.value = 5;
+          adminCompressorNode.attack.value = 0.003;
           adminCompressorNode.release.value = 0.1;
 
           adminGainNode = adminAudioCtx.createGain();
           adminGainNode.gain.value = adminAudioMonitorActive ? adminAudioGainValue : 0.0;
 
+          adminHighpassNode.connect(adminLowpassNode);
+          adminLowpassNode.connect(adminCompressorNode);
           adminCompressorNode.connect(adminGainNode);
           adminGainNode.connect(adminAudioCtx.destination);
           adminNextAudioTime = adminAudioCtx.currentTime;
@@ -1456,24 +1496,30 @@
       return new Int16Array(bytes.buffer);
     }
 
-    function playDecodedInt16Samples(int16, sampleRate = 16000) {
-      if (!int16 || int16.length === 0 || !adminAudioCtx || !adminCompressorNode || adminAudioCtx.state !== 'running') return;
+    function playDecodedInt16Samples(int16, sampleRate = 24000) {
+      if (!int16 || int16.length === 0 || !adminAudioCtx || !adminHighpassNode || adminAudioCtx.state !== 'running') return;
       try {
-        const audioBuf = adminAudioCtx.createBuffer(1, int16.length, sampleRate);
+        lastAdminAudioSampleRate = sampleRate || 24000;
+        const audioBuf = adminAudioCtx.createBuffer(1, int16.length, lastAdminAudioSampleRate);
         const channelData = audioBuf.getChannelData(0);
         for (let i = 0; i < int16.length; i++) {
           channelData[i] = int16[i] / 32768.0;
         }
 
         const now = adminAudioCtx.currentTime;
-        // Maintain ultra-tight 8ms-85ms jitter buffer for near-instant real-time voice monitor
-        if (adminNextAudioTime < now || adminNextAudioTime - now > 0.085) {
-          adminNextAudioTime = now + 0.008;
+        // Maintain ultra-tight 6ms-55ms jitter buffer & apply 1.5ms micro-ramp on discontiguous resync to eliminate clicks
+        const isResync = adminNextAudioTime < now || (adminNextAudioTime - now) > 0.055;
+        if (isResync) {
+          adminNextAudioTime = now + 0.006;
+          const rampSamples = Math.min(Math.floor(lastAdminAudioSampleRate * 0.0015), Math.floor(int16.length / 4));
+          for (let i = 0; i < rampSamples; i++) {
+            channelData[i] *= i / rampSamples;
+          }
         }
 
         const source = adminAudioCtx.createBufferSource();
         source.buffer = audioBuf;
-        source.connect(adminCompressorNode);
+        source.connect(adminHighpassNode);
         source.start(adminNextAudioTime);
         adminNextAudioTime += audioBuf.duration;
       } catch (e) {
@@ -1481,7 +1527,7 @@
       }
     }
 
-    function playDecodedPcmChunk(base64Pcm, sampleRate = 16000) {
+    function playDecodedPcmChunk(base64Pcm, sampleRate = 24000) {
       if (!base64Pcm) return;
       try {
         const int16 = base64ToInt16(base64Pcm);
@@ -1491,8 +1537,9 @@
       }
     }
 
-    function enqueueInt16AudioChunk(int16, sampleRate = 16000, seq = 0) {
+    function enqueueInt16AudioChunk(int16, sampleRate = 24000, seq = 0) {
       if (!int16 || int16.length === 0 || !activeStreamSosId) return;
+      lastAdminAudioSampleRate = sampleRate || 24000;
       if (lastAdminAudioSosId !== activeStreamSosId) {
         lastAdminAudioSosId = activeStreamSosId;
         lastAdminAudioSeq = 0;
@@ -1501,18 +1548,18 @@
       if (seq) lastAdminAudioSeq = seq;
 
       initAdminAudioPlayback();
-      if (!adminAudioCtx || !adminCompressorNode) return;
+      if (!adminAudioCtx || !adminHighpassNode) return;
       if (adminAudioCtx.state !== 'running') {
-        pendingAdminPcmQueue.push({ int16: new Int16Array(int16), sampleRate });
+        pendingAdminPcmQueue.push({ int16: new Int16Array(int16), sampleRate: lastAdminAudioSampleRate });
         if (pendingAdminPcmQueue.length > 6) pendingAdminPcmQueue.shift();
         updateAudioMonitorButtonUI();
         return;
       }
 
-      playDecodedInt16Samples(int16, sampleRate);
+      playDecodedInt16Samples(int16, lastAdminAudioSampleRate);
     }
 
-    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 16000, seq = 0) {
+    function enqueuePcmAudioChunk(base64Pcm, sampleRate = 24000, seq = 0) {
       if (!base64Pcm || !activeStreamSosId) return;
       try {
         const int16 = base64ToInt16(base64Pcm);
@@ -1522,7 +1569,7 @@
 
     function throttledUpdateAudioVisualizer(level, hasRealAudio) {
       const now = Date.now();
-      if (now - lastAdminVizTs < 45) return;
+      if (now - lastAdminVizTs < 40) return;
       lastAdminVizTs = now;
       updateAudioVisualizer(level, hasRealAudio);
     }
@@ -1533,7 +1580,8 @@
       const dbEl = document.getElementById('audio-db-level');
 
       if (labelEl) {
-        labelEl.textContent = hasRealAudio ? '🎙️ LIVE MIC PCM (16kHz):' : '📡 TELEMETRY AUDIO:';
+        const khz = Math.round((lastAdminAudioSampleRate || 24000) / 1000);
+        labelEl.textContent = hasRealAudio ? `🎙️ LIVE HD MIC (${khz}kHz):` : '📡 TELEMETRY AUDIO:';
       }
       if (dbEl) {
         dbEl.textContent = hasRealAudio
@@ -1613,18 +1661,11 @@
             if (pktType === 0x01) {
               const flags = view.getUint8(6);
               const hasRealAudio = (flags & 0x01) === 0x01;
-              const jpegBlob = new Blob([new Uint8Array(buf, 8)], { type: 'image/jpeg' });
-              const objUrl = URL.createObjectURL(jpegBlob);
-              updateActiveStreamUI({
-                sosId,
-                lastFrame: objUrl,
-                isBlobUrl: true,
-                audioLevel,
-                hasRealAudio,
-                seq
-              });
+              const isWebP = (flags & 0x02) === 0x02;
+              const imgBlob = new Blob([new Uint8Array(buf, 8)], { type: isWebP ? 'image/webp' : 'image/jpeg' });
+              renderBinaryVideoFrame(sosId, imgBlob, audioLevel, hasRealAudio, seq);
             } else if (pktType === 0x02) {
-              const sampleRate = view.getUint16(6, true) || 16000;
+              const sampleRate = view.getUint16(6, true) || 24000;
               const int16 = new Int16Array(buf, 8, Math.floor((buf.byteLength - 8) / 2));
               enqueueInt16AudioChunk(int16, sampleRate, seq);
               throttledUpdateAudioVisualizer(audioLevel, true);
@@ -1717,6 +1758,9 @@
       adminWaveHistory = new Array(28).fill(8);
       lastAdminVizTs = 0;
       lastAdminBadgeTs = 0;
+      lastAdminFrameRes = '';
+      decodingBitmapInFlight = false;
+      pendingBitmapPayload = null;
       if (activeFrameObjectUrl) {
         revokeActiveFrameUrl(activeFrameObjectUrl);
         activeFrameObjectUrl = null;
@@ -1727,6 +1771,8 @@
       document.getElementById('stream-timer').textContent = '00:00';
       document.getElementById('stream-coords').textContent = lat && lon ? `${lat}, ${lon} (GPS Live)` : 'Detecting GPS...';
       document.getElementById('stream-map-link').href = lat && lon ? `https://www.google.com/maps?q=${lat},${lon}` : '#';
+      const streamCanvas = document.getElementById('admin-live-stream-canvas');
+      if (streamCanvas) streamCanvas.style.display = 'none';
       const streamImg = document.getElementById('admin-live-stream-img');
       streamImg.src = '';
       streamImg.style.display = 'none';
@@ -1735,7 +1781,7 @@
       pktBadge.textContent = 'Connecting WS...';
       pktBadge.style.color = '#38bdf8';
       pktBadge.style.borderColor = '#38bdf8';
-      document.getElementById('admin-audio-source-label').textContent = '🎙️ LIVE AUDIO FEED:';
+      document.getElementById('admin-audio-source-label').textContent = '🎙️ LIVE HD AUDIO FEED:';
       document.getElementById('audio-db-level').textContent = 'Listening...';
 
       // Cancel any ongoing speech synthesis so it never talks over the live civilian microphone
@@ -1766,7 +1812,7 @@
           updateActiveStreamUI(feed.stream);
           if (Array.isArray(feed.stream.recentAudioChunks)) {
             feed.stream.recentAudioChunks.forEach(c => {
-              enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 16000, c.seq || 0);
+              enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 24000, c.seq || 0);
             });
           }
         }
@@ -1783,46 +1829,108 @@
             updateActiveStreamUI(feed.stream);
             if (Array.isArray(feed.stream.recentAudioChunks)) {
               feed.stream.recentAudioChunks.forEach(c => {
-                enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 16000, c.seq || 0);
+                enqueuePcmAudioChunk(c.audioPcmBase64, c.sampleRate || 24000, c.seq || 0);
               });
             }
           }
         } catch (e) {}
       }, 1200);
 
-      showToast(`📹 Live stream connected: ${email || 'Civilian Device'}`, 'info');
+      showToast(`📹 Live HD stream connected: ${email || 'Civilian Device'}`, 'info');
+    }
+
+    function recordStreamFpsAndBadge(seq) {
+      const now = Date.now();
+      adminFrameTimestamps.push(now);
+      adminFrameTimestamps = adminFrameTimestamps.filter(t => now - t <= 1000);
+      const currentFps = adminFrameTimestamps.length;
+
+      adminStreamPacketCount++;
+      if (!lastAdminBadgeTs || now - lastAdminBadgeTs >= 120) {
+        lastAdminBadgeTs = now;
+        const pktBadge = document.getElementById('stream-packet-badge');
+        if (pktBadge) {
+          const resStr = lastAdminFrameRes ? ` · ${lastAdminFrameRes}` : '';
+          const rttStr = adminWsLatencyMs !== null ? ` · ${adminWsLatencyMs}ms` : '';
+          pktBadge.textContent = `${currentFps} FPS${resStr}${rttStr} · #${seq || adminStreamPacketCount}`;
+          pktBadge.style.color = '#86efac';
+          pktBadge.style.borderColor = '#86efac';
+        }
+      }
+    }
+
+    async function renderBinaryVideoFrame(sosId, imgBlob, audioLevel, hasRealAudio, seq) {
+      if (typeof createImageBitmap !== 'function') {
+        const objUrl = URL.createObjectURL(imgBlob);
+        updateActiveStreamUI({ sosId, lastFrame: objUrl, isBlobUrl: true, audioLevel, hasRealAudio, seq });
+        return;
+      }
+
+      // Drop stale intermediate frames if a decode is already in flight so display stays zero-lag
+      if (decodingBitmapInFlight) {
+        pendingBitmapPayload = { sosId, imgBlob, audioLevel, hasRealAudio, seq };
+        return;
+      }
+
+      decodingBitmapInFlight = true;
+      try {
+        const bitmap = await createImageBitmap(imgBlob);
+        if (String(activeStreamSosId) === String(sosId)) {
+          const canvas = document.getElementById('admin-live-stream-canvas');
+          const img = document.getElementById('admin-live-stream-img');
+          const indicator = document.getElementById('stream-waiting-indicator');
+          if (canvas) {
+            if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+              canvas.width = bitmap.width;
+              canvas.height = bitmap.height;
+            }
+            lastAdminFrameRes = `${bitmap.width}×${bitmap.height}`;
+            const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+            if (ctx) ctx.drawImage(bitmap, 0, 0);
+            canvas.style.display = 'block';
+          }
+          if (img) img.style.display = 'none';
+          if (indicator) indicator.style.display = 'none';
+          recordStreamFpsAndBadge(seq);
+          throttledUpdateAudioVisualizer(audioLevel, Boolean(hasRealAudio));
+        }
+        try { bitmap.close(); } catch (e) {}
+      } catch (err) {
+        const objUrl = URL.createObjectURL(imgBlob);
+        updateActiveStreamUI({ sosId, lastFrame: objUrl, isBlobUrl: true, audioLevel, hasRealAudio, seq });
+      } finally {
+        decodingBitmapInFlight = false;
+        if (pendingBitmapPayload && String(activeStreamSosId) === String(pendingBitmapPayload.sosId)) {
+          const next = pendingBitmapPayload;
+          pendingBitmapPayload = null;
+          renderBinaryVideoFrame(next.sosId, next.imgBlob, next.audioLevel, next.hasRealAudio, next.seq);
+        } else {
+          pendingBitmapPayload = null;
+        }
+      }
     }
 
     function updateActiveStreamUI(data) {
       const img = document.getElementById('admin-live-stream-img');
+      const canvas = document.getElementById('admin-live-stream-canvas');
       const indicator = document.getElementById('stream-waiting-indicator');
-      const now = Date.now();
 
       if (data.lastFrame) {
         const prevUrl = activeFrameObjectUrl;
         activeFrameObjectUrl = data.isBlobUrl ? data.lastFrame : null;
+        img.onload = () => {
+          if (img.naturalWidth && img.naturalHeight) {
+            lastAdminFrameRes = `${img.naturalWidth}×${img.naturalHeight}`;
+          }
+          if (prevUrl && prevUrl !== activeFrameObjectUrl) {
+            revokeActiveFrameUrl(prevUrl);
+          }
+        };
         img.src = data.lastFrame;
         img.style.display = 'block';
+        if (canvas) canvas.style.display = 'none';
         indicator.style.display = 'none';
-        if (prevUrl && prevUrl !== activeFrameObjectUrl) {
-          setTimeout(() => revokeActiveFrameUrl(prevUrl), 150);
-        }
-
-        adminFrameTimestamps.push(now);
-        adminFrameTimestamps = adminFrameTimestamps.filter(t => now - t <= 1000);
-        const currentFps = adminFrameTimestamps.length;
-
-        adminStreamPacketCount++;
-        if (!lastAdminBadgeTs || now - lastAdminBadgeTs >= 120) {
-          lastAdminBadgeTs = now;
-          const pktBadge = document.getElementById('stream-packet-badge');
-          if (pktBadge) {
-            const rttStr = adminWsLatencyMs !== null ? ` · ${adminWsLatencyMs}ms` : '';
-            pktBadge.textContent = `${currentFps} FPS${rttStr} · Pkt #${data.seq || adminStreamPacketCount}`;
-            pktBadge.style.color = '#86efac';
-            pktBadge.style.borderColor = '#86efac';
-          }
-        }
+        recordStreamFpsAndBadge(data.seq);
       }
 
       throttledUpdateAudioVisualizer(data.audioLevel, Boolean(data.hasRealAudio));
@@ -1840,6 +1948,9 @@
       lastAdminAudioSeq = 0;
       lastAdminVizTs = 0;
       lastAdminBadgeTs = 0;
+      lastAdminFrameRes = '';
+      decodingBitmapInFlight = false;
+      pendingBitmapPayload = null;
       clearTimeout(adminWsReconnectTimer);
       clearInterval(adminWsPingInterval);
 
@@ -1855,6 +1966,8 @@
       if (adminAudioCtx) {
         try { adminAudioCtx.close(); } catch (e) {}
         adminAudioCtx = null;
+        adminHighpassNode = null;
+        adminLowpassNode = null;
         adminCompressorNode = null;
         adminGainNode = null;
         adminNextAudioTime = 0;
@@ -3177,13 +3290,76 @@
       }
     }
 
-    function recenterTacticalMap() {
-      if (usingGoogleMaps && googleTacticalMap) {
-        googleTacticalMap.flyTo(13.0604, 80.2496, 12);
-        return;
+    function resolveCurrentEmergencyLocation() {
+      // 1. Prioritize active live SOS beacon
+      const activeSos = Array.isArray(sosAlerts)
+        ? sosAlerts.find(s => s && s.active)
+        : null;
+      if (activeSos) {
+        const sosCoords = extractItemCoords(activeSos);
+        return {
+          lat: sosCoords.lat,
+          lon: sosCoords.lon,
+          zoom: 14,
+          label: `Active SOS (${activeSos.userEmail || activeSos.email || 'Civilian'})`
+        };
       }
-      if (!tacticalMap) return;
-      tacticalMap.flyTo([13.0604, 80.2496], 12, { duration: 1.2 });
+
+      // 2. Otherwise focus highest-severity unresolved incident
+      const sevRank = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+      const openIncidents = Array.isArray(incidents)
+        ? incidents.filter(i => i && i.status !== 'Resolved')
+        : [];
+      const candidateList = openIncidents.length > 0
+        ? openIncidents
+        : (Array.isArray(incidents) ? incidents : []);
+
+      if (candidateList.length > 0) {
+        const sorted = [...candidateList].sort((a, b) => {
+          const scoreDiff = (sevRank[b.severity] || 0) - (sevRank[a.severity] || 0);
+          if (scoreDiff !== 0) return scoreDiff;
+          return Number(b.priorityScore || 0) - Number(a.priorityScore || 0);
+        });
+        const topIncident = sorted[0];
+        const incCoords = extractItemCoords(topIncident);
+        return {
+          lat: incCoords.lat,
+          lon: incCoords.lon,
+          zoom: 14,
+          label: topIncident.title || topIncident.category || 'Current Emergency'
+        };
+      }
+
+      // 3. Fallback to cached GPS or regional command center coordinates
+      const cached = typeof window.getCurrentOrCachedCoords === 'function'
+        ? window.getCurrentOrCachedCoords()
+        : null;
+      if (cached && cached.latitude && cached.longitude) {
+        return {
+          lat: parseFloat(cached.latitude),
+          lon: parseFloat(cached.longitude),
+          zoom: 12,
+          label: 'Command Operations Sector'
+        };
+      }
+
+      return { lat: 13.0604, lon: 80.2496, zoom: 12, label: 'Command Operations Sector' };
+    }
+
+    function centerTacticalMapOnEmergency() {
+      const target = resolveCurrentEmergencyLocation();
+      if (usingGoogleMaps && googleTacticalMap) {
+        googleTacticalMap.flyTo(target.lat, target.lon, target.zoom);
+      } else if (tacticalMap) {
+        tacticalMap.flyTo([target.lat, target.lon], target.zoom, { duration: 1.0 });
+      }
+      if (typeof showToast === 'function') {
+        showToast(`🎯 Map centered on: ${target.label}`, 'info');
+      }
+    }
+
+    function recenterTacticalMap() {
+      centerTacticalMapOnEmergency();
     }
 
     function focusIncidentFromDropdown(incidentId) {

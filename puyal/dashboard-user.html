@@ -457,11 +457,16 @@
     let sosStream = null;
     let audioContext = null;
     let audioAnalyser = null;
+    const STREAM_AUDIO_RATE = 24000;
     let audioProcessorNode = null;
+    let audioWorkletNode = null;
+    let audioWorkletUrl = null;
     let audioMuteGain = null;
     let audioAnimFrame = null;
     let currentSosAlertId = null;
     let streamInterval = null;
+    let videoFrameCbId = null;
+    let streamPumpRaf = null;
     let sosBroadcasterWs = null;
     let sosWsReconnectTimer = null;
     let sosWsPingInterval = null;
@@ -475,12 +480,15 @@
     let videoSeq = 0;
     let audioSeq = 0;
     let currentFpsActual = 0;
+    let currentStreamRes = '854x480';
     let broadcasterFrameTimestamps = [];
     let httpFrameInFlight = false;
     let blobEncodeInFlight = false;
     let sosFacingMode = 'environment';
     let sosCaptureCanvas = null;
     let sosCaptureCtx = null;
+    let reusableVideoPktBuf = new Uint8Array(256 * 1024);
+    let canEncodeWebP = null;
     let isSimulatedFeed = false;
     let simulatedPacketSeq = 1;
     let geoWatchStartedBySos = false;
@@ -1376,10 +1384,11 @@
       const rtt = sosWsLatencyMs !== null ? ` · ${sosWsLatencyMs}ms` : '';
       const viewerStr = sosCommandViewers > 0 ? ` · 👁️ HQ Watching (${sosCommandViewers})` : '';
       const fpsStr = currentFpsActual > 0 ? `${currentFpsActual} FPS` : '30 FPS';
+      const codecStr = canEncodeWebP ? 'WebP' : 'JPEG';
       if (wsOpen) {
         statusEl.textContent = hasPhysicalAudio
-          ? `● WS ${fpsStr} + Mic${rtt}${viewerStr}`
-          : `● WS ${fpsStr} Video${rtt}${viewerStr}`;
+          ? `● WS ${fpsStr} ${currentStreamRes} ${codecStr} + 24kHz Mic${rtt}${viewerStr}`
+          : `● WS ${fpsStr} ${currentStreamRes} ${codecStr}${rtt}${viewerStr}`;
         statusEl.style.color = '#4ade80';
       } else {
         statusEl.textContent = `● HTTP Relay (Reconnecting WS...)${viewerStr}`;
@@ -1410,8 +1419,8 @@
       });
     }
 
-    function downsampleTo16kInt16(float32Input, inputSampleRate) {
-      const targetRate = 16000;
+    function resampleToTargetInt16(float32Input, inputSampleRate, targetRate = STREAM_AUDIO_RATE) {
+      if (!float32Input || !float32Input.length) return new Int16Array(0);
       if (inputSampleRate === targetRate) {
         const out = new Int16Array(float32Input.length);
         for (let i = 0; i < float32Input.length; i++) {
@@ -1423,16 +1432,39 @@
       const ratio = inputSampleRate / targetRate;
       const newLen = Math.max(1, Math.floor(float32Input.length / ratio));
       const out = new Int16Array(newLen);
-      for (let i = 0; i < newLen; i++) {
-        const pos = i * ratio;
-        const idx = Math.floor(pos);
-        const frac = pos - idx;
-        const s0 = float32Input[idx] || 0;
-        const s1 = float32Input[Math.min(idx + 1, float32Input.length - 1)] || s0;
-        const sample = Math.max(-1, Math.min(1, s0 + (s1 - s0) * frac));
-        out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      // Anti-aliased box-filtered resampling when downsampling (e.g. 48kHz -> 24kHz)
+      if (ratio >= 1.5) {
+        for (let i = 0; i < newLen; i++) {
+          const start = i * ratio;
+          const end = Math.min(float32Input.length, (i + 1) * ratio);
+          const iStart = Math.floor(start);
+          const iEnd = Math.max(iStart + 1, Math.floor(end));
+          let acc = 0;
+          let cnt = 0;
+          for (let j = iStart; j < iEnd && j < float32Input.length; j++) {
+            acc += float32Input[j];
+            cnt++;
+          }
+          const avg = cnt > 0 ? acc / cnt : (float32Input[iStart] || 0);
+          const clamped = Math.max(-1, Math.min(1, avg));
+          out[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+        }
+      } else {
+        for (let i = 0; i < newLen; i++) {
+          const pos = i * ratio;
+          const idx = Math.floor(pos);
+          const frac = pos - idx;
+          const s0 = float32Input[idx] || 0;
+          const s1 = float32Input[Math.min(idx + 1, float32Input.length - 1)] || s0;
+          const sample = Math.max(-1, Math.min(1, s0 + (s1 - s0) * frac));
+          out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        }
       }
       return out;
+    }
+
+    function downsampleTo16kInt16(float32Input, inputSampleRate) {
+      return resampleToTargetInt16(float32Input, inputSampleRate, 16000);
     }
 
     function connectSosBroadcasterWs() {
@@ -1520,12 +1552,16 @@
       }
     }
 
-    function setupAudioStreamer(stream) {
+    async function setupAudioStreamer(stream) {
       try {
         const ctx = ensureBroadcasterAudioContext();
         if (!ctx) {
           hasPhysicalAudio = false;
           return;
+        }
+        if (audioWorkletNode) {
+          try { audioWorkletNode.port.onmessage = null; audioWorkletNode.disconnect(); } catch (e) {}
+          audioWorkletNode = null;
         }
         if (audioProcessorNode) {
           try { audioProcessorNode.disconnect(); } catch (e) {}
@@ -1537,53 +1573,54 @@
         }
         const source = audioContext.createMediaStreamSource(stream);
 
-        // Voice clarity chain: high-pass rumble removal (85Hz) + gentle vocal leveling
+        // Broadcast voice DSP chain: rumble high-pass (80Hz) + vocal clarity shelf + dynamic leveling
         const highpassFilter = audioContext.createBiquadFilter();
         highpassFilter.type = 'highpass';
-        highpassFilter.frequency.value = 85;
+        highpassFilter.frequency.value = 80;
         highpassFilter.Q.value = 0.7;
 
+        const vocalClarityFilter = audioContext.createBiquadFilter();
+        vocalClarityFilter.type = 'peaking';
+        vocalClarityFilter.frequency.value = 2800;
+        vocalClarityFilter.Q.value = 1.0;
+        vocalClarityFilter.gain.value = 2.5;
+
         const vocalCompressor = audioContext.createDynamicsCompressor();
-        vocalCompressor.threshold.value = -24;
+        vocalCompressor.threshold.value = -22;
         vocalCompressor.knee.value = 18;
-        vocalCompressor.ratio.value = 4;
-        vocalCompressor.attack.value = 0.005;
+        vocalCompressor.ratio.value = 3.5;
+        vocalCompressor.attack.value = 0.004;
         vocalCompressor.release.value = 0.12;
 
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
-        audioAnalyser.smoothingTimeConstant = 0.75;
+        audioAnalyser.smoothingTimeConstant = 0.72;
 
         source.connect(highpassFilter);
-        highpassFilter.connect(vocalCompressor);
+        highpassFilter.connect(vocalClarityFilter);
+        vocalClarityFilter.connect(vocalCompressor);
         vocalCompressor.connect(audioAnalyser);
 
-        // Ultra-low-latency 32ms 16kHz PCM ring buffer (512 Int16 samples = 1024 bytes per binary packet)
-        const bufferSize = 512;
-        audioProcessorNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
-        audioMuteGain = audioContext.createGain();
-        audioMuteGain.gain.value = 0;
-
-        const TARGET_CHUNK_SAMPLES = 512; // 32ms @ 16kHz
-        const ringBuf = new Int16Array(TARGET_CHUNK_SAMPLES * 4);
+        // Ultra-low-latency 21.3ms 24kHz HD PCM ring buffer (512 Int16 samples = 1024 bytes per binary packet)
+        const TARGET_CHUNK_SAMPLES = 512;
+        const ringBuf = new Int16Array(TARGET_CHUNK_SAMPLES * 6);
         let ringWrite = 0;
 
-        // Reusable pre-allocated binary WS audio packet: [0x02, seq(4LE), level(1), sampleRate(2LE), Int16 PCM...]
+        // Pre-allocated binary audio packet: [0x02, seq(4LE), level(1), sampleRate(2LE), Int16 PCM...]
         const audioPktBuf = new Uint8Array(8 + TARGET_CHUNK_SAMPLES * 2);
         const audioPktView = new DataView(audioPktBuf.buffer);
         const audioPktInt16View = new Int16Array(audioPktBuf.buffer, 8, TARGET_CHUNK_SAMPLES);
 
-        audioProcessorNode.onaudioprocess = (event) => {
-          if (!sosActiveFlag || userMicMuted) return;
-          const input = event.inputBuffer.getChannelData(0);
+        const handleAudioFloatSamples = (inputSamples) => {
+          if (!sosActiveFlag || userMicMuted || !inputSamples || !inputSamples.length) return;
           let sumSq = 0;
-          for (let i = 0; i < input.length; i++) {
-            sumSq += input[i] * input[i];
+          for (let i = 0; i < inputSamples.length; i++) {
+            sumSq += inputSamples[i] * inputSamples[i];
           }
-          const rms = Math.sqrt(sumSq / input.length);
+          const rms = Math.sqrt(sumSq / inputSamples.length);
           liveAudioLevel = Math.min(100, Math.max(2, Math.round(rms * 380)));
 
-          const int16 = downsampleTo16kInt16(input, audioContext.sampleRate || 48000);
+          const int16 = resampleToTargetInt16(inputSamples, audioContext.sampleRate || 48000, STREAM_AUDIO_RATE);
           for (let i = 0; i < int16.length; i++) {
             ringBuf[ringWrite++] = int16[i];
             if (ringWrite >= TARGET_CHUNK_SAMPLES) {
@@ -1601,27 +1638,81 @@
                     audioPktBuf[0] = 0x02;
                     audioPktView.setUint32(1, audioSeq, true);
                     audioPktBuf[5] = Math.min(100, Math.max(0, Math.round(liveAudioLevel)));
-                    audioPktView.setUint16(6, 16000, true);
+                    audioPktView.setUint16(6, STREAM_AUDIO_RATE, true);
                     sosBroadcasterWs.send(audioPktBuf.buffer);
                   }
                 } else {
                   const audioPcmBase64 = int16ToBase64(audioPktInt16View);
-                  rapidSync.streamSOSAudio(currentSosAlertId, audioPcmBase64, 16000, liveAudioLevel, audioSeq);
+                  rapidSync.streamSOSAudio(currentSosAlertId, audioPcmBase64, STREAM_AUDIO_RATE, liveAudioLevel, audioSeq);
                 }
               }
             }
           }
         };
 
-        vocalCompressor.connect(audioProcessorNode);
-        audioProcessorNode.connect(audioMuteGain);
-        audioMuteGain.connect(audioContext.destination);
+        audioMuteGain = audioContext.createGain();
+        audioMuteGain.gain.value = 0;
+
+        let usedWorklet = false;
+        if (audioContext.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+          try {
+            if (!audioWorkletUrl) {
+              const workletCode = `
+                class PuyalAudioCaptureProcessor extends AudioWorkletProcessor {
+                  constructor() {
+                    super();
+                    this._buf = new Float32Array(512);
+                    this._idx = 0;
+                  }
+                  process(inputs) {
+                    const input = inputs && inputs[0] && inputs[0][0];
+                    if (input) {
+                      for (let i = 0; i < input.length; i++) {
+                        this._buf[this._idx++] = input[i];
+                        if (this._idx >= this._buf.length) {
+                          const copy = this._buf.slice();
+                          this.port.postMessage(copy, [copy.buffer]);
+                          this._idx = 0;
+                        }
+                      }
+                    }
+                    return true;
+                  }
+                }
+                registerProcessor('puyal-audio-capture', PuyalAudioCaptureProcessor);
+              `;
+              audioWorkletUrl = URL.createObjectURL(new Blob([workletCode], { type: 'application/javascript' }));
+            }
+            await audioContext.audioWorklet.addModule(audioWorkletUrl);
+            if (!sosActiveFlag) return;
+            audioWorkletNode = new AudioWorkletNode(audioContext, 'puyal-audio-capture');
+            audioWorkletNode.port.onmessage = (ev) => {
+              if (ev && ev.data) handleAudioFloatSamples(ev.data);
+            };
+            vocalCompressor.connect(audioWorkletNode);
+            audioWorkletNode.connect(audioMuteGain);
+            audioMuteGain.connect(audioContext.destination);
+            usedWorklet = true;
+          } catch (workletErr) {
+            usedWorklet = false;
+          }
+        }
+
+        if (!usedWorklet) {
+          audioProcessorNode = audioContext.createScriptProcessor(512, 1, 1);
+          audioProcessorNode.onaudioprocess = (event) => {
+            handleAudioFloatSamples(event.inputBuffer.getChannelData(0));
+          };
+          vocalCompressor.connect(audioProcessorNode);
+          audioProcessorNode.connect(audioMuteGain);
+          audioMuteGain.connect(audioContext.destination);
+        }
 
         hasPhysicalAudio = true;
         const audioModeLabel = document.getElementById('sos-audio-mode-label');
-        if (audioModeLabel) audioModeLabel.textContent = '🎙️ LIVE 16kHz PCM · 32ms ULTRA-FAST';
+        if (audioModeLabel) audioModeLabel.textContent = '🎙️ LIVE HD 24kHz PCM · 21ms';
         const freqLabel = document.getElementById('sos-audio-freq-label');
-        if (freqLabel) freqLabel.textContent = '16kHz PCM · 32ms Binary Stream';
+        if (freqLabel) freqLabel.textContent = usedWorklet ? '24kHz HD AudioWorklet · 21ms' : '24kHz HD PCM · 21ms Binary';
 
         visualizeAudio();
       } catch (e) {
@@ -1655,7 +1746,7 @@
       if (audioModeLabel) {
         audioModeLabel.textContent = userMicMuted
           ? '🔇 MICROPHONE MUTED'
-          : (hasPhysicalAudio ? '🎙️ LIVE 16kHz PCM STREAMING' : 'SIMULATED AUDIO RELAY ACTIVE');
+          : (hasPhysicalAudio ? '🎙️ LIVE HD 24kHz PCM STREAMING' : 'SIMULATED AUDIO RELAY ACTIVE');
       }
     }
 
@@ -1704,8 +1795,8 @@
       const hasMediaDevices = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
       const camPromise = hasMediaDevices
         ? navigator.mediaDevices.getUserMedia({
-            video: { facingMode: sosFacingMode, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30, max: 30 } },
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            video: { facingMode: sosFacingMode, width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 360 }, frameRate: { ideal: 30, min: 15, max: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 }
           }).catch(err => ({ __camErr: err }))
         : Promise.resolve({ __camErr: new Error('MediaDevices unavailable') });
 
@@ -1759,7 +1850,7 @@
         video.style.display = 'block';
         video.play().catch(() => {});
         document.getElementById('sos-canvas').style.display = 'none';
-        document.getElementById('sos-camera-label').textContent = '📹 Live Physical Camera (30 FPS)';
+        document.getElementById('sos-camera-label').textContent = '📹 Live HD Physical Camera (30 FPS)';
 
         if (mediaResult.getAudioTracks().length > 0) {
           setupAudioStreamer(mediaResult);
@@ -1771,7 +1862,7 @@
         console.warn('Camera+Mic unavailable, trying Microphone-only stream:', mediaResult?.__camErr?.message);
         try {
           const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 }
           });
           if (!sosActiveFlag) {
             audioOnlyStream.getTracks().forEach(t => t.stop());
@@ -1805,13 +1896,13 @@
       const nextFacing = sosFacingMode === 'environment' ? 'user' : 'environment';
       try {
         const newCamStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: nextFacing }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30, max: 30 } },
+          video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 360 }, frameRate: { ideal: 30, min: 15, max: 30 } },
           audio: false
         });
         const newVideoTrack = newCamStream.getVideoTracks()[0];
         if (!newVideoTrack) return;
 
-        // Replace only video tracks while keeping audio track + AudioContext streamer untouched
+        // Replace only video tracks while keeping audio track + AudioWorklet streamer untouched
         if (sosStream) {
           sosStream.getVideoTracks().forEach(t => {
             sosStream.removeTrack(t);
@@ -1831,8 +1922,8 @@
         video.style.display = 'block';
         video.play().catch(() => {});
         document.getElementById('sos-canvas').style.display = 'none';
-        document.getElementById('sos-camera-label').textContent = `📹 Live Camera (${nextFacing === 'user' ? 'Front' : 'Rear'} · 30 FPS)`;
-        showToast(`Switched to ${nextFacing === 'user' ? 'front' : 'rear'} camera.`, 'success');
+        document.getElementById('sos-camera-label').textContent = `📹 Live HD Camera (${nextFacing === 'user' ? 'Front' : 'Rear'} · 30 FPS)`;
+        showToast(`Switched to ${nextFacing === 'user' ? 'front' : 'rear'} HD camera.`, 'success');
       } catch (err) {
         showToast('Alternate camera unavailable on this device.', 'warning');
       }
@@ -1952,39 +2043,110 @@
       }
     }
 
+    function stopFrameRelayTimers() {
+      if (streamInterval) {
+        clearTimeout(streamInterval);
+        clearInterval(streamInterval);
+        streamInterval = null;
+      }
+      if (streamPumpRaf) {
+        cancelAnimationFrame(streamPumpRaf);
+        streamPumpRaf = null;
+      }
+      const video = document.getElementById('sos-video');
+      if (video && videoFrameCbId !== null && typeof video.cancelVideoFrameCallback === 'function') {
+        try { video.cancelVideoFrameCallback(videoFrameCbId); } catch (e) {}
+      }
+      videoFrameCbId = null;
+    }
+
+    async function detectWebPSupport() {
+      if (canEncodeWebP !== null) return canEncodeWebP;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 4;
+        c.height = 4;
+        const dataUrl = c.toDataURL('image/webp');
+        canEncodeWebP = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/webp');
+      } catch (e) {
+        canEncodeWebP = false;
+      }
+      return canEncodeWebP;
+    }
+
     function startLiveFrameRelay() {
-      if (streamInterval) clearInterval(streamInterval);
+      stopFrameRelayTimers();
       blobEncodeInFlight = false;
       const canvas = document.getElementById('sos-canvas');
       const video = document.getElementById('sos-video');
 
       if (!sosCaptureCanvas) {
         sosCaptureCanvas = document.createElement('canvas');
-        sosCaptureCanvas.width = 400;
-        sosCaptureCanvas.height = 300;
+        sosCaptureCanvas.width = 854;
+        sosCaptureCanvas.height = 480;
         sosCaptureCtx = sosCaptureCanvas.getContext('2d', { alpha: false, desynchronized: true });
+        if (sosCaptureCtx) sosCaptureCtx.imageSmoothingQuality = 'high';
       }
 
-      // 33ms interval => fast 30 FPS off-thread JPEG blob binary WebSocket video streaming
-      streamInterval = setInterval(() => {
-        if (!sosActiveFlag || !currentSosAlertId || blobEncodeInFlight) return;
+      detectWebPSupport();
+      let lastFrameDispatchedAt = 0;
+
+      const scheduleNextFrame = () => {
+        if (!sosActiveFlag) return;
+        const hasPhysicalReady = !isSimulatedFeed && sosStream && hasPhysicalVideo && video && typeof video.requestVideoFrameCallback === 'function' && video.readyState >= 2;
+        if (hasPhysicalReady) {
+          videoFrameCbId = video.requestVideoFrameCallback(() => {
+            videoFrameCbId = null;
+            captureAndTransmitFrame();
+          });
+        } else {
+          streamPumpRaf = requestAnimationFrame(() => {
+            streamPumpRaf = null;
+            captureAndTransmitFrame();
+          });
+        }
+      };
+
+      const captureAndTransmitFrame = () => {
+        if (!sosActiveFlag || !currentSosAlertId) return;
+        const nowTs = performance.now();
+        // Pace at max ~34 FPS (29ms min gap) so hardware encoder + WS pipeline stay tear-free
+        if (blobEncodeInFlight || (nowTs - lastFrameDispatchedAt) < 28) {
+          streamInterval = setTimeout(scheduleNextFrame, 12);
+          return;
+        }
 
         try {
           const wsOpen = sosBroadcasterWs && sosBroadcasterWs.readyState === WebSocket.OPEN;
           const buffered = wsOpen ? sosBroadcasterWs.bufferedAmount : 0;
 
-          // Skip JPEG encoding completely if WebSocket send buffer is saturated (> 192KB)
-          if (wsOpen && buffered >= 196608) return;
+          // Backpressure protection: wait briefly if WS send buffer exceeds 192KB
+          if (wsOpen && buffered >= 196608) {
+            streamInterval = setTimeout(scheduleNextFrame, 24);
+            return;
+          }
 
-          // Adaptive JPEG quality based on socket buffer pressure
-          const jpegQuality = buffered > 98304 ? 0.38 : buffered > 32768 ? 0.50 : 0.62;
+          // Adaptive HD resolution + quality based on live socket pressure
+          const maxDimW = buffered > 98304 ? 480 : buffered > 49152 ? 640 : 854;
+          const isWebP = Boolean(canEncodeWebP);
+          const encodeMime = isWebP ? 'image/webp' : 'image/jpeg';
+          const encodeQuality = buffered > 98304
+            ? (isWebP ? 0.56 : 0.58)
+            : buffered > 49152
+              ? (isWebP ? 0.68 : 0.70)
+              : (isWebP ? 0.78 : 0.80);
 
           let targetCanvas = null;
           let vol = liveAudioLevel || 25;
 
           if (isSimulatedFeed || !sosStream || !hasPhysicalVideo) {
-            canvas.width = 400;
-            canvas.height = 300;
+            const simW = maxDimW >= 854 ? 640 : maxDimW;
+            const simH = Math.round((simW * 9) / 16);
+            if (canvas.width !== simW || canvas.height !== simH) {
+              canvas.width = simW;
+              canvas.height = simH;
+            }
+            currentStreamRes = `${simW}x${simH}`;
             drawProceduralEmergencyFrame();
             simulatedPacketSeq++;
             targetCanvas = canvas;
@@ -1998,24 +2160,41 @@
               drawSimulatedUserWaveform(vol);
             }
           } else if (video && video.videoWidth > 0 && video.videoHeight > 0 && sosCaptureCtx) {
-            sosCaptureCtx.drawImage(video, 0, 0, sosCaptureCanvas.width, sosCaptureCanvas.height);
+            const aspect = video.videoWidth / video.videoHeight;
+            const targetW = Math.min(video.videoWidth, maxDimW);
+            const targetH = Math.max(180, Math.round(targetW / aspect) & ~1);
+            if (sosCaptureCanvas.width !== targetW || sosCaptureCanvas.height !== targetH) {
+              sosCaptureCanvas.width = targetW;
+              sosCaptureCanvas.height = targetH;
+              sosCaptureCtx.imageSmoothingQuality = 'high';
+            }
+            currentStreamRes = `${targetW}x${targetH}`;
+            sosCaptureCtx.drawImage(video, 0, 0, targetW, targetH);
             targetCanvas = sosCaptureCanvas;
           } else {
-            // Camera hardware still initializing its first decoded frame: stream HUD frame instead of dropping
-            canvas.width = 400;
-            canvas.height = 300;
-            drawProceduralEmergencyFrame('🔴 LIVE SOS — INITIALIZING CAMERA FEED...');
+            const initW = 640;
+            const initH = 360;
+            if (canvas.width !== initW || canvas.height !== initH) {
+              canvas.width = initW;
+              canvas.height = initH;
+            }
+            currentStreamRes = `${initW}x${initH}`;
+            drawProceduralEmergencyFrame('🔴 LIVE SOS — INITIALIZING HD CAMERA FEED...');
             simulatedPacketSeq++;
             targetCanvas = canvas;
           }
 
-          if (!targetCanvas) return;
+          if (!targetCanvas) {
+            scheduleNextFrame();
+            return;
+          }
 
           const snapVol = Math.min(100, Math.max(0, Math.round(vol)));
           const snapHasRealAudio = hasPhysicalAudio && !userMicMuted;
           const snapSosId = currentSosAlertId;
-
+          lastFrameDispatchedAt = nowTs;
           blobEncodeInFlight = true;
+
           targetCanvas.toBlob(async (blob) => {
             try {
               if (!blob || !sosActiveFlag || !currentSosAlertId || currentSosAlertId !== snapSosId) return;
@@ -2032,17 +2211,20 @@
                 sosBroadcasterWs.bufferedAmount < 196608;
 
               if (isWsReady) {
-                const jpgAb = await blob.arrayBuffer();
+                const imgAb = await blob.arrayBuffer();
                 if (!sosActiveFlag || !sosBroadcasterWs || sosBroadcasterWs.readyState !== WebSocket.OPEN) return;
-                const pkt = new Uint8Array(8 + jpgAb.byteLength);
-                const view = new DataView(pkt.buffer);
-                pkt[0] = 0x01;
-                view.setUint32(1, videoSeq, true);
-                pkt[5] = snapVol;
-                pkt[6] = snapHasRealAudio ? 0x01 : 0x00;
-                pkt[7] = 0x00;
-                pkt.set(new Uint8Array(jpgAb), 8);
-                sosBroadcasterWs.send(pkt.buffer);
+                const totalBytes = 8 + imgAb.byteLength;
+                if (reusableVideoPktBuf.length < totalBytes) {
+                  reusableVideoPktBuf = new Uint8Array(Math.ceil(totalBytes * 1.25));
+                }
+                const pktView = new DataView(reusableVideoPktBuf.buffer);
+                reusableVideoPktBuf[0] = 0x01;
+                pktView.setUint32(1, videoSeq, true);
+                reusableVideoPktBuf[5] = snapVol;
+                reusableVideoPktBuf[6] = (snapHasRealAudio ? 0x01 : 0x00) | (isWebP ? 0x02 : 0x00);
+                reusableVideoPktBuf[7] = 0x00;
+                reusableVideoPktBuf.set(new Uint8Array(imgAb), 8);
+                sosBroadcasterWs.send(reusableVideoPktBuf.subarray(0, totalBytes));
               } else if ((videoSeq === 1 || videoSeq % 5 === 1) && !httpFrameInFlight) {
                 httpFrameInFlight = true;
                 try {
@@ -2062,13 +2244,17 @@
               console.warn('Binary video encode step:', err);
             } finally {
               blobEncodeInFlight = false;
+              if (sosActiveFlag) scheduleNextFrame();
             }
-          }, 'image/jpeg', jpegQuality);
+          }, encodeMime, encodeQuality);
         } catch (e) {
           blobEncodeInFlight = false;
           console.warn('Frame relay step:', e);
+          if (sosActiveFlag) streamInterval = setTimeout(scheduleNextFrame, 30);
         }
-      }, 33);
+      };
+
+      scheduleNextFrame();
     }
 
     async function dispatchSOS(lat, lon, accuracy) {
@@ -2114,7 +2300,7 @@
       if (bar) bar.style.width = level + '%';
       const freqLabel = document.getElementById('sos-audio-freq-label');
       if (freqLabel) {
-        freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `16kHz PCM · 32ms · Level ${level}%`;
+        freqLabel.textContent = userMicMuted ? 'Mic Muted (0%)' : `24kHz HD PCM · 21ms · Level ${level}%`;
       }
 
       // Draw live time-domain waveform inside civilian SOS audio card
@@ -2191,10 +2377,7 @@
         video.srcObject = null;
       }
 
-      if (streamInterval) {
-        clearInterval(streamInterval);
-        streamInterval = null;
-      }
+      stopFrameRelayTimers();
 
       if (sosBroadcasterWs) {
         try { sosBroadcasterWs.close(); } catch (e) {}
@@ -2211,6 +2394,14 @@
         }
       }
 
+      if (audioWorkletNode) {
+        try { audioWorkletNode.port.onmessage = null; audioWorkletNode.disconnect(); } catch (e) {}
+        audioWorkletNode = null;
+      }
+      if (audioWorkletUrl) {
+        try { URL.revokeObjectURL(audioWorkletUrl); } catch (e) {}
+        audioWorkletUrl = null;
+      }
       if (audioProcessorNode) {
         try { audioProcessorNode.disconnect(); } catch (e) {}
         audioProcessorNode = null;

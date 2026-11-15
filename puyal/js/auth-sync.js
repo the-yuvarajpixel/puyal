@@ -183,13 +183,21 @@ async function universalLogin(email, password, role) {
   let user = null;
   var effectiveAuth = window.auth;
 
-  // For Admin Portal, ALWAYS verify strictly with the server first
+  // For Admin Portal, verify strictly with the server (friendly offline error when disconnected)
   if (role === 'admin') {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, role: 'admin' })
-    });
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Offline mode: Admin sign-in requires network verification for a new session. Civilian Emergency Portal & SOS remain accessible without network.');
+    }
+    let res;
+    try {
+      res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role: 'admin' })
+      });
+    } catch (netErr) {
+      throw new Error('Network unreachable: Admin authentication requires connectivity. Once signed in, the portal remains accessible offline.');
+    }
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'Access denied. Invalid admin credentials.');
@@ -547,6 +555,10 @@ class RapidSync {
     return this.getOfflineQueue().length;
   }
 
+  getPendingIncidentSyncCount() {
+    return this.getOfflineQueue().filter((item) => item && item.type === 'CREATE_INCIDENT').length;
+  }
+
   enqueueOfflineAction(type, payload) {
     const outbox = this.getOfflineQueue();
     outbox.push({
@@ -581,6 +593,21 @@ class RapidSync {
               body: JSON.stringify(cleanPayload)
             });
             if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            if (window.db && typeof window.db.collection === 'function') {
+              try {
+                const fbCreatedAt =
+                  typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString();
+                await window.db.collection('incidents').add({
+                  ...cleanPayload,
+                  syncedFromOffline: true,
+                  createdAt: fbCreatedAt
+                });
+              } catch (fbErr) {
+                console.warn('Offline-to-Firebase replay warning:', fbErr && fbErr.message);
+              }
+            }
             syncedCount++;
           } else if (item.type === 'UPDATE_INCIDENT') {
             const res = await fetch(`/api/incidents/${item.payload.id}`, {
@@ -600,6 +627,19 @@ class RapidSync {
               body: JSON.stringify(cleanSos)
             });
             if (!res.ok && res.status >= 500) throw new Error('Server unavailable');
+            if (window.db && typeof window.db.collection === 'function') {
+              try {
+                const fbTs =
+                  typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString();
+                await window.db.collection('sos_alerts').add({
+                  ...cleanSos,
+                  syncedFromOffline: true,
+                  timestamp: fbTs
+                });
+              } catch (fbErr) {}
+            }
             syncedCount++;
           } else if (item.type === 'RESOLVE_SOS') {
             const res = await fetch(`/api/sos/${item.payload.id}/resolve`, { method: 'POST' });
@@ -681,6 +721,9 @@ class RapidSync {
   }
 
   async fetchIncidents() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return this._mergeQueuedIncidents(readLocalJson(RAPID_CACHE_KEYS.incidents, []));
+    }
     try {
       const res = await fetch('/api/incidents');
       const data = await res.json();
@@ -759,6 +802,9 @@ class RapidSync {
   }
 
   async fetchSOS() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return this._mergeQueuedSos(readLocalJson(RAPID_CACHE_KEYS.sos, []));
+    }
     try {
       const res = await fetch('/api/sos');
       const data = await res.json();
@@ -899,6 +945,9 @@ class RapidSync {
   }
 
   async fetchGovStations() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return readLocalJson(RAPID_CACHE_KEYS.stations, { success: true, stations: [] });
+    }
     try {
       const res = await fetch('/api/government/stations');
       const data = await res.json();
@@ -1003,6 +1052,9 @@ class RapidSync {
 
   // Response Teams Management API
   async fetchTeams() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return readLocalJson(RAPID_CACHE_KEYS.teams, []);
+    }
     try {
       const res = await fetch('/api/teams');
       const data = await res.json();

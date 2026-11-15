@@ -325,7 +325,30 @@
       { code: 'es', name: 'Spanish', native: 'Español', badge: 'ES', color: '#f87171', colorLight: '#fecaca', bgTint: 'rgba(248, 113, 113, 0.18)', borderTint: 'rgba(248, 113, 113, 0.45)' }
     ];
 
+    const SELECTED_LANG_STORAGE_KEY = 'currentSelectedLang';
     let currentSelectedLang = 'en';
+
+    function saveCurrentSelectedLang(langCode) {
+      if (!langCode || !BHASHINI_LANGUAGES.some(l => l.code === langCode)) return;
+      currentSelectedLang = langCode;
+      try {
+        localStorage.setItem(SELECTED_LANG_STORAGE_KEY, langCode);
+        localStorage.setItem('rapid_language', langCode);
+        localStorage.setItem('bhashini_language', langCode);
+      } catch (e) {
+        console.warn('Error saving selected language:', e);
+      }
+    }
+
+    function readSavedSelectedLang() {
+      try {
+        const direct = localStorage.getItem(SELECTED_LANG_STORAGE_KEY);
+        if (direct && BHASHINI_LANGUAGES.some(l => l.code === direct)) return direct;
+        const legacy = localStorage.getItem('rapid_language') || localStorage.getItem('bhashini_language');
+        if (legacy && BHASHINI_LANGUAGES.some(l => l.code === legacy)) return legacy;
+      } catch (e) {}
+      return null;
+    }
     let focusedOptionIndex = -1;
 
     // Toast helper
@@ -616,6 +639,7 @@
 
     // Select Language Handler
     function selectBhashiniLanguage(langCode) {
+      saveCurrentSelectedLang(langCode);
       addRecentLanguage(langCode);
       updateDropdownTrigger(langCode);
       toggleBhashiniDropdown(false);
@@ -805,11 +829,15 @@
 
     // Role Language Switcher Handler
     function onRoleLanguageChange(lang) {
+      const prevLang = currentSelectedLang;
+      saveCurrentSelectedLang(lang);
+      if (prevLang !== lang) {
+        addRecentLanguage(lang);
+        updateDropdownTrigger(lang);
+      }
       if (typeof translatePage === 'function') {
         translatePage(lang);
       }
-      localStorage.setItem('rapid_language', lang);
-      localStorage.setItem('bhashini_language', lang);
 
       const langName = (window.RAPID_LANG_NAMES && window.RAPID_LANG_NAMES[lang]) || lang;
       showToast(`🌐 Bhashini AI: ${langName} selected`, 'info');
@@ -818,6 +846,7 @@
     // Trigger Bhashini Neural Machine Translation with live API verification
     async function triggerBhashiniRoleTranslate() {
       const targetLang = currentSelectedLang || 'ta';
+      saveCurrentSelectedLang(targetLang);
       const btn = document.getElementById('btn-role-translate');
       const icon = document.getElementById('bhashini-translate-icon');
       const statusText = document.getElementById('bhashini-status-text');
@@ -1546,11 +1575,11 @@
       }
     }
 
-    // Set up Search Input, Clear Button, and Keyboard Navigation
-    document.addEventListener('DOMContentLoaded', () => {
+    // Restore saved language preference immediately on page load (before paint/DOMContentLoaded)
+    function restoreLanguagePreferenceImmediately() {
       const urlParams = new URLSearchParams(window.location.search);
       const urlLang = urlParams.get('lang');
-      const savedLang = localStorage.getItem('rapid_language') || localStorage.getItem('bhashini_language');
+      const savedLang = readSavedSelectedLang();
       const detectedBrowserLang = detectBrowserLanguage();
 
       let initialLang = 'en';
@@ -1558,20 +1587,34 @@
 
       // Priority order:
       // 1. Explicit URL parameter (?lang=...)
-      // 2. Saved user preference from previous interaction
+      // 2. Saved currentSelectedLang preference in localStorage
       // 3. Browser-based preferred language detection
       // 4. Default fallback: 'en'
       if (urlLang && BHASHINI_LANGUAGES.some(l => l.code === urlLang)) {
         initialLang = urlLang;
-      } else if (savedLang && BHASHINI_LANGUAGES.some(l => l.code === savedLang)) {
+        saveCurrentSelectedLang(initialLang);
+      } else if (savedLang) {
         initialLang = savedLang;
+        saveCurrentSelectedLang(initialLang);
       } else if (detectedBrowserLang && BHASHINI_LANGUAGES.some(l => l.code === detectedBrowserLang)) {
         initialLang = detectedBrowserLang;
         autoDetected = true;
       }
 
-      // Initialize dropdown state
       updateDropdownTrigger(initialLang);
+      document.documentElement.lang = initialLang;
+      if (typeof translatePage === 'function') {
+        translatePage(initialLang);
+      }
+
+      return { initialLang, autoDetected };
+    }
+
+    const initialRestoredLangState = restoreLanguagePreferenceImmediately();
+
+    // Set up Search Input, Clear Button, and Keyboard Navigation
+    document.addEventListener('DOMContentLoaded', () => {
+      const { initialLang, autoDetected } = initialRestoredLangState;
 
       // If automatically detected from browser on load, inform user and reflect in status
       if (autoDetected) {
@@ -1692,9 +1735,9 @@
         }
       });
 
-      // Run initial translation
-      if (typeof translatePage === 'function') {
-        translatePage(initialLang);
+      // Re-apply initial translation on DOM ready if needed
+      if (typeof translatePage === 'function' && currentSelectedLang && currentSelectedLang !== 'en') {
+        translatePage(currentSelectedLang);
       }
     });
 
