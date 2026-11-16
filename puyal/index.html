@@ -356,8 +356,9 @@
       const toast = document.getElementById('toast');
       if (!toast) return;
       toast.textContent = message;
-      toast.className = 'toast toast-' + type + ' visible';
-      setTimeout(() => {
+      toast.className = 'toast ' + type + ' show';
+      clearTimeout(toast._hideTimer);
+      toast._hideTimer = setTimeout(() => {
         toast.className = 'toast';
       }, 3500);
     }

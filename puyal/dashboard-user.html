@@ -19,6 +19,7 @@
   <!-- Open-Source Local Leaflet GIS Engine -->
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
   <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="js/leaflet-idb-cache.js"></script>
 </head>
 <body>
 
@@ -240,6 +241,9 @@
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="btn-cache-civ-tiles" class="btn" style="background: var(--subtle); color: var(--navy); font-size: 12px; font-weight: 700; border: 1px solid var(--border); padding: 6px 12px; border-radius: var(--radius-md); cursor: pointer;" onclick="prefetchCivilianOfflineTiles(true)" title="Pre-cache OpenStreetMap tiles in IndexedDB for offline access">
+            💾 Cache Map <span id="civ-tile-cache-count" style="opacity:0.8; font-size:10px;"></span>
+          </button>
           <a href="/tactical-3d.html?role=user" class="btn" style="background: #0f172a; color: #38bdf8; font-size: 12px; font-weight: 700; border: 1px solid #1e293b; padding: 6px 12px; border-radius: var(--radius-md); text-decoration: none;">
             🧊 3D Sector Twin
           </a>
@@ -290,6 +294,34 @@
       <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
         GPS location sharing is explicit and revocable via browser permissions or Ending SOS. Map visualization is subject to
         <a href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">Google Maps End User Terms</a>.
+      </div>
+    </section>
+
+    <!-- ── Find Nearby Hospitals, Shelters & Emergency Aid (Google Maps Grounding) ── -->
+    <section class="card" id="civilian-maps-grounding-section" style="max-width: 720px; margin: 24px auto 0;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+        <div>
+          <span style="font-size: 10px; font-weight: 800; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.4px;">GOOGLE MAPS GROUNDING &bull; GEMINI 4 HYDROGEN</span>
+          <h3 style="font-size: 16px; font-weight: 800; color: var(--navy); margin: 6px 0 2px;">📍 Nearby Hospitals, Shelters &amp; Aid</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0;">Search verified nearby emergency facilities anchored to your GPS coordinates using real Google Maps data.</p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+        <input type="text" id="civ-maps-query" class="form-control" style="flex: 1; min-width: 200px;" placeholder="e.g., nearest 24-hour emergency hospitals, flood shelters, or fire stations" value="nearest emergency hospitals and safe shelters" />
+        <button type="button" id="civ-maps-search-btn" class="btn btn-primary" style="padding: 8px 16px; white-space: nowrap;" onclick="searchCivilianMapsGrounding()">
+          🔍 Search Nearby
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
+        <button type="button" class="btn" style="background: var(--subtle); border: 1px solid var(--border); font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer;" onclick="searchCivilianMapsGrounding('nearest 24 hour hospitals and trauma centers')">🏥 Hospitals &amp; Trauma</button>
+        <button type="button" class="btn" style="background: var(--subtle); border: 1px solid var(--border); font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer;" onclick="searchCivilianMapsGrounding('emergency relief shelters and community safe halls nearby')">🏢 Emergency Shelters</button>
+        <button type="button" class="btn" style="background: var(--subtle); border: 1px solid var(--border); font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer;" onclick="searchCivilianMapsGrounding('24 hour pharmacies and medical aid clinics nearby')">💊 Medical Aid &amp; Pharmacies</button>
+      </div>
+
+      <div id="civ-maps-grounding-results" style="font-size: 13px; color: var(--text-secondary); background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px;">
+        Tap <strong>Search Nearby</strong> or select a quick category above to retrieve verified nearby hospitals and shelters with Google Maps links.
       </div>
     </section>
 
@@ -1008,6 +1040,17 @@
       updateDynamicSeverityMeter();
       autoDetectLocation(false);
       await loadUserIncidents();
+      if (wasOfflineQueued && typeof window.triggerOfflineAlert === 'function') {
+        window.triggerOfflineAlert({
+          id: `offline-inc-${newIncident.id}`,
+          title: 'Incident Alert Saved Offline',
+          message: `"${newIncident.title}" (${resolvedSeverity}) saved locally and queued for auto-sync when network returns.`,
+          level: resolvedSeverity === 'Critical' ? 'critical' : 'warning',
+          sound: true,
+          notifyOS: true,
+          url: '/dashboard-user.html'
+        });
+      }
       showToast(
         wasOfflineQueued
           ? '📴 Offline: Report saved locally and queued for auto-sync when reconnected!'
@@ -2269,16 +2312,21 @@
         media: { hasVideo: true, hasAudio: true }
       };
 
+      let offlineSos = typeof navigator !== 'undefined' && !navigator.onLine;
       try {
         const res = await rapidSync.createSOS(sosData);
         if (res.alert && res.alert.id) {
           currentSosAlertId = res.alert.id;
         }
+        if (res && res.offlineQueued) {
+          offlineSos = true;
+        }
       } catch (e) {
         console.error('Server SOS dispatch error:', e);
+        offlineSos = true;
       }
 
-      if (window.db) {
+      if (window.db && (typeof navigator === 'undefined' || navigator.onLine)) {
         try {
           window.db.collection('sos_alerts').add({
             ...sosData,
@@ -2287,7 +2335,24 @@
         } catch (e) {}
       }
 
-      showToast('🚨 SOS broadcast live to Admin Command Center!', 'error');
+      if (offlineSos && typeof window.triggerOfflineAlert === 'function') {
+        window.triggerOfflineAlert({
+          id: `offline-sos-${currentSosAlertId || Date.now()}`,
+          title: 'SOS Emergency Queued Offline',
+          message: `GPS (${lat}, ${lon}) & SOS alert recorded without network — auto-transmitting as soon as signal returns.`,
+          level: 'critical',
+          sound: true,
+          notifyOS: true,
+          url: '/dashboard-user.html'
+        });
+      }
+
+      showToast(
+        offlineSos
+          ? '📴 Offline SOS Armed: Location & alert saved locally for instant auto-sync!'
+          : '🚨 SOS broadcast live to Admin Command Center!',
+        'error'
+      );
     }
 
     function visualizeAudio() {
@@ -2453,6 +2518,7 @@
             usingGoogleCivMap = true;
             const attrEl = document.getElementById('civilian-map-attribution');
             if (attrEl) attrEl.innerHTML = 'Google Maps Platform &bull; Routes &amp; Markers';
+            prefetchCivilianOfflineTiles(false);
             return true;
           }
           googleCivilianMap = null;
@@ -2465,23 +2531,86 @@
             scrollWheelZoom: true
           });
 
-          const osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+          const tileOpts = {
             maxZoom: 19,
+            layerCacheId: 'osm',
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
-          }).addTo(civilianTrackingMap);
+          };
+          const osmTileLayer = typeof window.createCachedLeafletTileLayer === 'function'
+            ? window.createCachedLeafletTileLayer(tileUrl, tileOpts).addTo(civilianTrackingMap)
+            : L.tileLayer(tileUrl, tileOpts).addTo(civilianTrackingMap);
 
           if (window.attachOfflineMapFallback) {
             window.attachOfflineMapFallback(civilianTrackingMap, osmTileLayer);
           }
 
+          const attrEl = document.getElementById('civilian-map-attribution');
+          if (attrEl) {
+            attrEl.innerHTML = 'OpenStreetMap &bull; Leaflet IndexedDB Cache';
+          }
+
           setTimeout(() => {
             if (civilianTrackingMap) civilianTrackingMap.invalidateSize();
+            prefetchCivilianOfflineTiles(false);
           }, 500);
         }
         return true;
       })();
 
       return civMapInitPromise;
+    }
+
+    async function updateCivTileCacheBadge() {
+      const countEl = document.getElementById('civ-tile-cache-count');
+      if (!countEl || !window.PuyalTileCache) return;
+      try {
+        const stats = await window.PuyalTileCache.getStats();
+        countEl.textContent = stats && stats.count > 0 ? `(${stats.count})` : '';
+      } catch (e) {}
+    }
+
+    window.addEventListener('puyal-tile-cache-updated', (ev) => {
+      const countEl = document.getElementById('civ-tile-cache-count');
+      if (countEl && ev && ev.detail) {
+        countEl.textContent = ev.detail.count > 0 ? `(${ev.detail.count})` : '';
+      }
+    });
+
+    async function prefetchCivilianOfflineTiles(manual = false) {
+      if (!window.PuyalTileCache) return;
+      await updateCivTileCacheBadge();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        if (manual && typeof showToast === 'function') {
+          const stats = await window.PuyalTileCache.getStats();
+          showToast(`📴 Offline: Serving ${stats.count} cached map tiles from IndexedDB.`, 'info');
+        }
+        return;
+      }
+      const btn = document.getElementById('btn-cache-civ-tiles');
+      if (manual && btn) btn.disabled = true;
+      try {
+        const coords = window._currentCoords || { latitude: 13.0530, longitude: 80.2650 };
+        const res = await window.PuyalTileCache.prefetchCenterTiles(
+          Number(coords.latitude) || 13.0530,
+          Number(coords.longitude) || 80.2650,
+          {
+            zooms: manual ? [11, 12, 13, 14] : [12, 13],
+            radiusByZoom: manual ? { 11: 1, 12: 2, 13: 2, 14: 1 } : { 12: 1, 13: 1 },
+            maxTiles: manual ? 56 : 18
+          }
+        );
+        await updateCivTileCacheBadge();
+        if (manual && typeof showToast === 'function') {
+          showToast(`💾 Offline Map Ready: ${res.totalCached || 0} base tiles stored in IndexedDB (+${res.fetched} new).`, 'success');
+        }
+      } catch (e) {
+        if (manual && typeof showToast === 'function') {
+          showToast('Unable to cache map tiles right now.', 'warning');
+        }
+      } finally {
+        if (manual && btn) btn.disabled = false;
+      }
     }
 
     async function updateCivilianTrackingDisplay(team, incident) {
@@ -2748,6 +2877,103 @@
         setTimeout(() => focusCivilianTracking(), 250);
       }
     });
+
+    // ====================================================================
+    // GOOGLE MAPS GROUNDING — NEARBY HOSPITALS & SHELTERS (Gemini 4 Hydrogen)
+    // ====================================================================
+    function escapeMapsHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderMapsGroundingOutput(container, data, fromCache) {
+      if (!container) return;
+      const summaryHtml = escapeMapsHtml(data.text || 'Verified Google Maps results')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+
+      const places = Array.isArray(data.places) ? data.places : [];
+      const placesHtml = places.length > 0
+        ? `<div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px;">
+            ${places.map((p) => `
+              <a href="${escapeMapsHtml(p.uri)}" target="_blank" rel="noopener noreferrer"
+                 style="display: block; background: #ffffff; border: 1px solid #bae6fd; border-left: 4px solid #0284c7; border-radius: 8px; padding: 9px 11px; text-decoration: none; color: #0f172a;">
+                <div style="font-size: 12px; font-weight: 800; color: #0369a1;">📍 ${escapeMapsHtml(p.title)} ↗</div>
+                ${Array.isArray(p.reviewSnippets) && p.reviewSnippets[0]
+                  ? `<div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.35;">“${escapeMapsHtml(p.reviewSnippets[0])}”</div>`
+                  : '<div style="font-size: 11px; color: #64748b; margin-top: 3px;">Open directions in Google Maps</div>'}
+              </a>
+            `).join('')}
+          </div>`
+        : '';
+
+      const coordsText = data.coordinates
+        ? `${Number(data.coordinates.latitude).toFixed(4)}, ${Number(data.coordinates.longitude).toFixed(4)}`
+        : 'Current Sector';
+
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 800; color: #0369a1;">
+            🗺️ Grounded via Google Maps (${escapeMapsHtml(data.model || 'gemini-4-hydrogen')}) &bull; GPS: ${coordsText}
+          </span>
+          ${fromCache ? '<span style="font-size: 10px; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;">OFFLINE CACHED</span>' : ''}
+        </div>
+        <div style="font-size: 12px; line-height: 1.55; color: #1e293b;">${summaryHtml}</div>
+        ${placesHtml}
+        <div style="font-size: 10px; color: #64748b; margin-top: 8px;">Source: Google Maps Grounding · Tap any location link to open Google Maps</div>
+      `;
+    }
+
+    async function searchCivilianMapsGrounding(customQuery) {
+      const inputEl = document.getElementById('civ-maps-query');
+      const resultsEl = document.getElementById('civ-maps-grounding-results');
+      if (customQuery && inputEl) inputEl.value = customQuery;
+      const query = (inputEl ? inputEl.value : customQuery || '').trim() || 'nearest emergency hospitals and safe shelters';
+      if (!resultsEl) return;
+
+      const coords = window._currentCoords || (window.getCurrentOrCachedCoords ? window.getCurrentOrCachedCoords() : { latitude: 13.0604, longitude: 80.2496 });
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        try {
+          const cachedRaw = localStorage.getItem('puyal_maps_grounding_user_cache');
+          if (cachedRaw) {
+            const cachedData = JSON.parse(cachedRaw);
+            renderMapsGroundingOutput(resultsEl, cachedData, true);
+            return;
+          }
+        } catch (e) {}
+        resultsEl.innerHTML = `<div style="color: #92400e; font-weight: 700; font-size: 12px;">📴 Offline Mode: Live Google Maps Grounding requires connectivity, and no prior search is cached yet. Use the Offline Tactical Map above or dial <strong>108 / 112</strong>.</div>`;
+        return;
+      }
+
+      resultsEl.innerHTML = `<div style="font-size: 12px; color: #0369a1; font-weight: 700;">⏳ Querying Google Maps via Gemini 4 Hydrogen near ${Number(coords.latitude).toFixed(4)}, ${Number(coords.longitude).toFixed(4)}...</div>`;
+
+      try {
+        const res = await fetch('/api/gemini/maps-grounding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            role: 'civilian'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Maps Grounding query failed');
+        }
+        try {
+          localStorage.setItem('puyal_maps_grounding_user_cache', JSON.stringify(data));
+        } catch (e) {}
+        renderMapsGroundingOutput(resultsEl, data, false);
+      } catch (err) {
+        resultsEl.innerHTML = `<div style="color: #dc2626; font-weight: 700; font-size: 12px;">⚠️ ${escapeMapsHtml(err.message)}</div>`;
+      }
+    }
   </script>
 
   <!-- Offline QR Generator & Incident Dispatch Card -->

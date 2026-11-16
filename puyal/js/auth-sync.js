@@ -478,6 +478,23 @@ function notifyOfflineQueueChanged() {
   } catch (e) {}
 }
 
+function notifySyncStateChanged(detail) {
+  try {
+    window.dispatchEvent(new CustomEvent('rapidSyncStateChanged', { detail }));
+  } catch (e) {}
+  try {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const target = navigator.serviceWorker.controller;
+      if (target && typeof target.postMessage === 'function') {
+        target.postMessage({
+          type: 'SYNC_QUEUE_PROGRESS',
+          ...detail
+        });
+      }
+    }
+  } catch (e) {}
+}
+
 function classifyEmergencyOffline(text, language = 'en') {
   const lower = String(text || '').toLowerCase();
   let category = 'Other';
@@ -569,6 +586,15 @@ class RapidSync {
     });
     writeLocalJson(RAPID_CACHE_KEYS.outbox, outbox);
     notifyOfflineQueueChanged();
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if (reg && reg.sync && typeof reg.sync.register === 'function') {
+            reg.sync.register('puyal-firebase-sync').catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {}
   }
 
   async flushOfflineQueue() {
@@ -577,8 +603,17 @@ class RapidSync {
     if (!outbox.length) return 0;
 
     this._flushingQueue = true;
+    const total = outbox.length;
     let syncedCount = 0;
     const remaining = [];
+
+    notifySyncStateChanged({
+      state: 'pushing',
+      remaining: total,
+      total,
+      syncedCount: 0,
+      recordType: outbox[0] && outbox[0].type
+    });
 
     try {
       for (let i = 0; i < outbox.length; i++) {
@@ -649,10 +684,19 @@ class RapidSync {
         } catch (err) {
           remaining.push(item);
         }
+
+        const currentOutbox = remaining.concat(outbox.slice(i + 1));
+        writeLocalJson(RAPID_CACHE_KEYS.outbox, currentOutbox);
+        notifyOfflineQueueChanged();
+        notifySyncStateChanged({
+          state: i + 1 < outbox.length ? 'pushing' : (currentOutbox.length === 0 ? 'completed' : 'partial'),
+          remaining: currentOutbox.length,
+          total,
+          syncedCount,
+          recordType: item.type
+        });
       }
 
-      writeLocalJson(RAPID_CACHE_KEYS.outbox, remaining);
-      notifyOfflineQueueChanged();
       if (syncedCount > 0) {
         this.emit('OFFLINE_SYNCED', { syncedCount });
       }

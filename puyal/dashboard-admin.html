@@ -15,6 +15,7 @@
   <!-- Open-Source Local Leaflet GIS & Mapping Engine -->
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
   <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="js/leaflet-idb-cache.js"></script>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="alternate icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -301,6 +302,11 @@
             <span data-i18n="admin.map.center_btn">🎯 Recenter</span>
           </button>
 
+          <!-- Cache Base Map Tiles into IndexedDB for Offline Mode -->
+          <button type="button" class="map-filter-btn" id="btn-cache-tactical-tiles" onclick="prefetchTacticalOfflineTiles(true)" title="Pre-cache OpenStreetMap tiles in IndexedDB for offline access">
+            💾 Cache Map <span id="tactical-tile-cache-count" style="opacity:0.85; font-size:10px;"></span>
+          </button>
+
           <!-- Real-Time Dispatch Route Simulation Button -->
           <button type="button" class="map-filter-btn" style="background: #dc2626; color: #fff; font-weight: 800; border-color: #ef4444;" onclick="triggerDemoDispatchSimulation()">
             🚀 Simulate Dispatch Demo
@@ -376,6 +382,31 @@
       <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
         Situational visualization only — follow official emergency dispatch protocols. When Google Maps is active, usage is subject to
         <a href="https://maps.google.com/help/terms_maps/?utm_campaign=gmp_mcp_codeassist_v1_aistudio" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;">Google Maps End User Terms</a>.
+      </div>
+
+      <!-- ── Google Maps Grounding Tactical Facility Lookup (Gemini 4 Hydrogen) ── -->
+      <div id="admin-maps-grounding-panel" style="margin-top: 16px; background: var(--subtle); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <span style="font-size: 10px; font-weight: 800; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.4px;">GOOGLE MAPS GROUNDING &bull; GEMINI 4 HYDROGEN</span>
+            <h3 style="font-size: 15px; font-weight: 800; color: var(--navy); margin: 6px 0 2px;">📍 Nearby Hospitals, Shelters &amp; Staging Facilities</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 0;">Queries verified Google Maps locations anchored to the active emergency sector coordinates.</p>
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="map-filter-btn" onclick="searchAdminMapsGrounding('nearest trauma hospitals and emergency care centers')">🏥 Trauma &amp; Hospitals</button>
+            <button type="button" class="map-filter-btn" onclick="searchAdminMapsGrounding('nearby fire stations, police headquarters, and rescue depots')">🚒 Fire &amp; Rescue Stations</button>
+            <button type="button" class="map-filter-btn" onclick="searchAdminMapsGrounding('emergency relief shelters, stadiums, and community evacuation centers nearby')">🏢 Relief Shelters</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+          <input type="text" id="admin-maps-query" class="form-control" style="flex: 1; min-width: 220px;" placeholder="Search verified nearby hospitals, shelters, or staging hubs..." value="nearest emergency trauma hospitals and disaster relief shelters" />
+          <button type="button" class="btn btn-primary" style="padding: 8px 16px; white-space: nowrap;" onclick="searchAdminMapsGrounding()">
+            🔍 Query Maps Data
+          </button>
+        </div>
+        <div id="admin-maps-grounding-results" style="font-size: 12px; color: var(--text-secondary); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px;">
+          Click <strong>Query Maps Data</strong> or choose a tactical preset above to retrieve grounded Google Maps locations around the active emergency sector.
+        </div>
       </div>
     </section>
 
@@ -1025,6 +1056,23 @@
         updateAdvancedAnalytics();
         renderSOSFeed();
 
+        if (typeof navigator !== 'undefined' && !navigator.onLine && typeof window.triggerOfflineAlert === 'function') {
+          const criticalOpen = incidents.filter(i => i && i.status !== 'Resolved' && i.severity === 'Critical');
+          criticalOpen.forEach((inc) => {
+            window.triggerOfflineAlert({
+              id: `offline-admin-crit-${inc.id}`,
+              dedupe: true,
+              title: `Offline Critical Incident: ${inc.title}`,
+              message: `${inc.category || 'Emergency'} · ${inc.affected || 1} affected · ${inc.location || 'Sector cached locally'}.`,
+              level: 'critical',
+              sound: true,
+              notifyOS: true,
+              ttlMs: 0,
+              url: '/dashboard-admin.html'
+            });
+          });
+        }
+
         if (!tacticalMap) {
           initTacticalMap();
         }
@@ -1252,6 +1300,22 @@
       const topAlert = activeAlerts[0];
       banner.classList.remove('hidden');
       bannerDetails.textContent = `Target: ${topAlert.email} | Location: ${topAlert.latitude ? `${topAlert.latitude}, ${topAlert.longitude} (±${topAlert.accuracy || 5}m)` : 'GPS Pending'} | Time: ${topAlert.displayTime || 'Just now'}`;
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine && typeof window.triggerOfflineAlert === 'function') {
+        activeAlerts.forEach((a) => {
+          window.triggerOfflineAlert({
+            id: `offline-admin-sos-${a.id}`,
+            dedupe: true,
+            title: `Offline Active SOS: ${a.email || 'Civilian Distress'}`,
+            message: `Cached SOS beacon at ${a.latitude ? `${Number(a.latitude).toFixed(4)}, ${Number(a.longitude).toFixed(4)}` : 'GPS Pending'} — ready for immediate command action.`,
+            level: 'critical',
+            sound: true,
+            notifyOS: true,
+            ttlMs: 0,
+            url: '/dashboard-admin.html'
+          });
+        });
+      }
 
       let html = '';
       activeAlerts.forEach((d) => {
@@ -2816,13 +2880,137 @@
     let currentMapFilter = 'all';
     let showPerimeterCircles = true;
 
+    let tacticalViewportCacheTimer = null;
+
+    function initLeafletTacticalInstance(centerCoords = [13.0604, 80.2496], zoomLevel = 12) {
+      if (tacticalMap || typeof L === 'undefined') return tacticalMap;
+      const mapEl = document.getElementById('tactical-map');
+      if (!mapEl) return null;
+
+      tacticalMap = L.map('tactical-map', {
+        center: centerCoords,
+        zoom: zoomLevel,
+        minZoom: 3,
+        maxZoom: 19,
+        scrollWheelZoom: true
+      });
+
+      const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      const tileOpts = {
+        maxZoom: 19,
+        layerCacheId: 'osm',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+      };
+      const osmTileLayer = typeof window.createCachedLeafletTileLayer === 'function'
+        ? window.createCachedLeafletTileLayer(tileUrl, tileOpts).addTo(tacticalMap)
+        : L.tileLayer(tileUrl, tileOpts).addTo(tacticalMap);
+
+      if (window.attachOfflineMapFallback) {
+        window.attachOfflineMapFallback(tacticalMap, osmTileLayer);
+      }
+
+      const badgeEl = document.getElementById('map-engine-badge');
+      if (badgeEl) {
+        const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        badgeEl.textContent = isOffline
+          ? 'OFFLINE LEAFLET GIS • INDEXEDDB TILE CACHE'
+          : 'LEAFLET GIS • INDEXEDDB OFFLINE CACHE';
+        badgeEl.style.background = isOffline ? '#fef3c7' : '#ecfdf5';
+        badgeEl.style.color = isOffline ? '#92400e' : '#065f46';
+        badgeEl.style.borderColor = isOffline ? '#fde68a' : '#a7f3d0';
+      }
+      const attrEl = document.getElementById('map-engine-attribution');
+      if (attrEl) {
+        attrEl.innerHTML = 'OpenStreetMap &bull; Leaflet IndexedDB Cache';
+      }
+
+      mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
+      mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
+      mapLayers.teams = L.layerGroup().addTo(tacticalMap);
+      mapLayers.stations = L.layerGroup().addTo(tacticalMap);
+      mapLayers.sos = L.layerGroup().addTo(tacticalMap);
+      mapLayers.routes = L.layerGroup().addTo(tacticalMap);
+
+      // Continuously cache navigated viewport neighborhoods into IndexedDB while online
+      tacticalMap.on('moveend zoomend', () => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        if (!window.PuyalTileCache || !tacticalMap) return;
+        if (tacticalViewportCacheTimer) clearTimeout(tacticalViewportCacheTimer);
+        tacticalViewportCacheTimer = setTimeout(() => {
+          if (!tacticalMap || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+          const c = tacticalMap.getCenter();
+          const z = Math.min(16, Math.max(10, Math.round(tacticalMap.getZoom() || 12)));
+          const zooms = Array.from(new Set([Math.max(10, z - 1), z, Math.min(16, z + 1)]));
+          window.PuyalTileCache.prefetchCenterTiles(c.lat, c.lng, {
+            zooms,
+            radiusByZoom: { [z]: 1 },
+            maxTiles: 20
+          }).catch(() => {});
+        }, 700);
+      });
+
+      setTimeout(() => {
+        if (tacticalMap) tacticalMap.invalidateSize();
+        prefetchTacticalOfflineTiles(false);
+      }, 450);
+
+      return tacticalMap;
+    }
+
+    async function switchTacticalMapToOfflineLeaflet() {
+      if (!usingGoogleMaps || tacticalMap || typeof L === 'undefined') return;
+      const mapEl = document.getElementById('tactical-map');
+      if (!mapEl) return;
+
+      let centerCoords = [13.0604, 80.2496];
+      let zoomLevel = 12;
+      try {
+        if (googleTacticalMap && googleTacticalMap.map) {
+          const c = googleTacticalMap.map.getCenter();
+          if (c) centerCoords = [c.lat(), c.lng()];
+          const z = googleTacticalMap.map.getZoom();
+          if (typeof z === 'number' && !isNaN(z)) zoomLevel = z;
+        }
+        if (googleTacticalMap && typeof googleTacticalMap.clearLayers === 'function') {
+          googleTacticalMap.clearLayers();
+        }
+      } catch (e) {}
+
+      usingGoogleMaps = false;
+      googleTacticalMap = null;
+      mapEl.innerHTML = '';
+
+      initLeafletTacticalInstance(centerCoords, zoomLevel);
+      updateTacticalMap();
+      if (typeof showToast === 'function') {
+        showToast('📴 Offline Map Mode: Switched #tactical-map to IndexedDB-cached Leaflet GIS.', 'warning');
+      }
+    }
+
+    window.addEventListener('offline', () => {
+      switchTacticalMapToOfflineLeaflet();
+    });
+
+    window.addEventListener('online', () => {
+      const badgeEl = document.getElementById('map-engine-badge');
+      if (badgeEl && !usingGoogleMaps && tacticalMap) {
+        badgeEl.textContent = 'LEAFLET GIS • INDEXEDDB OFFLINE CACHE';
+        badgeEl.style.background = '#ecfdf5';
+        badgeEl.style.color = '#065f46';
+        badgeEl.style.borderColor = '#a7f3d0';
+      }
+      if (tacticalMap) {
+        prefetchTacticalOfflineTiles(false);
+      }
+    });
+
     async function initTacticalMap() {
       if (tacticalMap || googleTacticalMap) return;
       const mapEl = document.getElementById('tactical-map');
       if (!mapEl) return;
 
-      // Try Google Maps Platform (Dynamic Library Import, AdvancedMarkerElement, Routes API)
-      if (window.TacticalGoogleMap) {
+      // Try Google Maps Platform when online (Dynamic Library Import, AdvancedMarkerElement, Routes API)
+      if (window.TacticalGoogleMap && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
         googleTacticalMap = new window.TacticalGoogleMap('tactical-map', {
           center: { lat: 13.0604, lng: 80.2496 },
           zoom: 12,
@@ -2841,37 +3029,90 @@
           const attrEl = document.getElementById('map-engine-attribution');
           if (attrEl) attrEl.innerHTML = 'Google Maps Platform &bull; Advanced Markers &bull; Live Telemetry';
           updateTacticalMap();
+          // Pre-warm Leaflet OSM tiles in IndexedDB in background so disconnected reloads/switches stay navigable
+          prefetchTacticalOfflineTiles(false);
           return;
         }
+        googleTacticalMap = null;
       }
 
-      // Seamless fallback to Leaflet GIS
-      if (typeof L !== 'undefined') {
-        tacticalMap = L.map('tactical-map', {
-          center: [13.0604, 80.2496],
-          zoom: 12,
-          scrollWheelZoom: true
+      // Seamless fallback to Leaflet GIS with IndexedDB Base Tile Cache
+      if (initLeafletTacticalInstance([13.0604, 80.2496], 12)) {
+        updateTacticalMap();
+      }
+    }
+
+    async function updateTacticalTileCacheBadge() {
+      const countEl = document.getElementById('tactical-tile-cache-count');
+      if (!countEl || !window.PuyalTileCache) return;
+      try {
+        const stats = await window.PuyalTileCache.getStats();
+        countEl.textContent = stats && stats.count > 0 ? `(${stats.count})` : '';
+      } catch (e) {}
+    }
+
+    window.addEventListener('puyal-tile-cache-updated', (ev) => {
+      const countEl = document.getElementById('tactical-tile-cache-count');
+      if (countEl && ev && ev.detail) {
+        countEl.textContent = ev.detail.count > 0 ? `(${ev.detail.count})` : '';
+      }
+    });
+
+    async function prefetchTacticalOfflineTiles(manual = false) {
+      if (!window.PuyalTileCache) return;
+      await updateTacticalTileCacheBadge();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        if (manual && typeof showToast === 'function') {
+          const stats = await window.PuyalTileCache.getStats();
+          showToast(`📴 Offline: Serving ${stats.count} cached Leaflet base tiles from IndexedDB.`, 'info');
+        }
+        return;
+      }
+      const btn = document.getElementById('btn-cache-tactical-tiles');
+      if (manual && btn) btn.disabled = true;
+      try {
+        let lat = 13.0604;
+        let lon = 80.2496;
+        if (tacticalMap && typeof tacticalMap.getCenter === 'function') {
+          const c = tacticalMap.getCenter();
+          lat = c.lat;
+          lon = c.lng;
+        } else if (usingGoogleMaps && googleTacticalMap && googleTacticalMap.map && typeof googleTacticalMap.map.getCenter === 'function') {
+          const c = googleTacticalMap.map.getCenter();
+          if (c) {
+            lat = c.lat();
+            lon = c.lng();
+          }
+        }
+        const res = await window.PuyalTileCache.prefetchCenterTiles(lat, lon, {
+          zooms: manual ? [11, 12, 13, 14] : [11, 12, 13],
+          radiusByZoom: manual ? { 11: 1, 12: 2, 13: 2, 14: 1 } : { 11: 1, 12: 1, 13: 1 },
+          maxTiles: manual ? 64 : 28
         });
 
-        const osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
-        }).addTo(tacticalMap);
-
-        if (window.attachOfflineMapFallback) {
-          window.attachOfflineMapFallback(tacticalMap, osmTileLayer);
+        // Also cache tiles around current top emergency location if distant from map center
+        if (typeof resolveCurrentEmergencyLocation === 'function') {
+          const anchor = resolveCurrentEmergencyLocation();
+          if (anchor && (Math.abs(anchor.lat - lat) > 0.015 || Math.abs(anchor.lon - lon) > 0.015)) {
+            await window.PuyalTileCache.prefetchCenterTiles(anchor.lat, anchor.lon, {
+              zooms: [12, 13, 14],
+              radiusByZoom: { 12: 1, 13: 1, 14: 1 },
+              maxTiles: 24
+            });
+          }
         }
 
-        mapLayers.disasters = L.layerGroup().addTo(tacticalMap);
-        mapLayers.perimeters = L.layerGroup().addTo(tacticalMap);
-        mapLayers.teams = L.layerGroup().addTo(tacticalMap);
-        mapLayers.stations = L.layerGroup().addTo(tacticalMap);
-        mapLayers.sos = L.layerGroup().addTo(tacticalMap);
-        mapLayers.routes = L.layerGroup().addTo(tacticalMap);
-
-        setTimeout(() => {
-          if (tacticalMap) tacticalMap.invalidateSize();
-        }, 500);
+        await updateTacticalTileCacheBadge();
+        if (manual && typeof showToast === 'function') {
+          const latest = await window.PuyalTileCache.getStats();
+          showToast(`💾 Offline Map Ready: ${latest.count || res.totalCached || 0} base map tiles stored in IndexedDB (+${res.fetched} new).`, 'success');
+        }
+      } catch (e) {
+        if (manual && typeof showToast === 'function') {
+          showToast('Unable to prefetch map tiles right now.', 'warning');
+        }
+      } finally {
+        if (manual && btn) btn.disabled = false;
       }
     }
 
@@ -3433,6 +3674,104 @@
         if (typeof showToast === 'function') showToast(`✅ Reconnected! Synced ${count} queued offline action(s).`, 'success');
         loadAllData();
       });
+    }
+
+    // ====================================================================
+    // GOOGLE MAPS GROUNDING — COMMAND FACILITY LOOKUP (Gemini 4 Hydrogen)
+    // ====================================================================
+    function escapeAdminMapsHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderAdminMapsGroundingOutput(container, data, fromCache) {
+      if (!container) return;
+      const summaryHtml = escapeAdminMapsHtml(data.text || 'Verified Google Maps facilities')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+
+      const places = Array.isArray(data.places) ? data.places : [];
+      const placesHtml = places.length > 0
+        ? `<div style="margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;">
+            ${places.map((p) => `
+              <a href="${escapeAdminMapsHtml(p.uri)}" target="_blank" rel="noopener noreferrer"
+                 style="display: block; background: #f8fafc; border: 1px solid #bae6fd; border-left: 4px solid #0284c7; border-radius: 8px; padding: 9px 11px; text-decoration: none; color: #0f172a;">
+                <div style="font-size: 12px; font-weight: 800; color: #0369a1;">📍 ${escapeAdminMapsHtml(p.title)} ↗</div>
+                ${Array.isArray(p.reviewSnippets) && p.reviewSnippets[0]
+                  ? `<div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.35;">“${escapeAdminMapsHtml(p.reviewSnippets[0])}”</div>`
+                  : '<div style="font-size: 11px; color: #64748b; margin-top: 3px;">Open facility in Google Maps</div>'}
+              </a>
+            `).join('')}
+          </div>`
+        : '';
+
+      const coordsText = data.coordinates
+        ? `${Number(data.coordinates.latitude).toFixed(4)}, ${Number(data.coordinates.longitude).toFixed(4)}`
+        : 'Command Sector';
+
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 800; color: #0369a1;">
+            🗺️ Grounded via Google Maps (${escapeAdminMapsHtml(data.model || 'gemini-4-hydrogen')}) &bull; Sector GPS: ${coordsText}
+          </span>
+          ${fromCache ? '<span style="font-size: 10px; font-weight: 800; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;">OFFLINE CACHED</span>' : ''}
+        </div>
+        <div style="font-size: 12px; line-height: 1.55; color: #1e293b;">${summaryHtml}</div>
+        ${placesHtml}
+        <div style="font-size: 10px; color: #64748b; margin-top: 8px;">Source: Google Maps Grounding · Click any facility card to launch Google Maps</div>
+      `;
+    }
+
+    async function searchAdminMapsGrounding(customQuery) {
+      const inputEl = document.getElementById('admin-maps-query');
+      const resultsEl = document.getElementById('admin-maps-grounding-results');
+      if (customQuery && inputEl) inputEl.value = customQuery;
+      const query = (inputEl ? inputEl.value : customQuery || '').trim() || 'nearest emergency trauma hospitals and disaster relief shelters';
+      if (!resultsEl) return;
+
+      const anchor = resolveCurrentEmergencyLocation();
+      const lat = anchor ? anchor.lat : 13.0604;
+      const lon = anchor ? anchor.lon : 80.2496;
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        try {
+          const cachedRaw = localStorage.getItem('puyal_maps_grounding_admin_cache');
+          if (cachedRaw) {
+            renderAdminMapsGroundingOutput(resultsEl, JSON.parse(cachedRaw), true);
+            return;
+          }
+        } catch (e) {}
+        resultsEl.innerHTML = `<div style="color: #92400e; font-weight: 700;">📴 Offline Mode: Live Google Maps Grounding requires connectivity, and no prior lookup is cached. Cached Command Station Depots remain visible below on the Tactical Map.</div>`;
+        return;
+      }
+
+      resultsEl.innerHTML = `<div style="color: #0369a1; font-weight: 700;">⏳ Querying Google Maps Grounding via Gemini 4 Hydrogen near ${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}...</div>`;
+
+      try {
+        const res = await fetch('/api/gemini/maps-grounding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            latitude: lat,
+            longitude: lon,
+            role: 'admin'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Maps Grounding query failed');
+        }
+        try {
+          localStorage.setItem('puyal_maps_grounding_admin_cache', JSON.stringify(data));
+        } catch (e) {}
+        renderAdminMapsGroundingOutput(resultsEl, data, false);
+      } catch (err) {
+        resultsEl.innerHTML = `<div style="color: #dc2626; font-weight: 700;">⚠️ ${escapeAdminMapsHtml(err.message)}</div>`;
+      }
     }
   </script>
 

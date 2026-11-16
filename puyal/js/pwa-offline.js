@@ -10,6 +10,14 @@
   let swStatusState = 'checking'; // 'active' | 'activating' | 'registered' | 'unsupported' | 'unregistered'
   let swStatusDetail = 'Checking Service Worker...';
   let lastKnownOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  let firebaseSyncStatus = {
+    state: 'idle', // 'idle' | 'pushing' | 'completed' | 'partial'
+    remaining: 0,
+    total: 0,
+    syncedCount: 0,
+    updatedAt: 0
+  };
+  let syncCompleteResetTimer = null;
 
   // Battery live state (Web Battery Status API)
   let batterySupported = typeof navigator !== 'undefined' && typeof navigator.getBattery === 'function';
@@ -90,13 +98,13 @@
         align-items: center;
         gap: 6px;
         background: transparent;
-        border: none;
+        border: 1px solid transparent;
         color: inherit;
         font: inherit;
-        padding: 2px 3px;
+        padding: 2px 4px;
         border-radius: 5px;
         cursor: pointer;
-        transition: background 0.15s ease;
+        transition: background 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
       }
       .pwa-telemetry-btn:hover {
         background: rgba(255, 255, 255, 0.1);
@@ -192,6 +200,25 @@
       .nav-pending-sync-btn.has-pending:hover {
         background: rgba(245, 158, 11, 0.34);
       }
+      .nav-pending-sync-btn.is-syncing-firebase {
+        background: rgba(14, 165, 233, 0.24);
+        border-color: rgba(56, 189, 248, 0.72);
+        color: #bae6fd;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+      }
+      .nav-pending-sync-btn.sync-completed {
+        background: rgba(16, 185, 129, 0.22);
+        border-color: rgba(52, 211, 153, 0.65);
+        color: #a7f3d0;
+      }
+      .nav-sync-spin {
+        display: inline-block;
+        animation: pwaSpin 1s linear infinite;
+      }
+      @keyframes pwaSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
       .nav-pending-sync-count {
         font-weight: 800;
       }
@@ -200,20 +227,26 @@
         top: 72px;
         right: 16px;
         z-index: 1600;
-        max-width: 340px;
-        background: #991b1b;
+        max-width: 360px;
+        background: linear-gradient(135deg, #991b1b, #7f1d1d);
         color: #ffffff;
-        border: 1px solid rgba(254, 202, 202, 0.55);
+        border: 1px solid rgba(254, 202, 202, 0.72);
+        border-left: 4px solid #f87171;
         border-radius: 10px;
-        padding: 10px 14px;
+        padding: 11px 14px;
         font-family: Inter, system-ui, -apple-system, sans-serif;
         font-size: 12px;
         font-weight: 700;
         line-height: 1.4;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
         display: flex;
         align-items: center;
         gap: 10px;
+        animation: pwaBatteryToastSlideIn 0.22s ease-out;
+      }
+      @keyframes pwaBatteryToastSlideIn {
+        from { opacity: 0; transform: translateX(18px); }
+        to { opacity: 1; transform: translateX(0); }
       }
       .pwa-battery-toast.hidden { display: none !important; }
       .nav-telemetry-popover {
@@ -334,6 +367,101 @@
         font-size: 13px;
         cursor: pointer;
       }
+
+      /* Offline Alert Notification Stack (works cleanly without network) */
+      .pwa-offline-alert-stack {
+        position: fixed;
+        top: 68px;
+        left: 16px;
+        z-index: 1650;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: min(390px, calc(100vw - 32px));
+        pointer-events: none;
+      }
+      .pwa-offline-alert-card {
+        pointer-events: auto;
+        background: #0f172a;
+        color: #f8fafc;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-left: 5px solid #f59e0b;
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        box-shadow: 0 14px 32px rgba(2, 6, 23, 0.48);
+        animation: pwaOfflineAlertIn 0.22s ease-out;
+      }
+      .pwa-offline-alert-card.level-critical {
+        background: linear-gradient(135deg, #7f1d1d, #450a0a);
+        border-color: rgba(254, 202, 202, 0.55);
+        border-left-color: #ef4444;
+      }
+      .pwa-offline-alert-card.level-warning {
+        background: linear-gradient(135deg, #78350f, #451a03);
+        border-color: rgba(253, 230, 138, 0.48);
+        border-left-color: #f59e0b;
+      }
+      .pwa-offline-alert-card.level-success {
+        background: linear-gradient(135deg, #064e3b, #022c22);
+        border-color: rgba(167, 243, 208, 0.45);
+        border-left-color: #10b981;
+      }
+      .pwa-offline-alert-card.level-info {
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+        border-color: rgba(125, 211, 252, 0.45);
+        border-left-color: #38bdf8;
+      }
+      @keyframes pwaOfflineAlertIn {
+        from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .pwa-offline-alert-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .pwa-offline-alert-title {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .pwa-offline-alert-tag {
+        font-size: 9px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        text-transform: uppercase;
+      }
+      .pwa-offline-alert-close {
+        background: none;
+        border: none;
+        color: #e2e8f0;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0 2px;
+      }
+      .pwa-offline-alert-body {
+        font-size: 12px;
+        line-height: 1.45;
+        color: #f1f5f9;
+      }
+      .pwa-offline-alert-meta {
+        margin-top: 6px;
+        font-size: 10px;
+        color: rgba(226, 232, 240, 0.8);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -376,9 +504,9 @@
     if (deferredInstallPrompt) {
       btn.innerHTML = '📲 Install App';
     } else if (isIOS) {
-      btn.innerHTML = '📲 Install on iOS';
+      btn.innerHTML = '📲 Install App (iOS)';
     } else {
-      btn.innerHTML = '📲 Offline App';
+      btn.innerHTML = '📲 Install App';
     }
     btn.classList.remove('hidden');
   }
@@ -394,21 +522,24 @@
 
   function buildBatterySvg(pct, charging, available) {
     const clamped = available ? Math.max(0, Math.min(100, pct)) : 0;
+    const isCritical = available && !charging && clamped < 15;
     const fillW = Math.round((clamped / 100) * 14);
     let fillColor = '#22c55e';
     if (!available) fillColor = '#64748b';
     else if (charging) fillColor = '#10b981';
-    else if (clamped <= 20) fillColor = '#ef4444';
+    else if (isCritical) fillColor = '#ef4444';
+    else if (clamped <= 20) fillColor = '#f97316';
     else if (clamped <= 50) fillColor = '#f59e0b';
 
+    const frameStroke = isCritical ? 'rgba(252,165,165,0.95)' : 'rgba(226,232,240,0.85)';
     const bolt = charging
       ? '<path d="M9.5 1.8L6.5 6h2.2l-.9 3.2L11 5H8.8l.7-3.2z" fill="#ffffff" stroke="#0f172a" stroke-width="0.4"/>'
       : '';
 
     return `
       <svg width="21" height="12" viewBox="0 0 21 12" aria-hidden="true" style="display:block; flex-shrink:0;">
-        <rect x="0.75" y="1" width="16.5" height="10" rx="2" fill="none" stroke="rgba(226,232,240,0.85)" stroke-width="1.3"/>
-        <rect x="18" y="3.8" width="2.2" height="4.4" rx="0.8" fill="rgba(226,232,240,0.85)"/>
+        <rect x="0.75" y="1" width="16.5" height="10" rx="2" fill="none" stroke="${frameStroke}" stroke-width="1.3"/>
+        <rect x="18" y="3.8" width="2.2" height="4.4" rx="0.8" fill="${frameStroke}"/>
         ${available ? `<rect x="2" y="2.3" width="${Math.max(1, fillW)}" height="7.4" rx="1" fill="${fillColor}"/>` : ''}
         ${bolt}
       </svg>
@@ -451,9 +582,9 @@
         <span id="nav-connectivity-label">Checking…</span>
       </button>
       <span class="pwa-telemetry-divider" aria-hidden="true"></span>
-      <button type="button" id="nav-pending-sync-counter" class="nav-pending-sync-btn" aria-label="Data Pending Sync: 0 incident reports waiting for Firebase sync" aria-live="polite" title="Locally stored incident reports waiting to push to Firebase when online" data-pending-count="0">
-        <span aria-hidden="true">⏳</span>
-        <span>Data Pending Sync:</span>
+      <button type="button" id="nav-pending-sync-counter" class="nav-pending-sync-btn" aria-label="Data Pending Sync: 0 records waiting for Firebase sync" aria-live="polite" title="Locally stored records waiting to push to Firebase when online" data-pending-count="0" data-sync-state="idle">
+        <span id="nav-pending-sync-icon" aria-hidden="true">⏳</span>
+        <span id="nav-pending-sync-text">Data Pending Sync:</span>
         <span id="nav-pending-sync-value" class="nav-pending-sync-count">0</span>
       </button>
       <span class="pwa-telemetry-divider" aria-hidden="true"></span>
@@ -492,6 +623,10 @@
         </div>
         <div id="pop-sync-actions" style="margin-top:8px; display:none;">
           <button type="button" id="pop-sync-btn" style="width:100%; padding:6px 10px; border:none; border-radius:6px; background:#059669; color:#fff; font-weight:700; font-size:11px; cursor:pointer;">🔄 Push Pending Data to Firebase</button>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px;">
+          <button type="button" id="pop-offline-alert-btn" style="flex:1; padding:6px 8px; border:1px solid rgba(248,113,113,0.55); border-radius:6px; background:rgba(220,38,38,0.22); color:#fecaca; font-weight:700; font-size:11px; cursor:pointer;">🚨 Offline Alert</button>
+          <button type="button" id="pop-enable-notif-btn" style="flex:1; padding:6px 8px; border:1px solid rgba(56,189,248,0.5); border-radius:6px; background:rgba(2,132,199,0.22); color:#bae6fd; font-weight:700; font-size:11px; cursor:pointer;">🔔 Enable Notifications</button>
         </div>
       </div>
     `;
@@ -543,6 +678,44 @@
       });
     }
 
+    const popOfflineAlertBtn = document.getElementById('pop-offline-alert-btn');
+    if (popOfflineAlertBtn) {
+      popOfflineAlertBtn.addEventListener('click', () => {
+        const { pendingIncidents, totalQueued } = getPendingSyncStats();
+        const isOnlineNow = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        window.triggerOfflineAlert({
+          id: `manual-${Date.now()}`,
+          title: isOnlineNow ? 'Offline Alert Channel Verified' : 'Offline Emergency Alert Active',
+          message: isOnlineNow
+            ? `App alerts ready even when network drops. ${pendingIncidents} pending incident(s), ${totalQueued} total queued record(s).`
+            : `Operating without network. Emergency alerts, cached maps, and local queue (${totalQueued} record(s)) remain active.`,
+          level: isOnlineNow ? 'info' : 'critical',
+          sound: true,
+          notifyOS: true
+        });
+      });
+    }
+
+    const popEnableNotifBtn = document.getElementById('pop-enable-notif-btn');
+    if (popEnableNotifBtn) {
+      const syncNotifBtnLabel = () => {
+        if (typeof Notification === 'undefined') {
+          popEnableNotifBtn.textContent = '🔔 In-App Alerts';
+        } else if (Notification.permission === 'granted') {
+          popEnableNotifBtn.textContent = '✅ Alerts Enabled';
+        } else if (Notification.permission === 'denied') {
+          popEnableNotifBtn.textContent = '🔕 Banner Mode';
+        } else {
+          popEnableNotifBtn.textContent = '🔔 Enable Alerts';
+        }
+      };
+      syncNotifBtnLabel();
+      popEnableNotifBtn.addEventListener('click', async () => {
+        await requestOfflineNotificationPermission();
+        syncNotifBtnLabel();
+      });
+    }
+
     document.addEventListener('click', (e) => {
       if (popover && !popover.classList.contains('hidden') && !cluster.contains(e.target)) {
         popover.classList.add('hidden');
@@ -564,6 +737,8 @@
     const label = document.getElementById('nav-connectivity-label');
     const btn = document.getElementById('nav-connectivity-indicator');
     const pendingBtn = document.getElementById('nav-pending-sync-counter');
+    const pendingIconEl = document.getElementById('nav-pending-sync-icon');
+    const pendingTextEl = document.getElementById('nav-pending-sync-text');
     const pendingValEl = document.getElementById('nav-pending-sync-value');
     const popNet = document.getElementById('pop-network-val');
     const popSw = document.getElementById('pop-sw-val');
@@ -572,6 +747,9 @@
     const popSyncActions = document.getElementById('pop-sync-actions');
 
     const { pendingIncidents, totalQueued } = getPendingSyncStats();
+    const isSyncing = firebaseSyncStatus.state === 'pushing' && (totalQueued > 0 || firebaseSyncStatus.remaining > 0);
+    const isJustCompleted = firebaseSyncStatus.state === 'completed' && totalQueued === 0 && firebaseSyncStatus.syncedCount > 0;
+    const displayPendingCount = isSyncing ? Math.max(totalQueued, firebaseSyncStatus.remaining) : totalQueued;
 
     const swControlled =
       typeof navigator !== 'undefined' &&
@@ -604,18 +782,37 @@
     if (label) label.textContent = shortText;
     if (btn) btn.title = titleMsg;
 
-    if (pendingValEl) pendingValEl.textContent = String(pendingIncidents);
+    if (pendingValEl) pendingValEl.textContent = String(displayPendingCount);
+    if (pendingIconEl) {
+      pendingIconEl.className = isSyncing ? 'nav-sync-spin' : '';
+      pendingIconEl.textContent = isSyncing ? '🔄' : isJustCompleted ? '✅' : '⏳';
+    }
+    if (pendingTextEl) {
+      pendingTextEl.textContent = isSyncing
+        ? 'Pushing to Firebase:'
+        : isJustCompleted
+          ? 'Synced to Firebase:'
+          : 'Data Pending Sync:';
+    }
     if (pendingBtn) {
-      pendingBtn.classList.toggle('has-pending', pendingIncidents > 0);
-      pendingBtn.setAttribute('data-pending-count', String(pendingIncidents));
+      pendingBtn.classList.toggle('is-syncing-firebase', isSyncing);
+      pendingBtn.classList.toggle('sync-completed', !isSyncing && isJustCompleted);
+      pendingBtn.classList.toggle('has-pending', !isSyncing && displayPendingCount > 0);
+      pendingBtn.setAttribute('data-pending-count', String(displayPendingCount));
+      pendingBtn.setAttribute('data-sync-state', isSyncing ? 'pushing' : isJustCompleted ? 'completed' : 'idle');
       pendingBtn.setAttribute(
         'aria-label',
-        `Data Pending Sync: ${pendingIncidents} incident report${pendingIncidents === 1 ? '' : 's'} stored locally waiting for Firebase sync`
+        isSyncing
+          ? `Pushing ${displayPendingCount} local record${displayPendingCount === 1 ? '' : 's'} to Firebase`
+          : `Data Pending Sync: ${displayPendingCount} local record${displayPendingCount === 1 ? '' : 's'} waiting for Firebase sync`
       );
-      pendingBtn.title =
-        pendingIncidents > 0
-          ? `${pendingIncidents} locally saved incident report(s) waiting to be pushed to Firebase when connectivity is restored`
-          : 'Data Pending Sync: 0 — All local incident reports are synced with Firebase';
+      pendingBtn.title = isSyncing
+        ? `Online restored — pushing ${displayPendingCount} queued record(s) to Firebase in real time`
+        : isJustCompleted
+          ? `Successfully pushed ${firebaseSyncStatus.syncedCount} local record(s) to Firebase`
+          : displayPendingCount > 0
+            ? `${displayPendingCount} locally stored record(s) (${pendingIncidents} incident report(s)) waiting to be pushed to Firebase when connectivity is restored`
+            : 'Data Pending Sync: 0 — All local records are synced with Firebase';
     }
 
     if (popNet) {
@@ -636,23 +833,61 @@
       popOfflineReady.style.color = ready ? '#6ee7b7' : '#fcd34d';
     }
     if (popQueue) {
-      const extraActions = totalQueued > pendingIncidents ? ` (+${totalQueued - pendingIncidents} ops)` : '';
-      popQueue.textContent = `${pendingIncidents} incident${pendingIncidents === 1 ? '' : 's'} pending Firebase${extraActions}`;
-      popQueue.style.color = pendingIncidents > 0 || totalQueued > 0 ? '#fcd34d' : '#cbd5e1';
+      if (isSyncing) {
+        popQueue.textContent = `🔄 Pushing to Firebase (${displayPendingCount} left)`;
+        popQueue.style.color = '#7dd3fc';
+      } else if (isJustCompleted) {
+        popQueue.textContent = `✅ Pushed ${firebaseSyncStatus.syncedCount} record(s) to Firebase`;
+        popQueue.style.color = '#6ee7b7';
+      } else {
+        const otherOps = Math.max(0, totalQueued - pendingIncidents);
+        const extraActions = otherOps > 0 ? ` (+${otherOps} SOS/updates)` : '';
+        popQueue.textContent = `${pendingIncidents} incident${pendingIncidents === 1 ? '' : 's'} pending Firebase${extraActions}`;
+        popQueue.style.color = totalQueued > 0 ? '#fcd34d' : '#cbd5e1';
+      }
     }
     if (popSyncActions) {
       popSyncActions.style.display = online && totalQueued > 0 ? 'block' : 'none';
     }
   }
 
+  function applyRealtimeFirebaseSyncState(detail) {
+    if (!detail || typeof detail !== 'object') return;
+    if (syncCompleteResetTimer) {
+      clearTimeout(syncCompleteResetTimer);
+      syncCompleteResetTimer = null;
+    }
+    const nextState = detail.state || 'idle';
+    firebaseSyncStatus = {
+      state: nextState,
+      remaining: Number(detail.remaining || 0) || 0,
+      total: Number(detail.total || 0) || 0,
+      syncedCount: Number(detail.syncedCount || 0) || 0,
+      updatedAt: Date.now()
+    };
+    updateConnectivityBanner();
+    if (nextState === 'completed' || nextState === 'partial') {
+      syncCompleteResetTimer = setTimeout(() => {
+        firebaseSyncStatus.state = 'idle';
+        firebaseSyncStatus.syncedCount = 0;
+        renderConnectivityIndicator();
+      }, 3200);
+    }
+  }
+
+  let lowBatteryToastTimer = null;
+
+  function hideLowBatteryToast() {
+    if (lowBatteryToastTimer) {
+      clearTimeout(lowBatteryToastTimer);
+      lowBatteryToastTimer = null;
+    }
+    const toast = document.getElementById('pwa-battery-toast');
+    if (toast) toast.classList.add('hidden');
+  }
+
   function showLowBatteryToast(pct) {
     const msg = `🪫 Critical Battery (${pct}%): Power below 15% — connect charger immediately!`;
-    if (typeof window.showToast === 'function') {
-      try {
-        window.showToast(msg, 'error');
-        return;
-      } catch (e) {}
-    }
 
     let toast = document.getElementById('pwa-battery-toast');
     if (!toast) {
@@ -668,15 +903,20 @@
       document.body.appendChild(toast);
       const closeBtn = document.getElementById('pwa-battery-toast-close');
       if (closeBtn) {
-        closeBtn.addEventListener('click', () => toast.classList.add('hidden'));
+        closeBtn.addEventListener('click', hideLowBatteryToast);
       }
     }
     const msgEl = document.getElementById('pwa-battery-toast-msg');
     if (msgEl) msgEl.textContent = msg;
     toast.classList.remove('hidden');
-    setTimeout(() => {
-      if (toast) toast.classList.add('hidden');
-    }, 5500);
+    if (lowBatteryToastTimer) clearTimeout(lowBatteryToastTimer);
+    lowBatteryToastTimer = setTimeout(hideLowBatteryToast, 7000);
+
+    if (typeof window.showToast === 'function') {
+      try {
+        window.showToast(msg, 'error');
+      } catch (e) {}
+    }
   }
 
   function scheduleLowBatteryAudioUnlock() {
@@ -756,6 +996,7 @@
     } else {
       lowBatteryAlertedBelow15 = false;
       pendingLowBatteryChime = false;
+      hideLowBatteryToast();
     }
   }
 
@@ -770,7 +1011,10 @@
 
     if (!batteryState.available || batteryState.level == null) {
       if (cluster) cluster.classList.remove('has-critical-battery');
-      if (btnEl) btnEl.classList.remove('battery-critical');
+      if (btnEl) {
+        btnEl.classList.remove('battery-critical');
+        btnEl.setAttribute('data-battery-state', 'unavailable');
+      }
       if (iconEl) iconEl.innerHTML = buildBatterySvg(0, false, false);
       if (labelEl) {
         labelEl.textContent = batterySupported ? 'Power …' : 'Power N/A';
@@ -786,7 +1030,9 @@
       return;
     }
 
-    const pct = Math.round(batteryState.level * 100);
+    const pct = batteryState.level < 0.15
+      ? Math.floor(batteryState.level * 100)
+      : Math.round(batteryState.level * 100);
     const isCritical = !batteryState.charging && pct < 15;
     const isLow = !batteryState.charging && pct <= 20;
 
@@ -797,6 +1043,10 @@
     }
     if (btnEl) {
       btnEl.classList.toggle('battery-critical', isCritical);
+      btnEl.setAttribute(
+        'data-battery-state',
+        batteryState.charging ? 'charging' : isCritical ? 'critical' : isLow ? 'low' : 'normal'
+      );
     }
     if (cluster) {
       cluster.classList.toggle('has-critical-battery', isCritical);
@@ -1059,7 +1309,7 @@
       '/manifest.webmanifest'
     ];
     try {
-      const staticCache = await caches.open('puyal-static-v11');
+      const staticCache = await caches.open('puyal-static-v14');
       await Promise.allSettled(
         criticalPages.map(async (pagePath) => {
           const hit = await staticCache.match(pagePath, { ignoreSearch: true });
@@ -1074,16 +1324,325 @@
     } catch (e) {}
   }
 
+  // ============================================================================
+  // OFFLINE ALERT NOTIFICATION HUB (Works without network on Website & App)
+  // ============================================================================
+  const OFFLINE_ALERT_STORAGE_KEY = 'puyal_offline_alerts';
+  let offlineAlertChannel = null;
+  const shownAlertIds = new Set();
+
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      offlineAlertChannel = new BroadcastChannel('puyal_offline_alerts');
+      offlineAlertChannel.onmessage = (event) => {
+        if (event && event.data && event.data.type === 'OFFLINE_ALERT') {
+          renderOfflineAlertCard({ ...event.data.payload, _fromBroadcast: true });
+        }
+      };
+    }
+  } catch (e) {}
+
+  function ensureOfflineAlertStack() {
+    let stack = document.getElementById('pwa-offline-alert-stack');
+    if (!stack && document.body) {
+      stack = document.createElement('div');
+      stack.id = 'pwa-offline-alert-stack';
+      stack.className = 'pwa-offline-alert-stack';
+      stack.setAttribute('role', 'region');
+      stack.setAttribute('aria-label', 'Offline Emergency Alerts');
+      stack.setAttribute('aria-live', 'assertive');
+      document.body.appendChild(stack);
+    }
+    return stack;
+  }
+
+  function playOfflineEmergencyTone(level) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!batteryAlertAudioCtx || batteryAlertAudioCtx.state === 'closed') {
+        batteryAlertAudioCtx = new AudioCtx();
+      }
+      const ctx = batteryAlertAudioCtx;
+      const playNotes = () => {
+        const now = ctx.currentTime;
+        const seq = level === 'critical'
+          ? [
+              { freq: 880, start: 0, dur: 0.12, peak: 0.08 },
+              { freq: 660, start: 0.14, dur: 0.12, peak: 0.08 },
+              { freq: 880, start: 0.28, dur: 0.16, peak: 0.09 }
+            ]
+          : [
+              { freq: 740, start: 0, dur: 0.11, peak: 0.06 },
+              { freq: 587.33, start: 0.13, dur: 0.14, peak: 0.06 }
+            ];
+        seq.forEach((n) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(n.freq, now + n.start);
+          gain.gain.setValueAtTime(0.0001, now + n.start);
+          gain.gain.exponentialRampToValueAtTime(n.peak, now + n.start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + n.start + n.dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + n.start);
+          osc.stop(now + n.start + n.dur + 0.02);
+        });
+      };
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          if (ctx.state === 'running') playNotes();
+        }).catch(() => {});
+      } else {
+        playNotes();
+      }
+    } catch (e) {}
+  }
+
+  async function requestOfflineNotificationPermission() {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    if (Notification.permission === 'granted') return 'granted';
+    if (Notification.permission === 'denied') return 'denied';
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        window.triggerOfflineAlert({
+          id: `perm-${Date.now()}`,
+          title: 'Offline App Alerts Enabled',
+          message: 'PUYAL can now surface emergency & SOS alerts offline even when minimized.',
+          level: 'success',
+          sound: false,
+          notifyOS: true,
+          ttlMs: 6000
+        });
+      }
+      return perm;
+    } catch (e) {
+      return 'default';
+    }
+  }
+
+  function dispatchServiceWorkerLocalNotification(payload) {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_LOCAL_NOTIFICATION',
+          payload
+        });
+        return;
+      }
+      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if (reg && typeof reg.showNotification === 'function') {
+            reg.showNotification(payload.title || 'PUYAL Emergency Alert', {
+              body: payload.body || '',
+              icon: '/pwa-192x192.png',
+              tag: payload.tag || 'puyal-offline-alert'
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+        return;
+      }
+      new Notification(payload.title || 'PUYAL Emergency Alert', {
+        body: payload.body || '',
+        icon: '/pwa-192x192.png'
+      });
+    } catch (e) {}
+  }
+
+  function saveOfflineAlertRecord(entry) {
+    try {
+      const raw = localStorage.getItem(OFFLINE_ALERT_STORAGE_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(list) ? list : [];
+      const filtered = arr.filter((x) => x && x.id !== entry.id);
+      filtered.unshift(entry);
+      localStorage.setItem(OFFLINE_ALERT_STORAGE_KEY, JSON.stringify(filtered.slice(0, 15)));
+    } catch (e) {}
+  }
+
+  function renderOfflineAlertCard(opts) {
+    const stack = ensureOfflineAlertStack();
+    if (!stack) return null;
+
+    const id = String(opts.id || `alert-${Date.now()}`);
+    if (opts.dedupe && shownAlertIds.has(id)) return null;
+    shownAlertIds.add(id);
+
+    const existing = stack.querySelector(`[data-alert-id="${id.replace(/"/g, '')}"]`);
+    if (existing) existing.remove();
+
+    while (stack.children.length >= 4) {
+      stack.lastElementChild.remove();
+    }
+
+    const level = ['critical', 'warning', 'success', 'info'].includes(opts.level) ? opts.level : 'warning';
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    const icon = level === 'critical' ? '🚨' : level === 'success' ? '✅' : level === 'info' ? 'ℹ️' : '⚠️';
+
+    const card = document.createElement('div');
+    card.className = `pwa-offline-alert-card level-${level}`;
+    card.setAttribute('data-alert-id', id);
+    card.setAttribute('role', 'alert');
+
+    const head = document.createElement('div');
+    head.className = 'pwa-offline-alert-head';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'pwa-offline-alert-title';
+    const tagText = !isOnline ? 'OFFLINE ALERT' : 'APP ALERT';
+    titleEl.innerHTML = `<span>${icon}</span><span class="pwa-offline-alert-title-text"></span><span class="pwa-offline-alert-tag">${tagText}</span>`;
+    titleEl.querySelector('.pwa-offline-alert-title-text').textContent = opts.title || 'PUYAL Emergency Alert';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'pwa-offline-alert-close';
+    closeBtn.setAttribute('aria-label', 'Dismiss alert');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => card.remove());
+
+    head.appendChild(titleEl);
+    head.appendChild(closeBtn);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'pwa-offline-alert-body';
+    bodyEl.textContent = opts.message || '';
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'pwa-offline-alert-meta';
+    metaEl.innerHTML = `<span>${isOnline ? 'Network Online · App Ready' : 'No Network · Stored Locally'}</span><span>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+
+    card.appendChild(head);
+    card.appendChild(bodyEl);
+    card.appendChild(metaEl);
+    stack.insertBefore(card, stack.firstChild);
+
+    const ttlMs = typeof opts.ttlMs === 'number' ? opts.ttlMs : (level === 'critical' ? 0 : 12000);
+    if (ttlMs > 0) {
+      setTimeout(() => {
+        if (card.parentNode) card.remove();
+      }, ttlMs);
+    }
+
+    return card;
+  }
+
+  window.triggerOfflineAlert = function (opts = {}) {
+    const payload = {
+      id: opts.id || `puyal-alert-${Date.now()}`,
+      title: opts.title || 'PUYAL Offline Alert',
+      message: opts.message || 'Emergency alert active without network.',
+      level: opts.level || 'warning',
+      ttlMs: opts.ttlMs,
+      dedupe: Boolean(opts.dedupe),
+      createdAt: new Date().toISOString(),
+      url: opts.url || (window.location ? window.location.pathname : '/index.html')
+    };
+
+    const card = renderOfflineAlertCard(payload);
+    if (!card) return null;
+
+    saveOfflineAlertRecord(payload);
+
+    if (opts.sound !== false) {
+      playOfflineEmergencyTone(payload.level);
+    }
+    if (opts.vibrate !== false && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate(payload.level === 'critical' ? [200, 90, 200] : [140, 60, 140]);
+      } catch (e) {}
+    }
+    if (opts.notifyOS !== false) {
+      dispatchServiceWorkerLocalNotification({
+        id: payload.id,
+        title: payload.title,
+        body: payload.message,
+        tag: payload.id,
+        level: payload.level,
+        url: payload.url
+      });
+    }
+    if (!opts._fromBroadcast && offlineAlertChannel) {
+      try {
+        offlineAlertChannel.postMessage({ type: 'OFFLINE_ALERT', payload });
+      } catch (e) {}
+    }
+    if (typeof window.showToast === 'function' && opts.toast !== false) {
+      try {
+        window.showToast(`${payload.title}: ${payload.message}`, payload.level === 'critical' ? 'error' : payload.level);
+      } catch (e) {}
+    }
+    return payload;
+  };
+
+  function surfaceStartupOfflineAlerts() {
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (isOnline) return;
+
+    const { pendingIncidents, totalQueued } = getPendingSyncStats();
+    let activeSosCount = 0;
+    let criticalIncCount = 0;
+
+    try {
+      const rawSos = localStorage.getItem('rapid_cache_sos');
+      if (rawSos) {
+        const list = JSON.parse(rawSos);
+        if (Array.isArray(list)) activeSosCount = list.filter((s) => s && s.active).length;
+      }
+      const rawInc = localStorage.getItem('rapid_cache_incidents');
+      if (rawInc) {
+        const list = JSON.parse(rawInc);
+        if (Array.isArray(list)) {
+          criticalIncCount = list.filter((i) => i && i.status !== 'Resolved' && i.severity === 'Critical').length;
+        }
+      }
+    } catch (e) {}
+
+    window.triggerOfflineAlert({
+      id: 'startup-offline-mode',
+      dedupe: true,
+      title: 'Offline Emergency Mode Active',
+      message: `PUYAL App is running without network. Cached maps, survival protocols & local SOS queueing (${pendingIncidents} pending / ${totalQueued} queued) are ready.`,
+      level: 'warning',
+      sound: false,
+      notifyOS: false,
+      ttlMs: 0
+    });
+
+    if (activeSosCount > 0 || criticalIncCount > 0) {
+      window.triggerOfflineAlert({
+        id: `startup-offline-emergencies-${activeSosCount}-${criticalIncCount}`,
+        dedupe: true,
+        title: 'Cached Critical Emergency Alert',
+        message: `${activeSosCount} active SOS beacon(s) and ${criticalIncCount} Critical incident(s) loaded from local offline cache.`,
+        level: 'critical',
+        sound: true,
+        notifyOS: true,
+        ttlMs: 0
+      });
+    }
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
       detectServiceWorkerStatus();
       return;
     }
     navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event && event.data && event.data.type === 'OFFLINE_SHELL_READY') {
+      const msg = event && event.data;
+      if (!msg || !msg.type) return;
+      if (msg.type === 'OFFLINE_SHELL_READY') {
         swStatusState = 'active';
         swStatusDetail = 'Active & Offline Ready';
         renderConnectivityIndicator();
+      } else if (msg.type === 'SW_FIREBASE_SYNC_STATE') {
+        applyRealtimeFirebaseSyncState(msg);
+      } else if (msg.type === 'SW_TRIGGER_FIREBASE_SYNC') {
+        if (window.rapidSync && typeof window.rapidSync.flushOfflineQueue === 'function') {
+          window.rapidSync.flushOfflineQueue();
+        }
       }
     });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1144,6 +1703,7 @@
     detectServiceWorkerStatus();
     initBatteryMonitor();
     warmOfflineOperationalCaches();
+    surfaceStartupOfflineAlerts();
     setTimeout(ensureOfflinePortalCacheFallback, 700);
   }
 
@@ -1157,13 +1717,67 @@
     isInstalled = true;
     deferredInstallPrompt = null;
     ensureInstallButtonUI();
+    window.triggerOfflineAlert({
+      id: `app-installed-${Date.now()}`,
+      title: 'PUYAL App Installed',
+      message: 'Standalone app installed with offline cache & local alerts active.',
+      level: 'success',
+      sound: false
+    });
   });
 
+  function notifyServiceWorkerOnlineTransition(pendingCount) {
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const msg = {
+          type: 'ONLINE_TRANSITION_DETECTED',
+          pendingCount: Number(pendingCount || 0) || 0,
+          state: pendingCount > 0 ? 'pushing' : 'idle',
+          ts: Date.now()
+        };
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage(msg);
+          return true;
+        }
+        if (navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then((reg) => {
+            if (reg && reg.active) reg.active.postMessage(msg);
+          }).catch(() => {});
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
   window.addEventListener('online', () => {
-    if (lastKnownOnline === false && typeof window.showToast === 'function') {
-      window.showToast('🌐 Connection restored! Service Worker & sync active.', 'success');
-    }
+    const wasOffline = lastKnownOnline === false;
+    const { totalQueued } = getPendingSyncStats();
     lastKnownOnline = true;
+
+    if (wasOffline) {
+      window.triggerOfflineAlert({
+        id: `online-restored-${Date.now()}`,
+        title: 'Network Restored',
+        message: totalQueued > 0
+          ? `Connection is back. Pushing ${totalQueued} queued offline record(s) to Firebase.`
+          : 'Connection is back. Live telemetry and sync restored.',
+        level: 'success',
+        sound: false,
+        notifyOS: false,
+        ttlMs: 6500
+      });
+      if (totalQueued > 0) {
+        applyRealtimeFirebaseSyncState({
+          state: 'pushing',
+          remaining: totalQueued,
+          total: totalQueued,
+          syncedCount: 0
+        });
+      }
+      notifyServiceWorkerOnlineTransition(totalQueued);
+    }
+
     updateConnectivityBanner();
     detectServiceWorkerStatus();
     if (window.rapidSync && typeof window.rapidSync.flushOfflineQueue === 'function') {
@@ -1172,8 +1786,17 @@
   });
 
   window.addEventListener('offline', () => {
-    if (lastKnownOnline === true && typeof window.showToast === 'function') {
-      window.showToast('📴 Offline mode — Service Worker serving cached data & local queue.', 'warning');
+    const { totalQueued } = getPendingSyncStats();
+    if (lastKnownOnline === true) {
+      window.triggerOfflineAlert({
+        id: `network-lost-${Date.now()}`,
+        title: 'Network Disconnected — Offline Alert',
+        message: `Running cleanly in offline app mode. Emergency reports & SOS queue locally (${totalQueued} queued) and will auto-sync on reconnect.`,
+        level: 'warning',
+        sound: true,
+        notifyOS: true,
+        ttlMs: 0
+      });
     }
     lastKnownOnline = false;
     updateConnectivityBanner();
@@ -1181,6 +1804,9 @@
   });
 
   window.addEventListener('rapidOfflineQueueChanged', updateConnectivityBanner);
+  window.addEventListener('rapidSyncStateChanged', (e) => {
+    if (e && e.detail) applyRealtimeFirebaseSyncState(e.detail);
+  });
   window.addEventListener('storage', (e) => {
     if (!e || !e.key || e.key === 'rapid_offline_outbox') {
       updateConnectivityBanner();
@@ -1241,6 +1867,11 @@
       osmTileLayer.on('tileerror', (e) => {
         if (e && e.tile) {
           e.tile.style.display = 'none';
+        }
+      });
+      osmTileLayer.on('tileload', (e) => {
+        if (e && e.tile) {
+          e.tile.style.display = '';
         }
       });
     }

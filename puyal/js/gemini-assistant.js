@@ -209,7 +209,8 @@
         <div class="gemini-model-bar">
           <label for="gemini-model-select">AI MODEL:</label>
           <select id="gemini-model-select" class="gemini-model-select">
-            <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash (Recommended)</option>
+            <option value="gemini-4-hydrogen" selected>Gemini 4 Hydrogen (Maps Grounding)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Balanced)</option>
             <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Speed)</option>
             <option value="gemini-4-argon">Gemini 4 Argon (Tactical Logistics)</option>
             <option value="gemini-4-carbon">Gemini 4 Carbon (Deep Reasoning)</option>
@@ -219,10 +220,12 @@
         <!-- Quick Suggested Chips -->
         <div class="gemini-quick-chips">
           ${appRole === 'admin' ? `
+            <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Find nearest hospitals, trauma centers, and emergency shelters near our sector')">📍 Nearby Hospitals &amp; Shelters</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Recommend grouped strike force dispatch for flood and structure collapse')">🚀 Grouped Dispatch</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Evaluate resource conservation and fleet readiness status')">🌱 Conserve Fleet</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Calculate evacuation corridor around active 2km perimeter')">⭕ 2km Perimeter Strategy</button>
           ` : `
+            <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Find nearby hospitals, emergency shelters, and medical aid stations')">📍 Nearby Hospitals &amp; Shelters</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('What are immediate survival steps if water is entering my home?')">🌊 Water Rising</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('How do I treat severe bleeding or burn injuries while waiting for ambulance?')">🩹 First Aid</button>
             <button class="ai-chip" onclick="window.sendGeminiQuickPrompt('Where is the nearest safe shelter and high ground evacuation zone?')">🏢 Safe Shelters</button>
@@ -450,6 +453,43 @@
         border-bottom-left-radius: 2px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       }
+      .gemini-places-box {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .gemini-places-head {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #0369a1;
+        letter-spacing: 0.3px;
+      }
+      .gemini-place-link {
+        display: block;
+        padding: 6px 8px;
+        border-radius: 6px;
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        color: #0c4a6e;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .gemini-place-link:hover {
+        background: #e0f2fe;
+        border-color: #38bdf8;
+      }
+      .gemini-place-snippet {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: #475569;
+        margin-top: 2px;
+      }
       .msg-time { font-size: 10px; color: #94a3b8; margin-top: 3px; }
       .gemini-input-bar {
         padding: 10px 12px;
@@ -609,6 +649,53 @@
     };
   }
 
+  async function resolveAssistantCoordinates() {
+    if (window._currentCoords && window._currentCoords.latitude && window._currentCoords.longitude) {
+      return {
+        latitude: Number(window._currentCoords.latitude),
+        longitude: Number(window._currentCoords.longitude)
+      };
+    }
+    if (typeof window.getCurrentOrCachedCoords === 'function') {
+      const c = window.getCurrentOrCachedCoords();
+      if (c && c.latitude && c.longitude) {
+        return { latitude: Number(c.latitude), longitude: Number(c.longitude) };
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      const pos = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(null), 1500);
+        navigator.geolocation.getCurrentPosition(
+          (p) => { clearTimeout(timer); resolve(p); },
+          () => { clearTimeout(timer); resolve(null); },
+          { timeout: 1400, maximumAge: 60000 }
+        );
+      });
+      if (pos && pos.coords) {
+        return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      }
+    }
+    return { latitude: 13.0604, longitude: 80.2496 };
+  }
+
+  function renderGroundedPlacesHtml(places) {
+    if (!Array.isArray(places) || places.length === 0) return '';
+    const itemsHtml = places.map((p) => {
+      const safeTitle = escapeHtml(p.title || 'Google Maps Place');
+      const safeUri = escapeHtml(p.uri || 'https://www.google.com/maps');
+      const snippets = Array.isArray(p.reviewSnippets) && p.reviewSnippets.length > 0
+        ? `<span class="gemini-place-snippet">${escapeHtml(p.reviewSnippets[0])}</span>`
+        : '';
+      return `<a class="gemini-place-link" href="${safeUri}" target="_blank" rel="noopener noreferrer">📍 ${safeTitle} ↗${snippets}</a>`;
+    }).join('');
+    return `
+      <div class="gemini-places-box">
+        <div class="gemini-places-head">🗺️ Grounded with Google Maps</div>
+        ${itemsHtml}
+      </div>
+    `;
+  }
+
   // --------------------------------------------------------------------------
   // Send Chat Message
   // --------------------------------------------------------------------------
@@ -642,9 +729,12 @@
     thread.appendChild(botMsgEl);
     thread.scrollTop = thread.scrollHeight;
 
-    const selectedModel = modelSelect ? modelSelect.value : 'gemini-3.8-flash';
+    const selectedModel = modelSelect ? modelSelect.value : 'gemini-4-hydrogen';
+    const coords = await resolveAssistantCoordinates();
+    const useMapsGrounding = selectedModel === 'gemini-4-hydrogen';
 
     let reply = null;
+    let places = [];
     if (typeof navigator === 'undefined' || navigator.onLine) {
       try {
         const res = await fetch('/api/gemini/chat', {
@@ -654,12 +744,16 @@
             message: msg,
             history: chatHistory,
             model: selectedModel,
-            role: appRole
+            role: appRole,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            useMapsGrounding
           })
         });
         if (res.ok) {
           const data = await res.json();
           reply = data.reply || null;
+          places = Array.isArray(data.places) ? data.places : [];
         }
       } catch (err) {
         console.warn('Chat offline fallback activated:', err);
@@ -670,8 +764,9 @@
       reply = generateOfflineAiReply(msg, appRole);
     }
 
-    botMsgEl.querySelector('.msg-bubble').innerHTML = formatMarkdown(reply);
-    botMsgEl.querySelector('.msg-bubble').style.opacity = '1';
+    const bubbleEl = botMsgEl.querySelector('.msg-bubble');
+    bubbleEl.innerHTML = formatMarkdown(reply) + renderGroundedPlacesHtml(places);
+    bubbleEl.style.opacity = '1';
 
     chatHistory.push({ role: 'user', text: msg });
     chatHistory.push({ role: 'assistant', text: reply });

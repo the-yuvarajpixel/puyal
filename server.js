@@ -2457,11 +2457,121 @@ app.get('/api/maps/config', (req, res) => {
 });
 
 // ----------------------------------------------------------------------------
-// Gemini Chatbot Endpoint (Multi-turn conversations & models)
-// Supported models: gemini-3.8-flash, gemini-3.1-flash-lite, gemini-4-carbon, gemini-4-argon
+// Extract Google Maps Grounding Chunks (URI, Title, Review Snippets)
+// ----------------------------------------------------------------------------
+function extractGoogleMapsGroundingPlaces(response) {
+  const chunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+  if (!Array.isArray(chunks)) return [];
+  const places = [];
+  const seen = new Set();
+
+  for (const chunk of chunks) {
+    const maps = chunk && chunk.maps;
+    if (!maps || (!maps.uri && !maps.title)) continue;
+    const key = maps.uri || maps.title;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const snippets = [];
+    const reviewSnippets = maps.placeAnswerSources?.reviewSnippets;
+    if (Array.isArray(reviewSnippets)) {
+      for (const s of reviewSnippets) {
+        const text = typeof s === 'string' ? s : (s && (s.snippet || s.reviewUri || s.title));
+        if (text) snippets.push(String(text));
+      }
+    }
+
+    places.push({
+      title: maps.title || 'Google Maps Location',
+      uri: maps.uri || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(maps.title || 'Emergency Services')}`,
+      placeId: maps.placeId || null,
+      reviewSnippets: snippets.slice(0, 3)
+    });
+  }
+  return places;
+}
+
+// ----------------------------------------------------------------------------
+// Gemini 4 Hydrogen — Google Maps Grounding Endpoint
+// ----------------------------------------------------------------------------
+app.post('/api/gemini/maps-grounding', async (req, res) => {
+  const { query, latitude, longitude, role = 'civilian' } = req.body || {};
+
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'Location search query is required' });
+  }
+
+  if (!ai || !process.env.GEMINI_API_KEY) {
+    return res.status(503).json({
+      error: 'Gemini API key is not configured on the server. Add GEMINI_API_KEY in Settings > Secrets to enable live Google Maps Grounding.'
+    });
+  }
+
+  const parsedLat = parseFloat(latitude);
+  const parsedLng = parseFloat(longitude);
+  const hasCoords = !isNaN(parsedLat) && !isNaN(parsedLng);
+
+  const systemInstruction = role === 'admin'
+    ? 'You are PUYAL Command Geographic Intelligence using live Google Maps data. Identify verified nearby hospitals, trauma centers, emergency shelters, fire stations, police stations, and rescue access routes with addresses and actionable response notes.'
+    : 'You are PUYAL Civilian Emergency Finder using live Google Maps data. List the closest verified hospitals, emergency shelters, relief centers, and medical aid facilities with helpful safety details.';
+
+  const config = {
+    systemInstruction,
+    tools: [{ googleMaps: {} }]
+  };
+
+  if (hasCoords) {
+    config.toolConfig = {
+      retrievalConfig: {
+        latLng: {
+          latitude: parsedLat,
+          longitude: parsedLng
+        }
+      }
+    };
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents: query.trim(),
+      config
+    });
+
+    const text = (response && response.text ? response.text : '').trim();
+    const places = extractGoogleMapsGroundingPlaces(response);
+
+    return res.json({
+      success: true,
+      model: 'gemini-4-hydrogen',
+      text: text || 'Nearby locations retrieved from Google Maps.',
+      places,
+      coordinates: hasCoords ? { latitude: parsedLat, longitude: parsedLng } : null,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn('Gemini Maps Grounding error:', err.message);
+    const status = err.status || (String(err.message || '').includes('PERMISSION_DENIED') ? 403 : 500);
+    return res.status(status).json({
+      error: err.message || 'Unable to query Google Maps grounding data right now.'
+    });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// Gemini Chatbot Endpoint (Multi-turn conversations, Maps Grounding & models)
+// Supported models: gemini-4-hydrogen, gemini-3.8-flash, gemini-3.1-flash-lite, gemini-4-carbon, gemini-4-argon
 // ----------------------------------------------------------------------------
 app.post('/api/gemini/chat', async (req, res) => {
-  const { message, history = [], model = 'gemini-3.8-flash', role = 'civilian' } = req.body;
+  const {
+    message,
+    history = [],
+    model = 'gemini-4-hydrogen',
+    role = 'civilian',
+    latitude,
+    longitude,
+    useMapsGrounding = false
+  } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'Message is required' });
@@ -2488,8 +2598,9 @@ Provide immediate life-saving steps:
 Keep instructions simple, reassuring, and numbered so someone in panic can read and act instantly.`;
 
   // Validate model selection
-  const allowedModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-carbon', 'gemini-4-argon'];
-  const targetModel = allowedModels.includes(model) ? model : 'gemini-3.8-flash';
+  const allowedModels = ['gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-carbon', 'gemini-4-argon'];
+  const targetModel = allowedModels.includes(model) ? model : 'gemini-4-hydrogen';
+  const isGeoQuery = Boolean(useMapsGrounding) || /\b(near|nearby|nearest|hospital|shelter|clinic|police|fire station|pharmacy|relief center|map|directions|route to)\b/i.test(message);
 
   if (ai && process.env.GEMINI_API_KEY) {
     try {
@@ -2510,19 +2621,37 @@ Keep instructions simple, reassuring, and numbered so someone in panic can read 
         parts: [{ text: message }]
       });
 
+      const isGemini4 = targetModel.startsWith('gemini-4-');
+      const config = { systemInstruction };
+      if (!isGemini4) {
+        config.temperature = 0.3;
+      }
+
+      if (targetModel === 'gemini-4-hydrogen' && isGeoQuery) {
+        config.tools = [{ googleMaps: {} }];
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          config.toolConfig = {
+            retrievalConfig: {
+              latLng: { latitude: lat, longitude: lng }
+            }
+          };
+        }
+      }
+
       const response = await ai.models.generateContent({
         model: targetModel,
         contents: contents,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.3
-        }
+        config
       });
 
       const replyText = response && response.text ? response.text.trim() : 'Emergency guidance recorded. Stay safe.';
+      const places = extractGoogleMapsGroundingPlaces(response);
       return res.json({
         success: true,
         reply: replyText,
+        places,
         model: targetModel,
         timestamp: new Date().toISOString()
       });
@@ -2549,6 +2678,7 @@ Keep instructions simple, reassuring, and numbered so someone in panic can read 
   return res.json({
     success: true,
     reply: defaultReply,
+    places: [],
     model: targetModel,
     isFallback: true,
     timestamp: new Date().toISOString()

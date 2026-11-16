@@ -4,7 +4,7 @@
 // instantaneously with or without network (website + installed standalone PWA)
 // ============================================================================
 
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v14';
 const STATIC_CACHE = `puyal-static-${CACHE_VERSION}`;
 const API_CACHE = `puyal-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `puyal-runtime-${CACHE_VERSION}`;
@@ -24,6 +24,7 @@ const CORE_ASSETS = [
   '/js/gemini-assistant.js',
   '/js/google-maps-manager.js',
   '/js/tactical-3d-scene.js',
+  '/js/leaflet-idb-cache.js',
   '/js/pwa-offline.js',
   '/js/qrcode.min.js',
   '/js/incident-qr.js',
@@ -155,6 +156,30 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
     return;
   }
+  if (event.data.type === 'SHOW_LOCAL_NOTIFICATION') {
+    if (self.registration && typeof self.registration.showNotification === 'function') {
+      const payload = event.data.payload || {};
+      const title = payload.title || 'PUYAL Emergency Alert';
+      const options = {
+        body: payload.body || 'Offline alert active — open PUYAL to review.',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        tag: payload.tag || 'puyal-offline-alert',
+        renotify: true,
+        requireInteraction: payload.level === 'critical',
+        vibrate: payload.level === 'critical' ? [220, 100, 220, 100, 220] : [160, 80, 160],
+        data: {
+          url: payload.url || '/index.html',
+          alertId: payload.id || null
+        }
+      };
+      const notifyPromise = self.registration.showNotification(title, options).catch(() => {});
+      if (typeof event.waitUntil === 'function') {
+        event.waitUntil(notifyPromise);
+      }
+    }
+    return;
+  }
   if (event.data.type === 'WARM_OFFLINE_SHELL') {
     const promise = (async () => {
       const staticCache = await caches.open(STATIC_CACHE);
@@ -191,7 +216,79 @@ self.addEventListener('message', (event) => {
     if (typeof event.waitUntil === 'function') {
       event.waitUntil(promise);
     }
+    return;
   }
+
+  if (event.data.type === 'ONLINE_TRANSITION_DETECTED' || event.data.type === 'SYNC_QUEUE_PROGRESS') {
+    const isTransition = event.data.type === 'ONLINE_TRANSITION_DETECTED';
+    const pendingCount = Number(event.data.pendingCount ?? event.data.remaining ?? 0) || 0;
+    const payload = {
+      type: 'SW_FIREBASE_SYNC_STATE',
+      state: event.data.state || (pendingCount > 0 ? 'pushing' : 'idle'),
+      remaining: pendingCount,
+      total: Number(event.data.total ?? pendingCount) || 0,
+      syncedCount: Number(event.data.syncedCount || 0) || 0,
+      recordType: event.data.recordType || null,
+      transition: isTransition ? 'offline-to-online' : 'progress',
+      ts: Date.now()
+    };
+
+    const relayPromise = (async () => {
+      try {
+        if (isTransition && pendingCount > 0 && self.registration && self.registration.sync) {
+          await self.registration.sync.register('puyal-firebase-sync').catch(() => {});
+        }
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        clients.forEach((client) => {
+          try {
+            client.postMessage(payload);
+          } catch (e) {}
+        });
+      } catch (e) {}
+    })();
+
+    if (typeof event.waitUntil === 'function') {
+      event.waitUntil(relayPromise);
+    }
+    return;
+  }
+});
+
+self.addEventListener('sync', (event) => {
+  if (!event || event.tag !== 'puyal-firebase-sync') return;
+  event.waitUntil((async () => {
+    try {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      clients.forEach((client) => {
+        try {
+          client.postMessage({
+            type: 'SW_TRIGGER_FIREBASE_SYNC',
+            tag: event.tag,
+            ts: Date.now()
+          });
+        } catch (e) {}
+      });
+    } catch (e) {}
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/index.html';
+  event.waitUntil((async () => {
+    try {
+      const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windowClients) {
+        if (client && typeof client.focus === 'function') {
+          await client.focus();
+          return;
+        }
+      }
+      if (self.clients && typeof self.clients.openWindow === 'function') {
+        await self.clients.openWindow(targetUrl);
+      }
+    } catch (e) {}
+  })());
 });
 
 function isKnownOffline() {
@@ -311,6 +408,9 @@ function buildOfflineExternalStub(url, request) {
       status: 200,
       headers: { 'Content-Type': 'text/css; charset=utf-8' }
     });
+  }
+  if (dest === 'image' || url.hostname.includes('tile.openstreetmap.org') || url.pathname.endsWith('.png')) {
+    return new Response('', { status: 504, statusText: 'Offline Image Unavailable' });
   }
   return new Response('', { status: 204 });
 }
@@ -507,8 +607,9 @@ self.addEventListener('fetch', (event) => {
       if (isKnownOffline()) {
         return buildOfflineExternalStub(url, request);
       }
+      const isOsmTile = url.hostname.includes('tile.openstreetmap.org');
       try {
-        const netRes = await fetchWithTimeout(request, 700);
+        const netRes = await fetchWithTimeout(request, isOsmTile ? 4000 : 1200);
         if (!netRes || (!netRes.ok && netRes.type !== 'opaque')) {
           return buildOfflineExternalStub(url, request);
         }
