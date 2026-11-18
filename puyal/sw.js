@@ -4,7 +4,7 @@
 // instantaneously with or without network (website + installed standalone PWA)
 // ============================================================================
 
-const CACHE_VERSION = 'v14';
+const CACHE_VERSION = 'v17';
 const STATIC_CACHE = `puyal-static-${CACHE_VERSION}`;
 const API_CACHE = `puyal-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `puyal-runtime-${CACHE_VERSION}`;
@@ -28,6 +28,7 @@ const CORE_ASSETS = [
   '/js/pwa-offline.js',
   '/js/qrcode.min.js',
   '/js/incident-qr.js',
+  '/js/haptic-feedback.js',
   '/manifest.webmanifest',
   '/favicon.ico',
   '/favicon.svg',
@@ -219,31 +220,65 @@ self.addEventListener('message', (event) => {
     return;
   }
 
-  if (event.data.type === 'ONLINE_TRANSITION_DETECTED' || event.data.type === 'SYNC_QUEUE_PROGRESS') {
+  if (
+    event.data.type === 'ONLINE_TRANSITION_DETECTED' ||
+    event.data.type === 'SYNC_QUEUE_PROGRESS' ||
+    event.data.type === 'RETRY_BACKGROUND_SYNC'
+  ) {
     const isTransition = event.data.type === 'ONLINE_TRANSITION_DETECTED';
+    const isManualRetry = event.data.type === 'RETRY_BACKGROUND_SYNC';
     const pendingCount = Number(event.data.pendingCount ?? event.data.remaining ?? 0) || 0;
+    const rawState = event.data.state || (pendingCount > 0 ? 'pushing' : 'idle');
+    const derivedBadgeStatus = isKnownOffline()
+      ? 'offline_retry'
+      : rawState === 'pushing'
+        ? 'syncing'
+        : rawState === 'partial' || (rawState === 'idle' && pendingCount > 0)
+          ? 'offline_retry'
+          : 'synced';
+
     const payload = {
       type: 'SW_FIREBASE_SYNC_STATE',
-      state: event.data.state || (pendingCount > 0 ? 'pushing' : 'idle'),
+      state: rawState,
+      badgeStatus: derivedBadgeStatus,
       remaining: pendingCount,
       total: Number(event.data.total ?? pendingCount) || 0,
       syncedCount: Number(event.data.syncedCount || 0) || 0,
       recordType: event.data.recordType || null,
-      transition: isTransition ? 'offline-to-online' : 'progress',
+      transition: isTransition ? 'offline-to-online' : isManualRetry ? 'manual-retry' : 'progress',
       ts: Date.now()
     };
 
     const relayPromise = (async () => {
       try {
-        if (isTransition && pendingCount > 0 && self.registration && self.registration.sync) {
+        if ((isTransition || isManualRetry) && pendingCount > 0 && self.registration && self.registration.sync) {
           await self.registration.sync.register('puyal-firebase-sync').catch(() => {});
         }
         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         clients.forEach((client) => {
           try {
             client.postMessage(payload);
+            client.postMessage({
+              type: 'SW_SYNC_EVENT_STATUS',
+              status: derivedBadgeStatus,
+              remaining: pendingCount,
+              syncedCount: payload.syncedCount,
+              tag: 'puyal-firebase-sync',
+              ts: payload.ts
+            });
+            if (isManualRetry && !isKnownOffline()) {
+              client.postMessage({
+                type: 'SW_TRIGGER_FIREBASE_SYNC',
+                tag: 'puyal-firebase-sync',
+                manualRetry: true,
+                ts: payload.ts
+              });
+            }
           } catch (e) {}
         });
+        if (typeof resolvePendingSyncWaiters === 'function' && (rawState === 'completed' || rawState === 'partial')) {
+          resolvePendingSyncWaiters({ state: rawState, remaining: pendingCount, syncedCount: payload.syncedCount });
+        }
       } catch (e) {}
     })();
 
@@ -254,21 +289,102 @@ self.addEventListener('message', (event) => {
   }
 });
 
+const pendingSyncWaiters = new Set();
+function resolvePendingSyncWaiters(result) {
+  pendingSyncWaiters.forEach((resolve) => {
+    try { resolve(result); } catch (e) {}
+  });
+  pendingSyncWaiters.clear();
+}
+
+async function broadcastToClients(message) {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  clients.forEach((client) => {
+    try {
+      client.postMessage(message);
+    } catch (e) {}
+  });
+  return clients.length;
+}
+
 self.addEventListener('sync', (event) => {
   if (!event || event.tag !== 'puyal-firebase-sync') return;
   event.waitUntil((async () => {
-    try {
-      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      clients.forEach((client) => {
-        try {
-          client.postMessage({
-            type: 'SW_TRIGGER_FIREBASE_SYNC',
-            tag: event.tag,
-            ts: Date.now()
-          });
-        } catch (e) {}
+    const lastChance = Boolean(event.lastChance);
+    if (isKnownOffline()) {
+      await broadcastToClients({
+        type: 'SW_SYNC_EVENT_STATUS',
+        status: 'offline_retry',
+        state: 'partial',
+        tag: event.tag,
+        lastChance,
+        ts: Date.now()
       });
-    } catch (e) {}
+      if (!lastChance) {
+        throw new Error('Offline during Background Sync; retry scheduled');
+      }
+      return;
+    }
+
+    await broadcastToClients({
+      type: 'SW_SYNC_EVENT_STATUS',
+      status: 'syncing',
+      state: 'pushing',
+      tag: event.tag,
+      ts: Date.now()
+    });
+
+    const clientCount = await broadcastToClients({
+      type: 'SW_TRIGGER_FIREBASE_SYNC',
+      tag: event.tag,
+      lastChance,
+      ts: Date.now()
+    });
+
+    if (clientCount === 0) {
+      return;
+    }
+
+    const ackResult = await new Promise((resolve) => {
+      let settled = false;
+      const done = (val) => {
+        if (settled) return;
+        settled = true;
+        pendingSyncWaiters.delete(done);
+        clearTimeout(timer);
+        resolve(val);
+      };
+      const timer = setTimeout(() => done({ state: 'timeout', remaining: 0 }), 8000);
+      pendingSyncWaiters.add(done);
+    });
+
+    if (ackResult && ackResult.state === 'partial') {
+      await broadcastToClients({
+        type: 'SW_SYNC_EVENT_STATUS',
+        status: 'offline_retry',
+        state: 'partial',
+        remaining: ackResult.remaining || 0,
+        lastChance,
+        tag: event.tag,
+        ts: Date.now()
+      });
+      if (!lastChance) {
+        throw new Error('Partial Firebase sync; retry requested');
+      }
+      return;
+    }
+
+    if (ackResult && ackResult.state === 'completed') {
+      await broadcastToClients({
+        type: 'SW_SYNC_EVENT_STATUS',
+        status: 'synced',
+        state: 'completed',
+        remaining: 0,
+        syncedCount: ackResult.syncedCount || 0,
+        tag: event.tag,
+        ts: Date.now()
+      });
+    }
   })());
 });
 

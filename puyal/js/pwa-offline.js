@@ -10,6 +10,8 @@
   let swStatusState = 'checking'; // 'active' | 'activating' | 'registered' | 'unsupported' | 'unregistered'
   let swStatusDetail = 'Checking Service Worker...';
   let lastKnownOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  let swSyncEventStatus = null; // null | 'syncing' | 'synced' | 'offline_retry'
+  let lastSyncedAt = 0;
   let firebaseSyncStatus = {
     state: 'idle', // 'idle' | 'pushing' | 'completed' | 'partial'
     remaining: 0,
@@ -200,27 +202,119 @@
       .nav-pending-sync-btn.has-pending:hover {
         background: rgba(245, 158, 11, 0.34);
       }
+      .pwa-nav-telemetry.is-syncing-firebase {
+        border-color: rgba(56, 189, 248, 0.62);
+        box-shadow: 0 2px 12px rgba(14, 165, 233, 0.28);
+      }
       .nav-pending-sync-btn.is-syncing-firebase {
         background: rgba(14, 165, 233, 0.24);
-        border-color: rgba(56, 189, 248, 0.72);
+        border-color: rgba(56, 189, 248, 0.82);
         color: #bae6fd;
         box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+        animation: pwaSyncBadgePulse 1.5s infinite ease-in-out;
       }
       .nav-pending-sync-btn.sync-completed {
         background: rgba(16, 185, 129, 0.22);
         border-color: rgba(52, 211, 153, 0.65);
         color: #a7f3d0;
       }
-      .nav-sync-spin {
-        display: inline-block;
-        animation: pwaSpin 1s linear infinite;
+      .nav-sync-spin,
+      .nav-sync-spinner-svg {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        animation: pwaSpin 1.15s linear infinite;
+        transform-origin: center;
       }
       @keyframes pwaSpin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
       }
+      @keyframes pwaSyncBadgePulse {
+        0%, 100% {
+          box-shadow: 0 0 6px rgba(56, 189, 248, 0.32), inset 0 0 0 0 rgba(56, 189, 248, 0.12);
+          border-color: rgba(56, 189, 248, 0.68);
+        }
+        50% {
+          box-shadow: 0 0 15px rgba(56, 189, 248, 0.68), inset 0 0 8px rgba(56, 189, 248, 0.22);
+          border-color: rgba(125, 211, 252, 0.95);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .nav-sync-spin,
+        .nav-sync-spinner-svg,
+        .nav-pending-sync-btn.is-syncing-firebase,
+        .nav-sync-badge.state-syncing {
+          animation: none !important;
+        }
+      }
       .nav-pending-sync-count {
         font-weight: 800;
+      }
+      .nav-sync-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        cursor: pointer;
+        border: 1px solid rgba(52, 211, 153, 0.52);
+        background: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .nav-sync-badge:hover {
+        filter: brightness(1.1);
+      }
+      .nav-sync-badge-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: #34d399;
+        box-shadow: 0 0 6px rgba(52, 211, 153, 0.85);
+      }
+      .nav-sync-badge-spinner {
+        display: none;
+        width: 12px;
+        height: 12px;
+        flex-shrink: 0;
+      }
+      .nav-sync-badge.state-synced {
+        background: rgba(16, 185, 129, 0.18);
+        border-color: rgba(52, 211, 153, 0.55);
+        color: #6ee7b7;
+      }
+      .nav-sync-badge.state-synced .nav-sync-badge-dot {
+        background: #10b981;
+        box-shadow: 0 0 7px rgba(16, 185, 129, 0.9);
+      }
+      .nav-sync-badge.state-syncing {
+        background: rgba(14, 165, 233, 0.26);
+        border-color: rgba(56, 189, 248, 0.85);
+        color: #e0f2fe;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+        animation: pwaSyncBadgePulse 1.5s infinite ease-in-out;
+      }
+      .nav-sync-badge.state-syncing .nav-sync-badge-dot {
+        display: none;
+      }
+      .nav-sync-badge.state-syncing .nav-sync-badge-spinner {
+        display: inline-flex;
+      }
+      .nav-sync-badge.state-offline-retry {
+        background: rgba(245, 158, 11, 0.24);
+        border-color: rgba(251, 191, 36, 0.72);
+        color: #fde68a;
+        box-shadow: 0 0 9px rgba(245, 158, 11, 0.28);
+      }
+      .nav-sync-badge.state-offline-retry .nav-sync-badge-dot {
+        background: #f59e0b;
+        box-shadow: 0 0 7px rgba(245, 158, 11, 0.95);
+        animation: pwaPulse 1.2s infinite ease-in-out;
       }
       .pwa-battery-toast {
         position: fixed;
@@ -582,6 +676,19 @@
         <span id="nav-connectivity-label">Checking…</span>
       </button>
       <span class="pwa-telemetry-divider" aria-hidden="true"></span>
+      <button type="button" id="nav-sync-status-badge" class="nav-sync-badge state-synced" data-sync-status="synced" aria-label="Synchronization status: Synced" aria-live="polite" title="Service Worker Sync Status: Synced">
+        <span id="nav-sync-badge-icon" class="nav-sync-badge-dot" aria-hidden="true"></span>
+        <span id="nav-sync-badge-spinner" class="nav-sync-badge-spinner nav-sync-spinner-svg" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 16h5v5"></path>
+          </svg>
+        </span>
+        <span id="nav-sync-badge-label">Synced</span>
+      </button>
+      <span class="pwa-telemetry-divider" aria-hidden="true"></span>
       <button type="button" id="nav-pending-sync-counter" class="nav-pending-sync-btn" aria-label="Data Pending Sync: 0 records waiting for Firebase sync" aria-live="polite" title="Locally stored records waiting to push to Firebase when online" data-pending-count="0" data-sync-state="idle">
         <span id="nav-pending-sync-icon" aria-hidden="true">⏳</span>
         <span id="nav-pending-sync-text">Data Pending Sync:</span>
@@ -604,6 +711,10 @@
         <div class="nav-telemetry-row">
           <span class="nav-telemetry-key">Service Worker</span>
           <span class="nav-telemetry-val" id="pop-sw-val">—</span>
+        </div>
+        <div class="nav-telemetry-row">
+          <span class="nav-telemetry-key">Sync Status</span>
+          <span class="nav-telemetry-val" id="pop-sync-badge-val">Synced</span>
         </div>
         <div class="nav-telemetry-row">
           <span class="nav-telemetry-key">Offline Access</span>
@@ -662,6 +773,17 @@
     };
 
     document.getElementById('nav-connectivity-indicator').addEventListener('click', togglePopover);
+    document.getElementById('nav-sync-status-badge').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const badgeEl = document.getElementById('nav-sync-status-badge');
+      const status = badgeEl ? badgeEl.getAttribute('data-sync-status') : 'synced';
+      const isOnlineNow = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (status === 'offline_retry' && isOnlineNow) {
+        requestServiceWorkerSyncRetry();
+        return;
+      }
+      togglePopover(e);
+    });
     document.getElementById('nav-pending-sync-counter').addEventListener('click', togglePopover);
     document.getElementById('nav-battery-indicator').addEventListener('click', togglePopover);
     document.getElementById('nav-telemetry-close').addEventListener('click', (e) => {
@@ -730,12 +852,93 @@
     return cluster;
   }
 
+  function resolveVisualSyncBadgeState(online, totalQueued) {
+    if (!online) {
+      return 'offline_retry';
+    }
+    if (
+      swSyncEventStatus === 'syncing' ||
+      (firebaseSyncStatus.state === 'pushing' && (totalQueued > 0 || firebaseSyncStatus.remaining > 0))
+    ) {
+      return 'syncing';
+    }
+    if (
+      swSyncEventStatus === 'offline_retry' ||
+      firebaseSyncStatus.state === 'partial' ||
+      totalQueued > 0
+    ) {
+      return 'offline_retry';
+    }
+    return 'synced';
+  }
+
+  function requestServiceWorkerSyncRetry() {
+    const { totalQueued } = getPendingSyncStats();
+    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!online) {
+      swSyncEventStatus = 'offline_retry';
+      renderConnectivityIndicator();
+      return false;
+    }
+
+    swSyncEventStatus = 'syncing';
+    firebaseSyncStatus = {
+      state: 'pushing',
+      remaining: totalQueued,
+      total: totalQueued,
+      syncedCount: 0,
+      updatedAt: Date.now()
+    };
+    renderConnectivityIndicator();
+
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const msg = {
+          type: 'RETRY_BACKGROUND_SYNC',
+          pendingCount: totalQueued,
+          state: 'pushing',
+          ts: Date.now()
+        };
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage(msg);
+        } else if (navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then((reg) => {
+            if (reg && reg.sync && typeof reg.sync.register === 'function') {
+              reg.sync.register('puyal-firebase-sync').catch(() => {});
+            }
+            if (reg && reg.active) reg.active.postMessage(msg);
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {}
+
+    if (window.rapidSync && typeof window.rapidSync.flushOfflineQueue === 'function') {
+      window.rapidSync.flushOfflineQueue().then(() => {
+        const stats = getPendingSyncStats();
+        if (stats.totalQueued === 0) {
+          swSyncEventStatus = 'synced';
+          lastSyncedAt = Date.now();
+        } else {
+          swSyncEventStatus = 'offline_retry';
+        }
+        renderConnectivityIndicator();
+      }).catch(() => {
+        swSyncEventStatus = 'offline_retry';
+        renderConnectivityIndicator();
+      });
+    }
+    return true;
+  }
+
   function renderConnectivityIndicator() {
     ensureNavbarTelemetryUI();
     const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const dot = document.getElementById('nav-connectivity-dot');
     const label = document.getElementById('nav-connectivity-label');
     const btn = document.getElementById('nav-connectivity-indicator');
+    const syncBadge = document.getElementById('nav-sync-status-badge');
+    const syncBadgeLabel = document.getElementById('nav-sync-badge-label');
+    const popSyncBadgeVal = document.getElementById('pop-sync-badge-val');
     const pendingBtn = document.getElementById('nav-pending-sync-counter');
     const pendingIconEl = document.getElementById('nav-pending-sync-icon');
     const pendingTextEl = document.getElementById('nav-pending-sync-text');
@@ -747,7 +950,8 @@
     const popSyncActions = document.getElementById('pop-sync-actions');
 
     const { pendingIncidents, totalQueued } = getPendingSyncStats();
-    const isSyncing = firebaseSyncStatus.state === 'pushing' && (totalQueued > 0 || firebaseSyncStatus.remaining > 0);
+    const visualSyncStatus = resolveVisualSyncBadgeState(online, totalQueued);
+    const isSyncing = visualSyncStatus === 'syncing';
     const isJustCompleted = firebaseSyncStatus.state === 'completed' && totalQueued === 0 && firebaseSyncStatus.syncedCount > 0;
     const displayPendingCount = isSyncing ? Math.max(totalQueued, firebaseSyncStatus.remaining) : totalQueued;
 
@@ -782,10 +986,63 @@
     if (label) label.textContent = shortText;
     if (btn) btn.title = titleMsg;
 
+    const badgeText =
+      visualSyncStatus === 'syncing'
+        ? 'Syncing'
+        : visualSyncStatus === 'offline_retry'
+          ? 'Offline/Retry'
+          : 'Synced';
+
+    if (syncBadge) {
+      syncBadge.className = `nav-sync-badge ${
+        visualSyncStatus === 'syncing'
+          ? 'state-syncing'
+          : visualSyncStatus === 'offline_retry'
+            ? 'state-offline-retry'
+            : 'state-synced'
+      }`;
+      syncBadge.setAttribute('data-sync-status', visualSyncStatus);
+      syncBadge.setAttribute('aria-label', `Synchronization status: ${badgeText}`);
+      syncBadge.title =
+        visualSyncStatus === 'syncing'
+          ? 'Service Worker Background Sync active — pushing local records to Firebase'
+          : visualSyncStatus === 'offline_retry'
+            ? (online
+              ? `Sync Retry needed (${displayPendingCount} queued) — click to retry Service Worker sync`
+              : 'Device Offline — records queued locally, Service Worker will retry on reconnect')
+            : `Synced${lastSyncedAt ? ` (last synced ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''} — all records up to date`;
+    }
+    if (syncBadgeLabel) {
+      syncBadgeLabel.textContent = badgeText;
+    }
+    if (popSyncBadgeVal) {
+      popSyncBadgeVal.textContent =
+        visualSyncStatus === 'syncing'
+          ? '🔄 Syncing'
+          : visualSyncStatus === 'offline_retry'
+            ? '⚠️ Offline/Retry'
+            : '✅ Synced';
+      popSyncBadgeVal.style.color =
+        visualSyncStatus === 'syncing'
+          ? '#7dd3fc'
+          : visualSyncStatus === 'offline_retry'
+            ? '#fcd34d'
+            : '#6ee7b7';
+    }
+
+    const telemetryCluster = document.getElementById('nav-status-telemetry');
+    if (telemetryCluster) {
+      telemetryCluster.classList.toggle('is-syncing-firebase', isSyncing);
+    }
+
     if (pendingValEl) pendingValEl.textContent = String(displayPendingCount);
     if (pendingIconEl) {
       pendingIconEl.className = isSyncing ? 'nav-sync-spin' : '';
-      pendingIconEl.textContent = isSyncing ? '🔄' : isJustCompleted ? '✅' : '⏳';
+      pendingIconEl.innerHTML = isSyncing
+        ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>'
+        : isJustCompleted
+          ? '✅'
+          : '⏳';
     }
     if (pendingTextEl) {
       pendingTextEl.textContent = isSyncing
@@ -865,11 +1122,22 @@
       syncedCount: Number(detail.syncedCount || 0) || 0,
       updatedAt: Date.now()
     };
+    if (nextState === 'pushing') {
+      swSyncEventStatus = 'syncing';
+    } else if (nextState === 'completed') {
+      swSyncEventStatus = 'synced';
+      lastSyncedAt = Date.now();
+    } else if (nextState === 'partial') {
+      swSyncEventStatus = 'offline_retry';
+    }
     updateConnectivityBanner();
     if (nextState === 'completed' || nextState === 'partial') {
       syncCompleteResetTimer = setTimeout(() => {
         firebaseSyncStatus.state = 'idle';
         firebaseSyncStatus.syncedCount = 0;
+        if (nextState === 'completed' && swSyncEventStatus === 'synced') {
+          swSyncEventStatus = null;
+        }
         renderConnectivityIndicator();
       }, 3200);
     }
@@ -1309,7 +1577,7 @@
       '/manifest.webmanifest'
     ];
     try {
-      const staticCache = await caches.open('puyal-static-v14');
+      const staticCache = await caches.open('puyal-static-v17');
       await Promise.allSettled(
         criticalPages.map(async (pagePath) => {
           const hit = await staticCache.match(pagePath, { ignoreSearch: true });
@@ -1637,11 +1905,34 @@
         swStatusState = 'active';
         swStatusDetail = 'Active & Offline Ready';
         renderConnectivityIndicator();
+      } else if (msg.type === 'SW_SYNC_EVENT_STATUS') {
+        swSyncEventStatus = msg.status || null;
+        if (msg.status === 'synced') {
+          lastSyncedAt = Number(msg.ts) || Date.now();
+        }
+        renderConnectivityIndicator();
       } else if (msg.type === 'SW_FIREBASE_SYNC_STATE') {
+        if (msg.badgeStatus) {
+          swSyncEventStatus = msg.badgeStatus;
+        }
         applyRealtimeFirebaseSyncState(msg);
       } else if (msg.type === 'SW_TRIGGER_FIREBASE_SYNC') {
+        swSyncEventStatus = 'syncing';
+        renderConnectivityIndicator();
         if (window.rapidSync && typeof window.rapidSync.flushOfflineQueue === 'function') {
-          window.rapidSync.flushOfflineQueue();
+          window.rapidSync.flushOfflineQueue().then(() => {
+            const { totalQueued } = getPendingSyncStats();
+            if (totalQueued === 0) {
+              swSyncEventStatus = 'synced';
+              lastSyncedAt = Date.now();
+            } else {
+              swSyncEventStatus = 'offline_retry';
+            }
+            renderConnectivityIndicator();
+          }).catch(() => {
+            swSyncEventStatus = 'offline_retry';
+            renderConnectivityIndicator();
+          });
         }
       }
     });

@@ -77,7 +77,7 @@
 
     <!-- ── Quick Action Options (Direct Access to All Civilian Tools) ── -->
     <div class="quick-actions">
-      <div class="action-card" id="card-sos-launch" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;" onclick="activateSOS()">
+      <div class="action-card" id="card-sos-launch" role="button" tabindex="0" aria-label="SOS Emergency Live Stream" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; cursor: pointer;">
         <span class="action-icon">🚨</span>
         <div class="action-label" data-i18n="action.sos_title">SOS Emergency Live Stream</div>
         <div class="action-desc" data-i18n="action.sos_desc">Streams live camera &amp; audio directly to Admin Command Console</div>
@@ -428,6 +428,7 @@
         <div class="sos-info-item">
           <div class="info-label">📡 Live Relay</div>
           <div class="info-value" style="color: var(--success);" id="sos-status-label">● Streaming to HQ Admin</div>
+          <div id="sos-haptic-indicator" style="font-size: 10px; font-weight: 700; color: #cbd5e1; margin-top: 2px;">📳 Haptic Standby</div>
         </div>
       </div>
 
@@ -998,14 +999,20 @@
       };
 
       let wasOfflineQueued = false;
+      if (window.PuyalHaptics) {
+        window.PuyalHaptics.beginIncidentReporting();
+      }
       try {
         const createRes = await rapidSync.createIncident(newIncident);
         if (createRes && createRes.success === false) {
+          if (window.PuyalHaptics) window.PuyalHaptics.endIncidentReporting(false);
           showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
           return;
         }
         wasOfflineQueued = Boolean(createRes && createRes.offlineQueued);
+        if (window.PuyalHaptics) window.PuyalHaptics.endIncidentReporting(true);
       } catch (err) {
+        if (window.PuyalHaptics) window.PuyalHaptics.endIncidentReporting(false);
         console.warn('Server incident post error:', err);
         showToast(err.message || 'Unable to submit incident report.', 'error');
         return;
@@ -1386,10 +1393,17 @@
         source: 'voice'
       };
 
+      if (window.PuyalHaptics) {
+        window.PuyalHaptics.beginIncidentReporting();
+      }
       const createRes = await rapidSync.createIncident(newIncident);
       if (createRes && createRes.success === false) {
+        if (window.PuyalHaptics) window.PuyalHaptics.endIncidentReporting(false);
         showToast(createRes.error || 'Only civilian reports are accepted.', 'error');
         return;
+      }
+      if (window.PuyalHaptics) {
+        window.PuyalHaptics.endIncidentReporting(true);
       }
       const wasOfflineQueued = Boolean(createRes && createRes.offlineQueued);
 
@@ -1849,6 +1863,9 @@
           if (res && !res.__camErr && res.getTracks) res.getTracks().forEach(t => t.stop());
         });
         return;
+      }
+      if (window.PuyalHaptics) {
+        window.PuyalHaptics.startStreaming();
       }
       connectSosBroadcasterWs();
       geoWatchStartedBySos = liveGeoWatchId === null;
@@ -2420,6 +2437,9 @@
 
     async function deactivateSOS(skipRemoteResolve = false) {
       sosActiveFlag = false;
+      if (window.PuyalHaptics) {
+        window.PuyalHaptics.stopStreaming();
+      }
       userMicMuted = false;
       hasPhysicalVideo = false;
       hasPhysicalAudio = false;
@@ -2863,8 +2883,17 @@
       }
     });
 
-    // Support direct deep-links from landing page (?action=sos|voice|report|track)
+    // Bind SOS button event listener with Vibration API Haptic Feedback Service + support deep-links
     window.addEventListener('DOMContentLoaded', () => {
+      const sosLaunchBtn = document.getElementById('card-sos-launch');
+      if (sosLaunchBtn) {
+        if (window.PuyalHaptics && typeof window.PuyalHaptics.attachSosButtonListener === 'function') {
+          window.PuyalHaptics.attachSosButtonListener(sosLaunchBtn, () => activateSOS());
+        } else {
+          sosLaunchBtn.addEventListener('click', () => activateSOS());
+        }
+      }
+
       const params = new URLSearchParams(window.location.search);
       const action = (params.get('action') || '').toLowerCase();
       if (action === 'sos') {
@@ -2976,9 +3005,10 @@
     }
   </script>
 
-  <!-- Offline QR Generator & Incident Dispatch Card -->
+  <!-- Offline QR Generator, Haptic Feedback & Incident Dispatch Card -->
   <script src="js/qrcode.min.js"></script>
   <script src="js/incident-qr.js"></script>
+  <script src="js/haptic-feedback.js"></script>
   <!-- Google Maps Platform Manager & Gemini AI Assistant Suite -->
   <script src="js/google-maps-manager.js"></script>
   <script src="js/gemini-assistant.js"></script>

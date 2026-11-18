@@ -43,6 +43,27 @@
           </div>
         </div>
 
+        <!-- Geolocation Local Language Recommendation Badge -->
+        <div class="bhashini-geo-rec-row" id="bhashini-geo-rec-row" hidden>
+          <button
+            type="button"
+            class="bhashini-area-rec-badge"
+            id="bhashini-area-rec-badge"
+            onclick="applyRecommendedAreaLanguage()"
+            aria-label="Recommended for your area"
+            aria-pressed="false"
+            title="Apply local language suggested for your geographic area"
+          >
+            <span class="bhashini-area-rec-left">
+              <span class="bhashini-area-rec-pin" aria-hidden="true">📍</span>
+              <span class="bhashini-area-rec-label">Recommended for your area:</span>
+              <span class="bhashini-area-rec-lang" id="bhashini-area-rec-lang">English (English)</span>
+              <span class="bhashini-area-rec-region" id="bhashini-area-rec-region"></span>
+            </span>
+            <span class="bhashini-area-rec-cta" id="bhashini-area-rec-cta">Apply</span>
+          </button>
+        </div>
+
         <div class="role-bhashini-controls">
           <!-- Custom Searchable Dropdown with Search Filter Input Above List -->
           <div class="bhashini-select-wrapper" id="bhashini-dropdown-wrapper">
@@ -327,6 +348,7 @@
 
     const SELECTED_LANG_STORAGE_KEY = 'currentSelectedLang';
     let currentSelectedLang = 'en';
+    let recommendedAreaInfo = null;
 
     function saveCurrentSelectedLang(langCode) {
       if (!langCode || !BHASHINI_LANGUAGES.some(l => l.code === langCode)) return;
@@ -492,6 +514,7 @@
 
       listEl.innerHTML = filtered.map((item, index) => {
         const isSelected = item.code === currentSelectedLang;
+        const isRecommendedArea = recommendedAreaInfo && recommendedAreaInfo.code === item.code;
         const highlightedBadge = highlightMatchText(item.badge, q);
         const highlightedNative = highlightMatchText(item.native, q);
         const highlightedName = highlightMatchText(item.name, q);
@@ -508,6 +531,7 @@
               <span class="bhashini-opt-badge" style="${isSelected ? `color: ${item.color}; background: ${item.bgTint}; border-color: ${item.borderTint};` : ''}">${highlightedBadge}</span>
               <span class="bhashini-opt-native">${highlightedNative}</span>
               <span class="bhashini-opt-en">(${highlightedName})</span>
+              ${isRecommendedArea ? '<span class="bhashini-opt-local-tag">📍 Area</span>' : ''}
             </div>
             ${isSelected ? '<span class="bhashini-opt-check" aria-hidden="true">✓</span>' : ''}
           </li>
@@ -604,6 +628,11 @@
 
       // Render recent languages
       renderRecentLanguages();
+
+      // Keep geolocation recommendation badge CTA/status in sync
+      if (typeof renderAreaRecommendationBadge === 'function') {
+        renderAreaRecommendationBadge();
+      }
 
       // Re-render options to update selected checkmark
       const searchInput = document.getElementById('bhashini-lang-search');
@@ -1613,9 +1642,246 @@
 
     const initialRestoredLangState = restoreLanguagePreferenceImmediately();
 
+    // Geolocation-based local language recommendation engine (100% offline-capable)
+    const BHASHINI_REGION_ANCHORS = [
+      // Tamil Nadu, Puducherry & North/East Sri Lanka
+      { lat: 13.0827, lon: 80.2707, code: 'ta', region: 'Chennai, Tamil Nadu' },
+      { lat: 11.0168, lon: 76.9558, code: 'ta', region: 'Coimbatore, Tamil Nadu' },
+      { lat: 9.9252, lon: 78.1198, code: 'ta', region: 'Madurai, Tamil Nadu' },
+      { lat: 10.7905, lon: 78.7047, code: 'ta', region: 'Tiruchirappalli, Tamil Nadu' },
+      { lat: 11.6643, lon: 78.1460, code: 'ta', region: 'Salem, Tamil Nadu' },
+      { lat: 8.7139, lon: 77.7567, code: 'ta', region: 'Tirunelveli, Tamil Nadu' },
+      { lat: 12.9165, lon: 79.1325, code: 'ta', region: 'Vellore, Tamil Nadu' },
+      { lat: 11.9416, lon: 79.8083, code: 'ta', region: 'Puducherry' },
+      { lat: 9.6615, lon: 80.0255, code: 'ta', region: 'Northern Sri Lanka' },
+      // Kerala
+      { lat: 8.5241, lon: 76.9366, code: 'ml', region: 'Thiruvananthapuram, Kerala' },
+      { lat: 9.9312, lon: 76.2673, code: 'ml', region: 'Kochi, Kerala' },
+      { lat: 11.2588, lon: 75.7804, code: 'ml', region: 'Kozhikode, Kerala' },
+      { lat: 10.5276, lon: 76.2144, code: 'ml', region: 'Thrissur, Kerala' },
+      // Karnataka
+      { lat: 12.9716, lon: 77.5946, code: 'kn', region: 'Bengaluru, Karnataka' },
+      { lat: 12.2958, lon: 76.6394, code: 'kn', region: 'Mysuru, Karnataka' },
+      { lat: 12.9141, lon: 74.8560, code: 'kn', region: 'Mangaluru, Karnataka' },
+      { lat: 15.3647, lon: 75.1240, code: 'kn', region: 'Hubballi, Karnataka' },
+      { lat: 17.3297, lon: 76.8343, code: 'kn', region: 'Kalaburagi, Karnataka' },
+      // Telangana & Andhra Pradesh
+      { lat: 17.3850, lon: 78.4867, code: 'te', region: 'Hyderabad, Telangana' },
+      { lat: 17.9689, lon: 79.5941, code: 'te', region: 'Warangal, Telangana' },
+      { lat: 16.5062, lon: 80.6480, code: 'te', region: 'Vijayawada, Andhra Pradesh' },
+      { lat: 17.6868, lon: 83.2185, code: 'te', region: 'Visakhapatnam, Andhra Pradesh' },
+      { lat: 13.6288, lon: 79.4192, code: 'te', region: 'Tirupati, Andhra Pradesh' },
+      { lat: 15.8281, lon: 78.0373, code: 'te', region: 'Kurnool, Andhra Pradesh' },
+      // Maharashtra & Goa
+      { lat: 19.0760, lon: 72.8777, code: 'mr', region: 'Mumbai, Maharashtra' },
+      { lat: 18.5204, lon: 73.8567, code: 'mr', region: 'Pune, Maharashtra' },
+      { lat: 21.1458, lon: 79.0882, code: 'mr', region: 'Nagpur, Maharashtra' },
+      { lat: 19.9975, lon: 73.7898, code: 'mr', region: 'Nashik, Maharashtra' },
+      { lat: 19.8762, lon: 75.3433, code: 'mr', region: 'Aurangabad, Maharashtra' },
+      { lat: 16.7050, lon: 74.2433, code: 'mr', region: 'Kolhapur, Maharashtra' },
+      // Gujarat
+      { lat: 23.0225, lon: 72.5714, code: 'gu', region: 'Ahmedabad, Gujarat' },
+      { lat: 21.1702, lon: 72.8311, code: 'gu', region: 'Surat, Gujarat' },
+      { lat: 22.3072, lon: 73.1812, code: 'gu', region: 'Vadodara, Gujarat' },
+      { lat: 22.3039, lon: 70.8022, code: 'gu', region: 'Rajkot, Gujarat' },
+      { lat: 23.2420, lon: 69.6669, code: 'gu', region: 'Bhuj, Gujarat' },
+      // Odisha
+      { lat: 20.2961, lon: 85.8245, code: 'or', region: 'Bhubaneswar, Odisha' },
+      { lat: 20.4625, lon: 85.8830, code: 'or', region: 'Cuttack, Odisha' },
+      { lat: 22.2604, lon: 84.8536, code: 'or', region: 'Rourkela, Odisha' },
+      { lat: 21.4669, lon: 83.9812, code: 'or', region: 'Sambalpur, Odisha' },
+      // West Bengal, Tripura & Bangladesh
+      { lat: 22.5726, lon: 88.3639, code: 'bn', region: 'Kolkata, West Bengal' },
+      { lat: 26.7271, lon: 88.3953, code: 'bn', region: 'Siliguri, West Bengal' },
+      { lat: 23.5204, lon: 87.3119, code: 'bn', region: 'Durgapur, West Bengal' },
+      { lat: 23.8315, lon: 91.2868, code: 'bn', region: 'Agartala, Tripura' },
+      { lat: 23.8103, lon: 90.4125, code: 'bn', region: 'Dhaka Region' },
+      // Punjab & Chandigarh
+      { lat: 31.6340, lon: 74.8723, code: 'pa', region: 'Amritsar, Punjab' },
+      { lat: 30.9010, lon: 75.8573, code: 'pa', region: 'Ludhiana, Punjab' },
+      { lat: 31.3260, lon: 75.5762, code: 'pa', region: 'Jalandhar, Punjab' },
+      { lat: 30.3398, lon: 76.3869, code: 'pa', region: 'Patiala, Punjab' },
+      { lat: 30.7333, lon: 76.7794, code: 'pa', region: 'Chandigarh Region' },
+      // Hindi Belt (Delhi NCR, UP, Rajasthan, MP, Bihar, Jharkhand, Chhattisgarh, Uttarakhand, HP)
+      { lat: 28.6139, lon: 77.2090, code: 'hi', region: 'New Delhi, Delhi NCR' },
+      { lat: 26.9124, lon: 75.7873, code: 'hi', region: 'Jaipur, Rajasthan' },
+      { lat: 26.2389, lon: 73.0243, code: 'hi', region: 'Jodhpur, Rajasthan' },
+      { lat: 26.8467, lon: 80.9462, code: 'hi', region: 'Lucknow, Uttar Pradesh' },
+      { lat: 25.3176, lon: 82.9739, code: 'hi', region: 'Varanasi, Uttar Pradesh' },
+      { lat: 27.1767, lon: 78.0081, code: 'hi', region: 'Agra, Uttar Pradesh' },
+      { lat: 23.2599, lon: 77.4126, code: 'hi', region: 'Bhopal, Madhya Pradesh' },
+      { lat: 22.7196, lon: 75.8577, code: 'hi', region: 'Indore, Madhya Pradesh' },
+      { lat: 23.1815, lon: 79.9864, code: 'hi', region: 'Jabalpur, Madhya Pradesh' },
+      { lat: 21.2514, lon: 81.6296, code: 'hi', region: 'Raipur, Chhattisgarh' },
+      { lat: 25.5941, lon: 85.1376, code: 'hi', region: 'Patna, Bihar' },
+      { lat: 23.3441, lon: 85.3096, code: 'hi', region: 'Ranchi, Jharkhand' },
+      { lat: 30.3165, lon: 78.0322, code: 'hi', region: 'Dehradun, Uttarakhand' },
+      { lat: 31.1048, lon: 77.1734, code: 'hi', region: 'Shimla, Himachal Pradesh' }
+    ];
+
+    function resolveLocalLanguageFromCoords(lat, lon) {
+      const numLat = Number(lat);
+      const numLon = Number(lon);
+      if (!Number.isFinite(numLat) || !Number.isFinite(numLon)) return null;
+
+      // South Asia & India regional language matching
+      if (numLat >= 6.0 && numLat <= 37.5 && numLon >= 68.0 && numLon <= 97.5) {
+        const cosLat = Math.cos((numLat * Math.PI) / 180);
+        let bestAnchor = null;
+        let bestDistSq = Infinity;
+
+        for (const anchor of BHASHINI_REGION_ANCHORS) {
+          const dLat = numLat - anchor.lat;
+          const dLon = (numLon - anchor.lon) * cosLat;
+          const distSq = dLat * dLat + dLon * dLon;
+          if (distSq < bestDistSq) {
+            bestDistSq = distSq;
+            bestAnchor = anchor;
+          }
+        }
+
+        if (bestAnchor) {
+          return { code: bestAnchor.code, regionName: bestAnchor.region };
+        }
+      }
+
+      // Iberian Peninsula (Spain)
+      if (numLat >= 36.0 && numLat <= 43.9 && numLon >= -9.5 && numLon <= 4.3) {
+        return { code: 'es', regionName: 'Spain' };
+      }
+
+      // Spanish-speaking Americas (excluding Brazil eastern region)
+      if (numLat >= -56.0 && numLat <= 32.7 && numLon >= -118.0 && numLon <= -34.0) {
+        const isBrazilMain = numLat >= -33.7 && numLat <= 5.3 && numLon >= -60.0 && numLon <= -34.7;
+        if (!isBrazilMain) {
+          return { code: 'es', regionName: 'Americas' };
+        }
+      }
+
+      return { code: 'en', regionName: 'Local Area' };
+    }
+
+    function renderAreaRecommendationBadge() {
+      const row = document.getElementById('bhashini-geo-rec-row');
+      const badge = document.getElementById('bhashini-area-rec-badge');
+      const langEl = document.getElementById('bhashini-area-rec-lang');
+      const regionEl = document.getElementById('bhashini-area-rec-region');
+      const ctaEl = document.getElementById('bhashini-area-rec-cta');
+      if (!row || !badge) return;
+
+      if (!recommendedAreaInfo || !recommendedAreaInfo.code) {
+        row.hidden = true;
+        return;
+      }
+
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === recommendedAreaInfo.code);
+      if (!langObj) {
+        row.hidden = true;
+        return;
+      }
+
+      const isApplied = currentSelectedLang === langObj.code;
+      row.hidden = false;
+      badge.classList.toggle('applied', isApplied);
+      badge.setAttribute('aria-pressed', isApplied ? 'true' : 'false');
+
+      if (langEl) {
+        langEl.textContent = `${langObj.native} (${langObj.name})`;
+      }
+      if (regionEl) {
+        regionEl.textContent = recommendedAreaInfo.regionName ? `· ${recommendedAreaInfo.regionName}` : '';
+      }
+      if (ctaEl) {
+        ctaEl.textContent = isApplied ? '✓ Active' : `Switch to ${langObj.badge}`;
+      }
+    }
+
+    function applyRecommendedAreaLanguage() {
+      if (!recommendedAreaInfo || !recommendedAreaInfo.code) return;
+      const langObj = BHASHINI_LANGUAGES.find(l => l.code === recommendedAreaInfo.code);
+      if (!langObj) return;
+
+      if (currentSelectedLang === langObj.code) {
+        showToast(`📍 ${langObj.native} (${langObj.name}) is already active for ${recommendedAreaInfo.regionName || 'your area'}.`, 'info');
+        return;
+      }
+
+      selectBhashiniLanguage(langObj.code);
+      const statusText = document.getElementById('bhashini-status-text');
+      if (statusText) {
+        statusText.textContent = `Local Area: ${langObj.badge}`;
+      }
+      showToast(`📍 Switched to ${langObj.native} (${langObj.name}) for ${recommendedAreaInfo.regionName || 'your area'}.`, 'success');
+    }
+
+    function applyGeolocationRecommendation(lat, lon, source = 'gps') {
+      const match = resolveLocalLanguageFromCoords(lat, lon);
+      if (!match) return null;
+
+      recommendedAreaInfo = {
+        code: match.code,
+        regionName: match.regionName,
+        source
+      };
+      renderAreaRecommendationBadge();
+
+      const searchInput = document.getElementById('bhashini-lang-search');
+      renderLanguageOptions(searchInput ? searchInput.value : '');
+      return recommendedAreaInfo;
+    }
+
+    function triggerGeolocationLanguageSuggestion() {
+      // 1. Instant offline fallback from cachedCoords in localStorage
+      let hadCachedCoords = false;
+      try {
+        const rawCached = localStorage.getItem('cachedCoords');
+        if (rawCached) {
+          const parsed = JSON.parse(rawCached);
+          if (parsed && Number.isFinite(Number(parsed.lat)) && Number.isFinite(Number(parsed.lon))) {
+            hadCachedCoords = true;
+            applyGeolocationRecommendation(Number(parsed.lat), Number(parsed.lon), 'cache');
+          }
+        }
+      } catch (e) {}
+
+      // 2. Live geolocation trigger on landing
+      if (typeof navigator !== 'undefined' && navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (!pos || !pos.coords) return;
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            try {
+              localStorage.setItem('cachedCoords', JSON.stringify({ lat, lon, ts: Date.now() }));
+            } catch (e) {}
+            applyGeolocationRecommendation(lat, lon, 'gps');
+          },
+          () => {
+            if (!hadCachedCoords) {
+              const fallbackCode = detectBrowserLanguage();
+              if (fallbackCode && BHASHINI_LANGUAGES.some(l => l.code === fallbackCode)) {
+                recommendedAreaInfo = { code: fallbackCode, regionName: 'Device Locale', source: 'locale' };
+                renderAreaRecommendationBadge();
+              }
+            }
+          },
+          { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+        );
+      } else if (!hadCachedCoords) {
+        const fallbackCode = detectBrowserLanguage();
+        if (fallbackCode && BHASHINI_LANGUAGES.some(l => l.code === fallbackCode)) {
+          recommendedAreaInfo = { code: fallbackCode, regionName: 'Device Locale', source: 'locale' };
+          renderAreaRecommendationBadge();
+        }
+      }
+    }
+
     // Set up Search Input, Clear Button, and Keyboard Navigation
     document.addEventListener('DOMContentLoaded', () => {
       const { initialLang, autoDetected } = initialRestoredLangState;
+
+      // Trigger geolocation-based regional language recommendation on landing
+      triggerGeolocationLanguageSuggestion();
 
       // If automatically detected from browser on load, inform user and reflect in status
       if (autoDetected) {
@@ -1740,6 +2006,16 @@
       if (typeof translatePage === 'function' && currentSelectedLang && currentSelectedLang !== 'en') {
         translatePage(currentSelectedLang);
       }
+
+      // Attach haptic feedback to direct SOS launch button on landing page
+      const directSosLink = document.getElementById('link-direct-sos');
+      if (directSosLink) {
+        directSosLink.addEventListener('click', () => {
+          if (window.PuyalHaptics && typeof window.PuyalHaptics.onSosButtonClick === 'function') {
+            window.PuyalHaptics.onSosButtonClick();
+          }
+        });
+      }
     });
 
     function highlightFocusedOption(items) {
@@ -1753,6 +2029,7 @@
       });
     }
   </script>
+  <script src="js/haptic-feedback.js"></script>
   <script src="js/pwa-offline.js"></script>
 </body>
 </html>
